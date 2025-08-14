@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .glass-card {
+    @apply bg-white/10 backdrop-blur-md border border-white/20 dark:bg-gray-900/50;
+  }
+  
+  .glass-button {
+    @apply hover:bg-white/10 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors;
+  }
+
+  .bg-winter-light {
+    @apply bg-gradient-to-br from-blue-50 via-white to-blue-50;
+  }
+
+  .bg-winter-dark {
+    @apply bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900;
+  }
+}
