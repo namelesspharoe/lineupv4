@@ -9,6 +9,7 @@ import { getUserById } from '../../../services/users';
 import { StudentReviewForm } from '../../lessons/StudentReviewForm';
 import { achievementService } from '../../../services/achievements';
 import { AchievementNotification } from '../../gamification/AchievementNotification';
+import { ProfilePicturePopup } from '../../common/ProfilePicturePopup';
 
 interface StudentDashboardProps {
   user: User;
@@ -595,6 +596,8 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
   const [selectedLesson, setSelectedLesson] = useState<(Lesson & { instructor?: User }) | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'lessons'>('overview');
   const [newAchievements, setNewAchievements] = useState<any[]>([]);
+  const [showProfilePopup, setShowProfilePopup] = useState(false);
+  const [localUser, setLocalUser] = useState(user);
 
   const getLevelColor = (level: string) => {
     switch (level) {
@@ -716,6 +719,49 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
   useEffect(() => {
     loadLessons();
   }, [user.id]);
+
+  // Check if user should see profile picture popup (new users with default avatar)
+  useEffect(() => {
+    const defaultAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+    const shouldShowPopup = user.avatar === defaultAvatar;
+    
+    // Check URL parameters for immediate popup trigger
+    const urlParams = new URLSearchParams(window.location.search);
+    const showProfilePopup = urlParams.get('showProfilePopup');
+    
+    if (showProfilePopup === 'true' && shouldShowPopup) {
+      setShowProfilePopup(true);
+      // Clean up the URL parameter
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('showProfilePopup');
+      window.history.replaceState({}, '', newUrl.toString());
+      return;
+    }
+    
+    // Check if this is a new user (created within last 24 hours)
+    const userCreatedTime = new Date(user.createdAt || Date.now()).getTime();
+    const isNewUser = Date.now() - userCreatedTime < 24 * 60 * 60 * 1000; // 24 hours
+    
+    // Also check if user just completed signup (no previous achievements)
+    const checkIfNewSignup = async () => {
+      try {
+        const achievements = await achievementService.getStudentAchievements(user.id);
+        const hasAnyAchievements = achievements.length > 0;
+        
+        if (shouldShowPopup && (isNewUser || !hasAnyAchievements)) {
+          setShowProfilePopup(true);
+        }
+      } catch (error) {
+        console.error('Error checking achievements:', error);
+        // Fallback to time-based check
+        if (shouldShowPopup && isNewUser) {
+          setShowProfilePopup(true);
+        }
+      }
+    };
+    
+    checkIfNewSignup();
+  }, [user]);
 
   const progress = calculateProgress();
 
@@ -1263,6 +1309,18 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
           autoCloseDelay={5000}
         />
       ))}
+
+      {/* Profile Picture Popup */}
+      {showProfilePopup && (
+        <ProfilePicturePopup
+          user={localUser}
+          onClose={() => setShowProfilePopup(false)}
+          onUpdate={(avatarUrl) => {
+            setLocalUser(prev => ({ ...prev, avatar: avatarUrl }));
+            // Also update the parent user state if needed
+          }}
+        />
+      )}
     </div>
   );
 }

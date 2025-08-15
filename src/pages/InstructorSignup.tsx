@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Snowflake, ChevronRight, Camera, Award } from 'lucide-react';
+import { Snowflake, ChevronRight, Award } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface FormData {
@@ -10,6 +10,9 @@ interface FormData {
   confirmPassword: string;
   avatar: string;
   bio: string;
+  phone: string;
+  address: string;
+  homeMountain: string;
   certifications: string[];
   languages: string[];
   yearsOfExperience: number;
@@ -29,7 +32,6 @@ export function InstructorSignup() {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -38,6 +40,9 @@ export function InstructorSignup() {
     confirmPassword: '',
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
     bio: '',
+    phone: '',
+    address: '',
+    homeMountain: '',
     certifications: [],
     languages: [],
     yearsOfExperience: 0,
@@ -47,30 +52,12 @@ export function InstructorSignup() {
     specialties: []
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, avatar: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
-    }
+  // Avatar upload temporarily disabled
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Function disabled for now
   };
 
-  // Track blob URLs for cleanup
-  const blobUrlRef = useRef<string | null>(null);
 
-  // Cleanup effect for any remaining blob URLs
-  useEffect(() => {
-    return () => {
-      // Clean up any blob URLs when component unmounts
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
-      }
-    };
-  }, []);
 
   const validateStep = (currentStep: number): boolean => {
     const newErrors: FormErrors = {};
@@ -87,6 +74,7 @@ export function InstructorSignup() {
     if (currentStep === 2) {
       if (!formData.yearsOfExperience) newErrors.yearsOfExperience = 'Years of experience is required';
       if (!formData.hourlyRate) newErrors.hourlyRate = 'Hourly rate is required';
+      if (!formData.homeMountain) newErrors.homeMountain = 'Home mountain is required';
       if (formData.certifications.length === 0) newErrors.certifications = 'At least one certification is required';
       if (formData.languages.length === 0) newErrors.languages = 'At least one language is required';
     }
@@ -124,25 +112,35 @@ export function InstructorSignup() {
         name: formData.name,
         email: formData.email,
         role: 'instructor',
-        avatar: formData.avatar,
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', // Default avatar
         bio: formData.bio,
+        phone: formData.phone,
+        address: formData.address,
+        homeMountain: formData.homeMountain,
         certifications: formData.certifications,
         languages: formData.languages,
         yearsOfExperience: formData.yearsOfExperience,
         hourlyRate: formData.hourlyRate,
         preferredLocations: formData.preferredLocations,
         qualifications: formData.qualifications,
-        specialties: formData.specialties
+        specialties: formData.specialties,
+        createdAt: new Date().toISOString()
       });
 
-      navigate('/');
+      navigate('/dashboard?showProfilePopup=true');
 
-    } catch (error: any) {
-      console.error('Signup error:', error);
-      setErrors({ 
-        submit: error.message || 'An error occurred during signup'
-      });
-    } finally {
+    } catch (err: any) {
+      console.error('Signup error:', err);
+      if (err.message?.includes('auth/email-already-in-use')) {
+        setErrors({
+          email: 'This email is already registered. Please use a different email or sign in.'
+        });
+        setStep(1);
+      } else {
+        setErrors({ 
+          submit: err.message || 'An error occurred during signup'
+        });
+      }
       setIsSubmitting(false);
     }
   };
@@ -233,6 +231,36 @@ export function InstructorSignup() {
                 />
                 {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
               </div>
+
+              <div>
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                  Phone Number
+                </label>
+                <input
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="(555) 123-4567"
+                />
+                {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+                  Address
+                </label>
+                <textarea
+                  id="address"
+                  rows={3}
+                  value={formData.address}
+                  onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter your full address..."
+                />
+                {errors.address && <p className="mt-1 text-sm text-red-600">{errors.address}</p>}
+              </div>
             </div>
           )}
 
@@ -266,6 +294,21 @@ export function InstructorSignup() {
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
                 />
                 {errors.hourlyRate && <p className="mt-1 text-sm text-red-600">{errors.hourlyRate}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="homeMountain" className="block text-sm font-medium text-gray-700">
+                  Home Mountain
+                </label>
+                <input
+                  id="homeMountain"
+                  type="text"
+                  value={formData.homeMountain}
+                  onChange={(e) => setFormData(prev => ({ ...prev, homeMountain: e.target.value }))}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="e.g., Vail, Aspen, Breckenridge"
+                />
+                {errors.homeMountain && <p className="mt-1 text-sm text-red-600">{errors.homeMountain}</p>}
               </div>
 
               <div>
@@ -326,33 +369,16 @@ export function InstructorSignup() {
                 <label className="block text-sm font-medium text-gray-700">Profile Photo</label>
                 <div className="mt-1 flex items-center justify-center">
                   <div className="relative">
-                    {formData.avatar ? (
-                      <img
-                        src={formData.avatar}
-                        alt="Profile"
-                        className="h-32 w-32 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="h-32 w-32 rounded-full bg-gray-100 flex items-center justify-center">
-                        <Camera className="h-8 w-8 text-gray-400" />
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="absolute bottom-0 right-0 bg-blue-600 p-2 rounded-full text-white hover:bg-blue-700"
-                    >
-                      <Camera className="h-4 w-4" />
-                    </button>
+                    <img
+                      src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"
+                      alt="Profile"
+                      className="h-32 w-32 rounded-full object-cover"
+                    />
                   </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
                 </div>
+                <p className="mt-2 text-sm text-gray-500 text-center">
+                  Profile pictures can be added after signup
+                </p>
               </div>
 
               <div>

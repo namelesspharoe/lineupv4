@@ -36,6 +36,8 @@ import { AvailabilityCalendar } from '../../calendar/AvailabilityCalendar';
 import { AvailabilityManager } from '../../calendar/AvailabilityManager';
 import { EnhancedFeedbackForm } from '../../lessons/EnhancedFeedbackForm';
 import { completeLesson, startLesson } from '../../../services/lessons';
+import { ProfilePicturePopup } from '../../common/ProfilePicturePopup';
+import { achievementService } from '../../../services/achievements';
 
 // Helper function to calculate lesson duration in minutes
 const calculateDuration = (startTime: string, endTime: string): number => {
@@ -696,6 +698,8 @@ export function InstructorDashboard({ user }: { user: User }) {
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(true);
+  const [showProfilePopup, setShowProfilePopup] = useState(false);
+  const [localUser, setLocalUser] = useState(user);
 
   // Memoize availability to prevent infinite loops in child components
   const memoizedAvailability = useMemo(() => availability, [availability]);
@@ -717,6 +721,49 @@ export function InstructorDashboard({ user }: { user: User }) {
   useEffect(() => {
     loadAvailability();
   }, [user.id]);
+
+  // Check if user should see profile picture popup (new users with default avatar)
+  useEffect(() => {
+    const defaultAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+    const shouldShowPopup = user.avatar === defaultAvatar;
+    
+    // Check URL parameters for immediate popup trigger
+    const urlParams = new URLSearchParams(window.location.search);
+    const showProfilePopup = urlParams.get('showProfilePopup');
+    
+    if (showProfilePopup === 'true' && shouldShowPopup) {
+      setShowProfilePopup(true);
+      // Clean up the URL parameter
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('showProfilePopup');
+      window.history.replaceState({}, '', newUrl.toString());
+      return;
+    }
+    
+    // Check if this is a new user (created within last 24 hours)
+    const userCreatedTime = new Date(user.createdAt || Date.now()).getTime();
+    const isNewUser = Date.now() - userCreatedTime < 24 * 60 * 60 * 1000; // 24 hours
+    
+    // Also check if user just completed signup (no previous achievements)
+    const checkIfNewSignup = async () => {
+      try {
+        const achievements = await achievementService.getStudentAchievements(user.id);
+        const hasAnyAchievements = achievements.length > 0;
+        
+        if (shouldShowPopup && (isNewUser || !hasAnyAchievements)) {
+          setShowProfilePopup(true);
+        }
+      } catch (error) {
+        console.error('Error checking achievements:', error);
+        // Fallback to time-based check
+        if (shouldShowPopup && isNewUser) {
+          setShowProfilePopup(true);
+        }
+      }
+    };
+    
+    checkIfNewSignup();
+  }, [user]);
 
   useEffect(() => {
     // Listen for lessons
@@ -1267,6 +1314,18 @@ export function InstructorDashboard({ user }: { user: User }) {
         <StudentDetailsModal
           student={selectedStudent}
           onClose={() => setSelectedStudent(null)}
+        />
+      )}
+
+      {/* Profile Picture Popup */}
+      {showProfilePopup && (
+        <ProfilePicturePopup
+          user={localUser}
+          onClose={() => setShowProfilePopup(false)}
+          onUpdate={(avatarUrl) => {
+            setLocalUser(prev => ({ ...prev, avatar: avatarUrl }));
+            // Also update the parent user state if needed
+          }}
         />
       )}
     </div>

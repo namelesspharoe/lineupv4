@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { doc, updateDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { AvatarUpload } from '../common/AvatarUpload';
 
 interface StudentProfileProps {
   student: User;
@@ -64,6 +65,11 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
   useEffect(() => {
     loadStudentStats();
   }, [student.id]);
+
+  // Reset editedProfile when student prop changes
+  useEffect(() => {
+    setEditedProfile(student);
+  }, [student]);
 
   const loadStudentStats = async () => {
     try {
@@ -143,7 +149,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
         totalLessons,
         completedLessons,
         averageRating: Math.round(averageRating * 10) / 10,
-        currentLevel: progress?.overallLevel || 'first_time',
+        currentLevel: progress?.level || 'first_time',
         totalAchievements: achievements.length,
         lessonsThisMonth,
         favoriteInstructors,
@@ -163,10 +169,15 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
       await updateDoc(userRef, {
         name: editedProfile.name,
         bio: editedProfile.bio,
-        level: editedProfile.level
+        phone: editedProfile.phone,
+        address: editedProfile.address,
+        level: editedProfile.level,
+        avatar: editedProfile.avatar
       });
 
-      onUpdate?.(editedProfile);
+      // Update the local student state to reflect changes immediately
+      const updatedStudent = { ...student, ...editedProfile };
+      onUpdate?.(updatedStudent);
       setIsEditing(false);
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -185,6 +196,29 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleAvatarUpdate = async (avatarUrl: string) => {
+    console.log('Avatar updated:', avatarUrl);
+    setEditedProfile(prev => ({
+      ...prev,
+      avatar: avatarUrl
+    }));
+    
+    // Automatically save the avatar update to the database
+    try {
+      const userRef = doc(db, 'users', student.id);
+      await updateDoc(userRef, {
+        avatar: avatarUrl
+      });
+      console.log('Avatar saved to database successfully');
+      
+      // Update the local student state
+      const updatedStudent = { ...student, avatar: avatarUrl };
+      onUpdate?.(updatedStudent);
+    } catch (error) {
+      console.error('Error saving avatar to database:', error);
+    }
   };
 
   const getLevelColor = (level: string) => {
@@ -214,31 +248,35 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-4">
-          <div className="relative">
-            <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center">
-              {student.avatar ? (
-                <img 
-                  src={student.avatar} 
-                  alt={student.name}
-                  className="w-20 h-20 rounded-full object-cover"
-                />
-              ) : (
-                <UserIcon className="w-10 h-10 text-white" />
-              )}
+          {isEditable ? (
+            <AvatarUpload
+              currentAvatar={editedProfile.avatar}
+              userId={student.id}
+              onAvatarUpdate={handleAvatarUpdate}
+              size="md"
+            />
+          ) : (
+            <div className="relative">
+              <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center">
+                {student.avatar ? (
+                  <img 
+                    src={student.avatar} 
+                    alt={student.name}
+                    className="w-20 h-20 rounded-full object-cover"
+                  />
+                ) : (
+                  <UserIcon className="w-10 h-10 text-white" />
+                )}
+              </div>
             </div>
-            {isEditable && (
-              <button className="absolute -bottom-1 -right-1 bg-green-500 text-white p-1 rounded-full hover:bg-green-600 transition-colors">
-                <Camera className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+          )}
           <div>
             <div className="flex items-center space-x-2">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                 {student.name}
               </h1>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getLevelColor(stats.currentLevel)}`}>
-                {getLevelDisplayName(stats.currentLevel)}
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getLevelColor(student.level || 'first_time')}`}>
+                {getLevelDisplayName(student.level || 'first_time')}
               </span>
             </div>
             <p className="text-gray-600 dark:text-gray-300">
@@ -344,7 +382,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
             <span className="text-sm text-gray-600 dark:text-gray-300">Current Level</span>
           </div>
           <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
-            {getLevelDisplayName(stats.currentLevel)}
+            {getLevelDisplayName(student.level || 'first_time')}
           </p>
         </div>
         
@@ -418,6 +456,56 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
             )}
           </div>
 
+          {/* Contact Information */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+              Contact Information
+            </h3>
+            {isEditing ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={editedProfile.phone || ''}
+                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">
+                    Address
+                  </label>
+                  <textarea
+                    value={editedProfile.address || ''}
+                    onChange={(e) => handleInputChange('address', e.target.value)}
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    rows={3}
+                    placeholder="Enter your full address..."
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {student.phone && (
+                  <div className="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
+                    <Phone className="w-4 h-4" />
+                    <span>{student.phone}</span>
+                  </div>
+                )}
+                {student.address && (
+                  <div className="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
+                    <MapPin className="w-4 h-4" />
+                    <span>{student.address}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Current Level */}
           <div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
@@ -438,8 +526,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
               </select>
             ) : (
               <div className="flex items-center space-x-3">
-                <span className={`px-3 py-2 rounded-full text-sm font-medium ${getLevelColor(stats.currentLevel)}`}>
-                  {getLevelDisplayName(stats.currentLevel)}
+                <span className={`px-3 py-2 rounded-full text-sm font-medium ${getLevelColor(student.level || 'first_time')}`}>
+                  {getLevelDisplayName(student.level || 'first_time')}
                 </span>
                 <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div 
@@ -447,7 +535,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                     style={{ 
                       width: `${(() => {
                         const levels = ['first_time', 'developing_turns', 'linking_turns', 'confident_turns', 'consistent_blue'];
-                        const currentIndex = levels.indexOf(stats.currentLevel);
+                        const currentIndex = levels.indexOf(student.level || 'first_time');
                         return ((currentIndex + 1) / levels.length) * 100;
                       })()}%` 
                     }}
@@ -499,7 +587,13 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
               {student.phone && (
                 <div className="flex items-center space-x-3 text-gray-700 dark:text-gray-300">
                   <Phone className="w-4 h-4" />
-                  <span>{student.phone || 'Not provided'}</span>
+                  <span>{student.phone}</span>
+                </div>
+              )}
+              {student.address && (
+                <div className="flex items-center space-x-3 text-gray-700 dark:text-gray-300">
+                  <MapPin className="w-4 h-4" />
+                  <span>{student.address}</span>
                 </div>
               )}
             </div>
@@ -559,14 +653,6 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
               <button className="p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm">
                 <BookOpen className="w-4 h-4 mx-auto mb-1" />
                 View Progress
-              </button>
-              <button className="p-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm">
-                <Trophy className="w-4 h-4 mx-auto mb-1" />
-                Achievements
-              </button>
-              <button className="p-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm">
-                <Target className="w-4 h-4 mx-auto mb-1" />
-                Set Goals
               </button>
             </div>
           </div>

@@ -24,6 +24,8 @@ export interface User {
   avatar: string;
   bio?: string;
   phone?: string;
+  address?: string;
+  homeMountain?: string; // Only for instructors
   specialties?: string[];
   level?: string;
   certifications?: string[];
@@ -35,6 +37,7 @@ export interface User {
   qualifications?: string;
   isGroup?: boolean;
   participants?: string[];
+  createdAt?: string;
 }
 
 export interface SkillProgress {

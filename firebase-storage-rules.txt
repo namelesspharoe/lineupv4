@@ -1,0 +1,20 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow authenticated users to read and write their own avatars
+    match /avatars/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow unauthenticated uploads to temp signup paths
+    match /avatars/temp_{tempId}/{fileName} {
+      allow write: if true; // Allow anyone to write to temp paths during signup
+      allow read: if true;  // Allow reading temp uploads
+    }
+    
+    // Default rule - deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { InstructorProfile, AdminProfile, StudentProfile } from '../components/profile';
 
 export function Profile() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
 
   if (!user) {
     return (
@@ -36,7 +36,7 @@ export function Profile() {
           admin={user} 
           isEditable={true}
           onUpdate={(updatedUser) => {
-            // Handle profile update if needed
+            updateUser(updatedUser);
             console.log('Admin profile updated:', updatedUser);
           }}
         />
@@ -47,7 +47,7 @@ export function Profile() {
           instructor={user} 
           isEditable={true}
           onUpdate={(updatedUser) => {
-            // Handle profile update if needed
+            updateUser(updatedUser);
             console.log('Instructor profile updated:', updatedUser);
           }}
         />
@@ -58,7 +58,7 @@ export function Profile() {
           student={user} 
           isEditable={true}
           onUpdate={(updatedUser) => {
-            // Handle profile update if needed
+            updateUser(updatedUser);
             console.log('Student profile updated:', updatedUser);
           }}
         />

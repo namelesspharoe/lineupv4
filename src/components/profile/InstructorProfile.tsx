@@ -31,6 +31,7 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { instructorStatsService, InstructorStats } from '../../services/instructorStats';
+import { AvatarUpload } from '../common/AvatarUpload';
 
 interface InstructorProfileProps {
   instructor: User;
@@ -86,6 +87,11 @@ export const InstructorProfile: React.FC<InstructorProfileProps> = ({
     loadEnhancedStats();
     loadReviews();
   }, [instructor.id]);
+
+  // Reset editedProfile when instructor prop changes
+  useEffect(() => {
+    setEditedProfile(instructor);
+  }, [instructor]);
 
   const loadEnhancedStats = async () => {
     try {
@@ -373,8 +379,8 @@ export const InstructorProfile: React.FC<InstructorProfileProps> = ({
       // Filter out undefined values to prevent Firebase errors
       const updateData: any = {};
       const fieldsToUpdate = [
-        'name', 'bio', 'specialties', 'certifications', 'languages', 
-        'yearsOfExperience', 'price', 'hourlyRate', 'preferredLocations', 'qualifications'
+        'name', 'bio', 'phone', 'address', 'homeMountain', 'specialties', 'certifications', 'languages', 
+        'yearsOfExperience', 'price', 'hourlyRate', 'preferredLocations', 'qualifications', 'avatar'
       ];
       
       fieldsToUpdate.forEach(field => {
@@ -385,7 +391,9 @@ export const InstructorProfile: React.FC<InstructorProfileProps> = ({
 
       await updateDoc(userRef, updateData);
 
-      onUpdate?.(editedProfile);
+      // Update the local instructor state to reflect changes immediately
+      const updatedInstructor = { ...instructor, ...editedProfile };
+      onUpdate?.(updatedInstructor);
       setIsEditing(false);
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -404,6 +412,29 @@ export const InstructorProfile: React.FC<InstructorProfileProps> = ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleAvatarUpdate = async (avatarUrl: string) => {
+    console.log('Avatar updated:', avatarUrl);
+    setEditedProfile(prev => ({
+      ...prev,
+      avatar: avatarUrl
+    }));
+    
+    // Automatically save the avatar update to the database
+    try {
+      const userRef = doc(db, 'users', instructor.id);
+      await updateDoc(userRef, {
+        avatar: avatarUrl
+      });
+      console.log('Avatar saved to database successfully');
+      
+      // Update the local instructor state
+      const updatedInstructor = { ...instructor, avatar: avatarUrl };
+      onUpdate?.(updatedInstructor);
+    } catch (error) {
+      console.error('Error saving avatar to database:', error);
+    }
   };
 
   const handleArrayChange = (field: keyof User, value: string) => {
@@ -437,24 +468,28 @@ export const InstructorProfile: React.FC<InstructorProfileProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-4">
-          <div className="relative">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-              {instructor.avatar ? (
-                <img 
-                  src={instructor.avatar} 
-                  alt={instructor.name}
-                  className="w-20 h-20 rounded-full object-cover"
-                />
-              ) : (
-                <UserIcon className="w-10 h-10 text-white" />
-              )}
+          {isEditable ? (
+            <AvatarUpload
+              currentAvatar={editedProfile.avatar}
+              userId={instructor.id}
+              onAvatarUpdate={handleAvatarUpdate}
+              size="md"
+            />
+          ) : (
+            <div className="relative">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                {instructor.avatar ? (
+                  <img 
+                    src={instructor.avatar} 
+                    alt={instructor.name}
+                    className="w-20 h-20 rounded-full object-cover"
+                  />
+                ) : (
+                  <UserIcon className="w-10 h-10 text-white" />
+                )}
+              </div>
             </div>
-            {isEditable && (
-              <button className="absolute -bottom-1 -right-1 bg-blue-500 text-white p-1 rounded-full hover:bg-blue-600 transition-colors">
-                <Camera className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+          )}
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -798,6 +833,74 @@ export const InstructorProfile: React.FC<InstructorProfileProps> = ({
             )}
           </div>
 
+          {/* Contact Information */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+              Contact Information
+            </h3>
+            {isEditing ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={editedProfile.phone || ''}
+                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">
+                    Address
+                  </label>
+                  <textarea
+                    value={editedProfile.address || ''}
+                    onChange={(e) => handleInputChange('address', e.target.value)}
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    rows={3}
+                    placeholder="Enter your full address..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">
+                    Home Mountain
+                  </label>
+                  <input
+                    type="text"
+                    value={editedProfile.homeMountain || ''}
+                    onChange={(e) => handleInputChange('homeMountain', e.target.value)}
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="e.g., Vail, Aspen, Breckenridge"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {instructor.phone && (
+                  <div className="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
+                    <Phone className="w-4 h-4" />
+                    <span>{instructor.phone}</span>
+                  </div>
+                )}
+                {instructor.address && (
+                  <div className="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
+                    <MapPin className="w-4 h-4" />
+                    <span>{instructor.address}</span>
+                  </div>
+                )}
+                {instructor.homeMountain && (
+                  <div className="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
+                    <MapPin className="w-4 h-4" />
+                    <span><strong>Home Mountain:</strong> {instructor.homeMountain}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Specialties */}
           <div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
@@ -974,6 +1077,24 @@ export const InstructorProfile: React.FC<InstructorProfileProps> = ({
                 <Mail className="w-4 h-4" />
                 <span>{instructor.email}</span>
               </div>
+              {instructor.phone && (
+                <div className="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
+                  <Phone className="w-4 h-4" />
+                  <span>{instructor.phone}</span>
+                </div>
+              )}
+              {instructor.address && (
+                <div className="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
+                  <MapPin className="w-4 h-4" />
+                  <span>{instructor.address}</span>
+                </div>
+              )}
+              {instructor.homeMountain && (
+                <div className="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
+                  <MapPin className="w-4 h-4" />
+                  <span><strong>Home Mountain:</strong> {instructor.homeMountain}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

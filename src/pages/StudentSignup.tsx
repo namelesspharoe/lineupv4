@@ -1,9 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Snowflake, ChevronRight, ChevronLeft, Camera, Plus, X } from 'lucide-react';
+import { Snowflake, ChevronRight, ChevronLeft, Plus, X } from 'lucide-react';
 import { StudentLevelQuestionnaire } from '../components/StudentLevelQuestionnaire';
-import { uploadAvatar } from '../services/storage';
 import { createKidProfile } from '../services/kids';
 import { KidProfile } from '../types';
 import { auth } from '../lib/firebase';
@@ -15,6 +14,8 @@ interface FormData {
   confirmPassword: string;
   avatar: string;
   bio: string;
+  phone: string;
+  address: string;
   level: 'first_time' | 'developing_turns' | 'linking_turns' | 'confident_turns' | 'consistent_blue';
   interests: string[];
   hasKids: boolean;
@@ -31,9 +32,6 @@ export function StudentSignup() {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
   const [showKidForm, setShowKidForm] = useState(false);
   const [kidProfiles, setKidProfiles] = useState<Partial<KidProfile>[]>([]);
   const [signupCompleted, setSignupCompleted] = useState(false);
@@ -46,6 +44,8 @@ export function StudentSignup() {
     confirmPassword: '',
     avatar: '',
     bio: '',
+    phone: '',
+    address: '',
     level: 'first_time',
     interests: [],
     hasKids: false,
@@ -53,9 +53,6 @@ export function StudentSignup() {
     newsletter: false
   });
   
-  // Track blob URLs for cleanup
-  const blobUrlRef = useRef<string | null>(null);
-
   // Navigate to dashboard when user is available after signup
   useEffect(() => {
     if (signupCompleted && user) {
@@ -64,61 +61,10 @@ export function StudentSignup() {
     }
   }, [signupCompleted, user, navigate]);
 
+  // Avatar upload temporarily disabled
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Clean up any existing blob URL
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current);
-      blobUrlRef.current = null;
-    }
-    
-    try {
-      setIsUploading(true);
-      setUploadProgress(0);
-
-      // Create a temporary URL for preview
-      const previewUrl = URL.createObjectURL(file);
-      blobUrlRef.current = previewUrl;
-      setFormData(prev => ({ ...prev, avatar: previewUrl }));
-
-      // Upload to Firebase Storage
-      const downloadUrl = await uploadAvatar(file, crypto.randomUUID());
-      setFormData(prev => ({ ...prev, avatar: downloadUrl }));
-      
-      setUploadProgress(100);
-      
-      // Clean up the preview URL after successful upload
-      setTimeout(() => {
-        if (blobUrlRef.current) {
-          URL.revokeObjectURL(blobUrlRef.current);
-          blobUrlRef.current = null;
-        }
-      }, 1000); // Give the image time to load
-    } catch (error: any) {
-      console.error('Error uploading file:', error);
-      setErrors(prev => ({ ...prev, avatar: error.message || 'Failed to upload image' }));
-      // Clean up preview URL on error
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
-      }
-    } finally {
-      setIsUploading(false);
-    }
+    // Function disabled for now
   };
-
-  // Cleanup effect for any remaining blob URLs
-  useEffect(() => {
-    return () => {
-      // Clean up any blob URLs when component unmounts
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
-      }
-    };
-  }, []);
 
   const handleLevelSelect = (level: string) => {
     setFormData(prev => ({ 
@@ -184,10 +130,13 @@ export function StudentSignup() {
         name: formData.name,
         email: formData.email,
         role: 'student' as const,
-        avatar: formData.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', // Default avatar
         bio: formData.bio || '',
+        phone: formData.phone,
+        address: formData.address,
         level: formData.level,
-        specialties: formData.interests
+        specialties: formData.interests,
+        createdAt: new Date().toISOString()
       };
       
       await signup(formData.email, formData.password, userData);
@@ -236,7 +185,7 @@ export function StudentSignup() {
 
       console.log('Signup completed successfully, navigating to dashboard...');
       setSignupCompleted(true);
-      // Navigation will happen automatically when user state updates
+      navigate('/dashboard?showProfilePopup=true');
 
     } catch (err: any) {
       console.error('Signup error:', err);
@@ -340,6 +289,36 @@ export function StudentSignup() {
                 />
                 {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
               </div>
+
+              <div>
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                  Phone Number
+                </label>
+                <input
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="(555) 123-4567"
+                />
+                {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+                  Address
+                </label>
+                <textarea
+                  id="address"
+                  rows={3}
+                  value={formData.address}
+                  onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter your full address..."
+                />
+                {errors.address && <p className="mt-1 text-sm text-red-600">{errors.address}</p>}
+              </div>
             </div>
           )}
 
@@ -347,7 +326,7 @@ export function StudentSignup() {
             <div className="space-y-6">
               <StudentLevelQuestionnaire onLevelSelect={handleLevelSelect} />
               
-              {/* Avatar Upload */}
+              {/* Avatar Upload - Temporarily Disabled */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Profile Picture
@@ -355,34 +334,15 @@ export function StudentSignup() {
                 <div className="flex items-center space-x-4">
                   <div className="relative">
                     <img
-                      src={formData.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
+                      src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"
                       alt="Profile"
                       className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
                     />
-                    {isUploading && (
-                      <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
-                        <div className="text-white text-xs">{uploadProgress}%</div>
-                      </div>
-                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
-                    disabled={isUploading}
-                  >
-                    <Camera className="w-4 h-4" />
-                    {isUploading ? 'Uploading...' : 'Upload Photo'}
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
+                  <div className="text-sm text-gray-500">
+                    Profile pictures can be added after signup
+                  </div>
                 </div>
-                {errors.avatar && <p className="mt-1 text-sm text-red-600">{errors.avatar}</p>}
               </div>
 
               {/* Bio */}
@@ -562,9 +522,9 @@ export function StudentSignup() {
               ) : (
                 <button
                   type="submit"
-                  disabled={isSubmitting || isUploading}
+                  disabled={isSubmitting}
                   className={`px-8 py-2 bg-blue-600 text-white rounded-lg transition-colors ${
-                    (isSubmitting || isUploading) ? 'opacity-75 cursor-not-allowed' : 'hover:bg-blue-700'
+                    isSubmitting ? 'opacity-75 cursor-not-allowed' : 'hover:bg-blue-700'
                   }`}
                 >
                   {isSubmitting ? 'Creating Account...' : 'Complete Signup'}

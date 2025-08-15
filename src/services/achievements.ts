@@ -23,7 +23,7 @@ export interface AchievementDefinition {
   icon: string;
   category: 'skill' | 'milestone' | 'social' | 'streak';
   criteria: {
-    type: 'lessons_completed' | 'skill_level' | 'rating_achieved' | 'streak_days' | 'feedback_count' | 'level_up' | 'account_created';
+    type: 'lessons_completed' | 'skill_level' | 'rating_achieved' | 'streak_days' | 'feedback_count' | 'level_up' | 'account_created' | 'profile_picture_added';
     value: number;
     condition?: 'gte' | 'eq' | 'lte';
   };
@@ -44,6 +44,16 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     criteria: { type: 'account_created', value: 1, condition: 'eq' },
     rarity: 'common',
     points: 10
+  },
+  {
+    id: 'profile_picture',
+    name: 'Picture Perfect',
+    description: 'Added a profile picture to personalize your account',
+    icon: '📸',
+    category: 'social',
+    criteria: { type: 'profile_picture_added', value: 1, condition: 'eq' },
+    rarity: 'common',
+    points: 15
   },
   
   // Lesson completion achievements
@@ -251,16 +261,15 @@ export const achievementService = {
       const batch = writeBatch(db);
       const newAchievements: Achievement[] = [];
 
-      // Get current student progress
+      // Get current student progress (optional for new users)
       const progressRef = collection(db, 'studentProgress');
       const progressQuery = query(progressRef, where('studentId', '==', studentId));
       const progressSnapshot = await getDocs(progressQuery);
       
-      if (progressSnapshot.empty) {
-        return [];
+      let progress: StudentProgress | null = null;
+      if (!progressSnapshot.empty) {
+        progress = progressSnapshot.docs[0].data() as StudentProgress;
       }
-
-      const progress = progressSnapshot.docs[0].data() as StudentProgress;
 
       // Get completed lessons
       const lessonsRef = collection(db, 'lessons');
@@ -295,18 +304,30 @@ export const achievementService = {
           case 'account_created':
             criteriaValue = 1; // Always true for existing accounts
             break;
+          case 'profile_picture_added':
+            // Check if user has a custom avatar (not the default one)
+            const userRef = doc(db, 'users', studentId);
+            const userDoc = await getDoc(userRef);
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              const defaultAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+              criteriaValue = userData.avatar && userData.avatar !== defaultAvatar ? 1 : 0;
+            }
+            break;
           case 'lessons_completed':
             criteriaValue = completedLessons.length;
             break;
           case 'skill_level':
-            const levelMap = {
-              'first_time': 0,
-              'developing_turns': 1,
-              'linking_turns': 2,
-              'confident_turns': 3,
-              'consistent_blue': 4
-            };
-            criteriaValue = levelMap[progress.level as keyof typeof levelMap] || 0;
+            if (progress) {
+              const levelMap = {
+                'first_time': 0,
+                'developing_turns': 1,
+                'linking_turns': 2,
+                'confident_turns': 3,
+                'consistent_blue': 4
+              };
+              criteriaValue = levelMap[progress.level as keyof typeof levelMap] || 0;
+            }
             break;
           case 'rating_achieved':
             if (feedbacks.length > 0) {
