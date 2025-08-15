@@ -313,10 +313,15 @@ function LessonDetailsModal({ lesson, onClose, onAddStudent, onRemoveStudent }: 
   const handleStartLesson = async () => {
     console.log('Starting lesson:', lesson.id);
     setIsStarting(true);
-    await startLesson(lesson.id);
-    setIsStarting(false);
-    // Optionally, refresh lesson state here
-    window.location.reload(); // quick fix for now
+    try {
+      await startLesson(lesson.id);
+      // Close the modal after successfully starting the lesson
+      onClose();
+    } catch (error) {
+      console.error('Error starting lesson:', error);
+    } finally {
+      setIsStarting(false);
+    }
   };
   const handleCompleteLesson = () => {
     console.log('Completing lesson:', lesson.id);
@@ -669,7 +674,7 @@ function LessonDetailsModal({ lesson, onClose, onAddStudent, onRemoveStudent }: 
 export function InstructorDashboard({ user }: { user: User }) {
   const [showCreateLesson, setShowCreateLesson] = useState(false);
   const [showAddStudent, setShowAddStudent] = useState(false);
-  const [activeLesson, setActiveLesson] = useState<ActiveLesson | null>(null);
+  const [activeLessons, setActiveLessons] = useState<ActiveLesson[]>([]);
   const [upcomingLessons, setUpcomingLessons] = useState<Lesson[]>([]);
   const [pastLessons, setPastLessons] = useState<Lesson[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
@@ -729,6 +734,8 @@ export function InstructorDashboard({ user }: { user: User }) {
         id: doc.id,
         ...doc.data()
       })) as Lesson[];
+      
+
 
       // Find current lesson and upcoming lessons
       const now = new Date();
@@ -737,58 +744,71 @@ export function InstructorDashboard({ user }: { user: User }) {
       const currentTimeString = `${currentHour.toString().padStart(2, '0')}:${currentMinutes.toString().padStart(2, '0')}`;
       const todayString = now.toISOString().split('T')[0];
 
-      // Find active lesson (happening now)
-      const current = lessons.find(lesson => {
-        if (!lesson.time || !lesson.date || lesson.date !== todayString) return false;
+      // Find all active lessons (either in progress or happening now)
+      const active = lessons.filter(lesson => {
+        // First priority: lessons that are in progress
+        if (lesson.status === 'in_progress') {
+          return true;
+        }
         
-        const [lessonHour, lessonMinutes] = lesson.time.split(':').map(Number);
-        if (isNaN(lessonHour) || isNaN(lessonMinutes)) return false;
+        // Second priority: lessons happening now (based on time)
+        if (!lesson.startTime || !lesson.endTime || !lesson.date || lesson.date !== todayString) return false;
         
-        const duration = lesson.startTime && lesson.endTime ? calculateDuration(lesson.startTime, lesson.endTime) : 180; // Default 3 hours
-        const lessonEndHour = lessonHour + Math.floor(duration / 60);
-        const lessonEndMinutes = lessonMinutes + (duration % 60);
-        
-        const lessonTimeString = lesson.time;
-        const lessonEndTimeString = `${lessonEndHour.toString().padStart(2, '0')}:${lessonEndMinutes.toString().padStart(2, '0')}`;
-        
-        return currentTimeString >= lessonTimeString && currentTimeString <= lessonEndTimeString;
+        const isTimeBased = currentTimeString >= lesson.startTime && currentTimeString <= lesson.endTime;
+        return isTimeBased;
       });
 
-      // Set upcoming lessons (excluding current lesson)
+      // Set upcoming lessons (excluding active lessons)
       const upcoming = lessons.filter(lesson => {
-        if (!lesson.date || lesson.id === current?.id) return false;
+        if (!lesson.date || lesson.status === 'in_progress') return false;
+        
+        // Check if this lesson is in the active lessons list
+        const isActive = active.some(activeLesson => activeLesson.id === lesson.id);
+        if (isActive) return false;
         
         const lessonDate = new Date(lesson.date);
-        return lessonDate >= now;
+        const isToday = lessonDate.toDateString() === now.toDateString();
+        
+        // If it's today, check if the lesson time is in the future
+        if (isToday && lesson.startTime) {
+          return currentTimeString < lesson.startTime;
+        }
+        
+        return lessonDate > now;
       }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      // Set past lessons
+      // Set completed lessons
       const past = lessons.filter(lesson => {
-        if (!lesson.date || lesson.id === current?.id) return false;
+        if (!lesson.date || lesson.status !== 'completed') return false;
         
-        const lessonDate = new Date(lesson.date);
-        return lessonDate < now;
+        // Check if this lesson is in the active lessons list
+        const isActive = active.some(activeLesson => activeLesson.id === lesson.id);
+        if (isActive) return false;
+        
+        return true;
       }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-      // If there's a current lesson, fetch student data
-      if (current) {
-        const studentPromises = current.studentIds.map(async (studentId) => {
-          const studentDoc = await getDocs(query(
-            collection(db, 'users'),
-            where('id', '==', studentId)
-          ));
-          return studentDoc.docs[0]?.data() as User;
-        });
+      // Fetch student data for all active lessons
+      const activeLessonsWithStudents = await Promise.all(
+        active.map(async (lesson) => {
+          const studentPromises = lesson.studentIds.map(async (studentId) => {
+            const studentDoc = await getDocs(query(
+              collection(db, 'users'),
+              where('id', '==', studentId)
+            ));
+            return studentDoc.docs[0]?.data() as User;
+          });
 
-        const students = (await Promise.all(studentPromises)).filter(Boolean);
+          const students = (await Promise.all(studentPromises)).filter(Boolean);
 
-        setActiveLesson({
-          ...current,
-          students
-        });
-      } else {
-        setActiveLesson(null);
-      }
+          return {
+            ...lesson,
+            students
+          };
+        })
+      );
+
+      setActiveLessons(activeLessonsWithStudents);
 
       setUpcomingLessons(upcoming);
       setPastLessons(past.slice(0, 5)); // Only show last 5 past lessons
@@ -812,12 +832,17 @@ export function InstructorDashboard({ user }: { user: User }) {
     setShowConfirmation(true);
   };
 
+  const handleCompleteLesson = (lesson: ActiveLesson) => {
+    setSelectedLesson(lesson);
+    // The lesson details modal will handle the completion process
+  };
+
   const confirmRemoveStudent = async () => {
     if (!studentToRemove) return;
 
     try {
       const lessonRef = doc(db, 'lessons', studentToRemove.lessonId);
-      const lesson = selectedLesson || activeLesson;
+      const lesson = selectedLesson || activeLessons.find(l => l.id === studentToRemove.lessonId);
       
       if (!lesson) return;
 
@@ -891,104 +916,127 @@ export function InstructorDashboard({ user }: { user: User }) {
         <InstructorTimesheet instructorId={user.id} />
       )}
 
-      {/* Current Lesson Card */}
+      {/* Active Lessons */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="border-b border-gray-100 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">Current Lesson</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Active Lessons</h2>
         </div>
         <div className="p-6">
-          {activeLesson ? (
+          {activeLessons.length > 0 ? (
             <div className="space-y-6">
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <h3 className="font-medium text-gray-900 mb-2">{activeLesson.title}</h3>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-600">
-                    Duration: {activeLesson.startTime && activeLesson.endTime ? calculateDuration(activeLesson.startTime, activeLesson.endTime) : 180} minutes
-                  </span>
-                  <span className="text-sm text-gray-600">
-                    Level: {activeLesson.skillLevel}
-                  </span>
-                </div>
-                <div className="mt-4 flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-600">Main Lodge</span>
-                </div>
-              </div>
-
-              {/* Student Roster */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2 text-gray-900">
-                    <Users className="w-5 h-5" />
-                    <h3 className="font-medium">Student Roster</h3>
-                  </div>
-                  {activeLesson.type !== 'private' && activeLesson.students.length < activeLesson.maxStudents && (
-                    <button
-                      onClick={() => handleAddStudent(activeLesson.id, activeLesson.studentIds, activeLesson.maxStudents)}
-                      className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
-                    >
-                      <UserPlus className="w-4 h-4" />
-                      Add Student
-                    </button>
-                  )}
-                </div>
-
-                <div className="space-y-3">
-                  {activeLesson.students.length > 0 ? (
-                    activeLesson.students.map(student => (
-                      <div
-                        key={student.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                        onClick={() => setSelectedStudent(student)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={student.avatar}
-                            alt={student.name}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
-                          <div>
-                            <p className="font-medium text-gray-900">{student.name}</p>
-                            <p className="text-sm text-gray-600">Level: {student.level}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={`/messages?student=${student.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
-                          >
-                            <MessageSquare className="w-5 h-5" />
-                          </a>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemoveStudent(activeLesson.id, student.id, student.name);
-                            }}
-                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
+              {activeLessons.map((lesson) => (
+                <div key={lesson.id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <BookOpen className="w-5 h-5 text-green-600" />
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-center p-4 bg-gray-50 rounded-lg text-gray-500">
-                      No students assigned yet
+                                             <div>
+                         <div className="flex items-center gap-2">
+                           <h3 className="font-medium text-gray-900">{lesson.title}</h3>
+                           <span className="px-2 py-1 bg-green-50 text-green-600 text-xs font-medium rounded-full">
+                             {lesson.status === 'in_progress' ? 'In Progress' : 'Active'}
+                           </span>
+                         </div>
+                         <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                           <span>
+                             Time: {lesson.startTime && lesson.endTime ? `${lesson.startTime} - ${lesson.endTime}` : 'TBD'}
+                           </span>
+                           <span>
+                             Duration: {lesson.startTime && lesson.endTime ? calculateDuration(lesson.startTime, lesson.endTime) : 180} minutes
+                           </span>
+                           <span>Level: {lesson.skillLevel}</span>
+                         </div>
+                       </div>
                     </div>
-                  )}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSelectedLesson(lesson)}
+                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      >
+                        View Details
+                      </button>
+                      {lesson.students.length > 0 && (
+                        <button
+                          onClick={() => handleCompleteLesson(lesson)}
+                          className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                        >
+                          Complete Lesson
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-                  {activeLesson.type !== 'private' && (
-                    <div className="text-sm text-gray-600 mt-2">
-                      {activeLesson.students.length} of {activeLesson.maxStudents} students
+                  {/* Student Roster */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2 text-gray-900">
+                        <Users className="w-4 h-4" />
+                        <h4 className="font-medium text-sm">Students ({lesson.students.length})</h4>
+                      </div>
+                      {lesson.type !== 'private' && lesson.students.length < lesson.maxStudents && (
+                        <button
+                          onClick={() => handleAddStudent(lesson.id, lesson.studentIds, lesson.maxStudents)}
+                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                        >
+                          <UserPlus className="w-3 h-3" />
+                          Add Student
+                        </button>
+                      )}
                     </div>
-                  )}
+
+                    <div className="space-y-2">
+                      {lesson.students.length > 0 ? (
+                        lesson.students.map(student => (
+                          <div
+                            key={student.id}
+                            className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                            onClick={() => setSelectedStudent(student)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={student.avatar}
+                                alt={student.name}
+                                className="w-8 h-8 rounded-full object-cover"
+                              />
+                              <div>
+                                <p className="font-medium text-gray-900 text-sm">{student.name}</p>
+                                <p className="text-xs text-gray-600">Level: {student.level}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <a
+                                href={`/messages?student=${student.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                              </a>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveStudent(lesson.id, student.id, student.name);
+                                }}
+                                className="p-1 text-red-500 hover:text-red-700 hover:bg-red-100 rounded transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center p-3 bg-gray-50 rounded-lg text-gray-500 text-sm">
+                          No students assigned yet
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
           ) : (
             <div className="text-center text-gray-500">
-              No active lesson at the moment
+              No active lessons at the moment
             </div>
           )}
         </div>
@@ -1037,7 +1085,7 @@ export function InstructorDashboard({ user }: { user: User }) {
                     <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
                       <div className="flex items-center gap-1">
                         <Clock className="w-4 h-4" />
-                        <span>{lesson.time}</span>
+                        <span>{lesson.startTime && lesson.endTime ? `${lesson.startTime} - ${lesson.endTime}` : lesson.time}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <Target className="w-4 h-4" />
@@ -1065,7 +1113,7 @@ export function InstructorDashboard({ user }: { user: User }) {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="border-b border-gray-100 px-6 py-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Past Lessons</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Completed Lessons</h2>
             <button className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
               View All
               <ChevronRight className="w-4 h-4" />
@@ -1118,7 +1166,7 @@ export function InstructorDashboard({ user }: { user: User }) {
           })}
           {pastLessons.length === 0 && (
             <div className="p-6 text-center text-gray-500">
-              No past lessons
+              No completed lessons
             </div>
           )}
         </div>
