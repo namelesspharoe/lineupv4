@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, User, Mail, Phone, Plus, Check } from 'lucide-react';
+import { Search, X, User, Mail, Phone, Plus, Check, Eye } from 'lucide-react';
 import { collection, query, where, getDocs, or } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { User as UserType } from '../../types';
+import { StudentProfileModal } from '../student/StudentProfileModal';
 
 interface StudentSearchProps {
   onStudentSelect: (student: UserType) => void;
@@ -27,6 +28,7 @@ export function StudentSearch({
   const [searchResults, setSearchResults] = useState<UserType[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<UserType | null>(null);
 
   useEffect(() => {
     if (searchQuery.length >= 2) {
@@ -156,12 +158,10 @@ export function StudentSearch({
       {!isSearching && searchResults.length > 0 && (
         <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
           {searchResults.map(student => (
-            <button
+            <div
               key={student.id}
-              onClick={() => handleStudentSelect(student)}
-              disabled={isStudentSelected(student.id)}
               className={`w-full p-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
-                isStudentSelected(student.id) ? 'bg-gray-50 opacity-50 cursor-not-allowed' : ''
+                isStudentSelected(student.id) ? 'bg-gray-50 opacity-50' : ''
               }`}
             >
               <div className="flex items-center justify-between">
@@ -185,13 +185,32 @@ export function StudentSearch({
                     </div>
                   </div>
                 </div>
-                {isStudentSelected(student.id) ? (
-                  <Check className="w-5 h-5 text-green-600" />
-                ) : (
-                  <Plus className="w-5 h-5 text-blue-600" />
-                )}
+                <div className="flex items-center gap-2">
+                  {!isStudentSelected(student.id) && (
+                    <button
+                      onClick={() => handleStudentSelect(student)}
+                      className="p-1 hover:bg-blue-100 rounded transition-colors"
+                      title="Add Student"
+                    >
+                      <Plus className="w-4 h-4 text-blue-600" />
+                    </button>
+                  )}
+                  {isStudentSelected(student.id) && (
+                    <Check className="w-5 h-5 text-green-600" />
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedStudentForProfile(student);
+                    }}
+                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                    title="View Profile"
+                  >
+                    <Eye className="w-4 h-4 text-gray-600" />
+                  </button>
+                </div>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -235,6 +254,13 @@ export function StudentSearch({
             ))}
           </div>
         </div>
+      )}
+
+      {selectedStudentForProfile && (
+        <StudentProfileModal
+          student={selectedStudentForProfile}
+          onClose={() => setSelectedStudentForProfile(null)}
+        />
       )}
     </div>
   );

@@ -22,7 +22,8 @@ import {
   EyeOff,
   Check,
   X as XIcon,
-  Shield
+  Shield,
+  User as UserIcon
 } from 'lucide-react';
 import { UnifiedLessonModal } from '../lessons/UnifiedLessonModal';
 import { AvailabilityCalendar } from '../calendar/AvailabilityCalendar';
@@ -664,6 +665,16 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
                   >
                     <MessageSquare className="w-5 h-5" />
                     Contact Instructor
+                  </button>
+                  <button
+                    onClick={() => {
+                      onClose();
+                      navigate(`/profile/${instructor.id}`);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    <UserIcon className="w-5 h-5" />
+                    View Full Profile
                   </button>
 
                   {/* Reviews Summary */}

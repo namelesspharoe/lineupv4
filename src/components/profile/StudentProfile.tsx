@@ -166,14 +166,17 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
     try {
       setIsLoading(true);
       const userRef = doc(db, 'users', student.id);
-      await updateDoc(userRef, {
-        name: editedProfile.name,
-        bio: editedProfile.bio,
-        phone: editedProfile.phone,
-        address: editedProfile.address,
-        level: editedProfile.level,
-        avatar: editedProfile.avatar
-      });
+      
+      // Filter out undefined values to prevent Firebase errors
+      const updateData: any = {};
+      if (editedProfile.name !== undefined) updateData.name = editedProfile.name;
+      if (editedProfile.bio !== undefined) updateData.bio = editedProfile.bio;
+      if (editedProfile.phone !== undefined) updateData.phone = editedProfile.phone;
+      if (editedProfile.address !== undefined) updateData.address = editedProfile.address;
+      if (editedProfile.level !== undefined) updateData.level = editedProfile.level;
+      if (editedProfile.avatar !== undefined) updateData.avatar = editedProfile.avatar;
+      
+      await updateDoc(userRef, updateData);
 
       // Update the local student state to reflect changes immediately
       const updatedStudent = { ...student, ...editedProfile };

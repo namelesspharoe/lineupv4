@@ -38,6 +38,7 @@ import { EnhancedFeedbackForm } from '../../lessons/EnhancedFeedbackForm';
 import { completeLesson, startLesson } from '../../../services/lessons';
 import { ProfilePicturePopup } from '../../common/ProfilePicturePopup';
 import { achievementService } from '../../../services/achievements';
+import { StudentProfileModal } from '../../student/StudentProfileModal';
 
 // Helper function to calculate lesson duration in minutes
 const calculateDuration = (startTime: string, endTime: string): number => {
@@ -66,150 +67,8 @@ interface ConfirmationModalProps {
   message: string;
 }
 
-interface StudentDetailsModalProps {
-  student: User;
-  onClose: () => void;
-}
 
-function StudentDetailsModal({ student, onClose }: StudentDetailsModalProps) {
-  const [pastLessons, setPastLessons] = useState<Lesson[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const loadPastLessons = async () => {
-      try {
-        setIsLoading(true);
-        const q = query(
-          collection(db, 'lessons'),
-          where('studentIds', 'array-contains', student.id),
-          where('status', '==', 'completed'),
-          orderBy('date', 'desc'),
-          limit(5)
-        );
-        
-        const snapshot = await getDocs(q);
-        setPastLessons(snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Lesson[]);
-      } catch (error) {
-        console.error('Error loading past lessons:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadPastLessons();
-  }, [student.id]);
-
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-
-          <div className="p-6">
-            {/* Student Header */}
-            <div className="flex items-center gap-6 mb-8">
-              <img
-                src={student.avatar}
-                alt={student.name}
-                className="w-24 h-24 rounded-full object-cover ring-4 ring-blue-50"
-              />
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-1">{student.name}</h2>
-                <div className="flex items-center gap-4 text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <GraduationCap className="w-4 h-4" />
-                    <span>{student.level}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-4 h-4" />
-                    <span>10 lessons completed</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Progress Stats */}
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="p-4 bg-blue-50 rounded-xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <Target className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-medium text-gray-900">Current Level</h3>
-                </div>
-                <p className="text-lg font-semibold text-blue-600">{student.level}</p>
-              </div>
-              
-              <div className="p-4 bg-green-50 rounded-xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <Star className="w-5 h-5 text-green-600" />
-                  <h3 className="font-medium text-gray-900">Average Rating</h3>
-                </div>
-                <p className="text-lg font-semibold text-green-600">4.8/5.0</p>
-              </div>
-              
-              <div className="p-4 bg-purple-50 rounded-xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <Award className="w-5 h-5 text-purple-600" />
-                  <h3 className="font-medium text-gray-900">Achievements</h3>
-                </div>
-                <p className="text-lg font-semibold text-purple-600">5 earned</p>
-              </div>
-            </div>
-
-            {/* Past Lessons */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Lessons</h3>
-              {isLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                </div>
-              ) : pastLessons.length > 0 ? (
-                <div className="space-y-4">
-                  {pastLessons.map(lesson => (
-                    <div key={lesson.id} className="p-4 border border-gray-100 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium text-gray-900">{lesson.title}</h4>
-                        <span className="text-sm text-gray-500">
-                          {new Date(lesson.date).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          <span>{lesson.startTime && lesson.endTime ? calculateDuration(lesson.startTime, lesson.endTime) : 180} mins</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Target className="w-4 h-4" />
-                          <span>{lesson.skillLevel}</span>
-                        </div>
-                      </div>
-                      {lesson.notes && (
-                        <p className="mt-2 text-sm text-gray-600">{lesson.notes}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  No past lessons found
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ConfirmationModal({ isOpen, onClose, onConfirm, title, message }: ConfirmationModalProps) {
   if (!isOpen) return null;
@@ -664,7 +523,7 @@ function LessonDetailsModal({ lesson, onClose, onAddStudent, onRemoveStudent }: 
       </div>
 
       {selectedStudent && (
-        <StudentDetailsModal
+        <StudentProfileModal
           student={selectedStudent}
           onClose={() => setSelectedStudent(null)}
         />
@@ -1311,7 +1170,7 @@ export function InstructorDashboard({ user }: { user: User }) {
       )}
 
       {selectedStudent && (
-        <StudentDetailsModal
+        <StudentProfileModal
           student={selectedStudent}
           onClose={() => setSelectedStudent(null)}
         />

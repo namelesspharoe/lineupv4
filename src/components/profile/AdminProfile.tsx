@@ -124,11 +124,14 @@ export const AdminProfile: React.FC<AdminProfileProps> = ({
     try {
       setIsLoading(true);
       const userRef = doc(db, 'users', admin.id);
-      await updateDoc(userRef, {
-        name: editedProfile.name,
-        bio: editedProfile.bio,
-        qualifications: editedProfile.qualifications
-      });
+      
+      // Filter out undefined values to prevent Firebase errors
+      const updateData: any = {};
+      if (editedProfile.name !== undefined) updateData.name = editedProfile.name;
+      if (editedProfile.bio !== undefined) updateData.bio = editedProfile.bio;
+      if (editedProfile.qualifications !== undefined) updateData.qualifications = editedProfile.qualifications;
+      
+      await updateDoc(userRef, updateData);
 
       onUpdate?.(editedProfile);
       setIsEditing(false);

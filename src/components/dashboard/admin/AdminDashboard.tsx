@@ -28,6 +28,7 @@ import { EditLessonModal } from '../instructor/EditLessonModal';
 import { CreateUserModal } from './CreateUserModal';
 import { CreateLessonModal } from '../instructor/CreateLessonModal';
 import { AvailabilityForm } from '../../instructor/AvailabilityForm';
+import { StudentProfileModal } from '../../student/StudentProfileModal';
 
 interface AdminDashboardProps {
   user: User;
@@ -61,6 +62,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
   const [showCreateLesson, setShowCreateLesson] = useState(false);
   const [showAvailabilityForm, setShowAvailabilityForm] = useState(false);
   const [selectedInstructorId, setSelectedInstructorId] = useState<string | null>(null);
+  const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<User | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -420,6 +422,19 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                                 Manage Availability
                               </button>
                             )}
+                            {u.role === 'student' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedStudentForProfile(u);
+                                  setShowUserActions(null);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <Users className="w-4 h-4" />
+                                View Profile
+                              </button>
+                            )}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -655,6 +670,13 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
             setShowAvailabilityForm(false);
             setSelectedInstructorId(null);
           }}
+        />
+      )}
+
+      {selectedStudentForProfile && (
+        <StudentProfileModal
+          student={selectedStudentForProfile}
+          onClose={() => setSelectedStudentForProfile(null)}
         />
       )}
     </div>
