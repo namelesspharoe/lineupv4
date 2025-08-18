@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { Clock, Play, CheckCircle, Users, Target, MessageSquare, AlertCircle } from 'lucide-react';
 import { Lesson, User } from '../../types';
 import { getInstructorDailyLessons, startLesson, completeLesson } from '../../services/lessons';
-import { LessonFeedbackForm } from './LessonFeedbackForm';
+import { EnhancedFeedbackForm } from './EnhancedFeedbackForm';
 import { ClockInOutButton } from '../timesheet/ClockInOutButton';
 
 interface ActiveLessonsProps {
@@ -200,11 +200,12 @@ export function ActiveLessons({ instructorId, onLessonComplete }: ActiveLessonsP
           
           <div className="relative min-h-screen flex items-center justify-center p-4">
             <div className="relative max-w-4xl w-full">
-              <LessonFeedbackForm
+              <EnhancedFeedbackForm
                 lessonId={selectedLesson.id}
                 studentId={selectedLesson.studentIds[0]}
-                onSubmit={handleFeedbackSubmit}
-                onClose={() => setShowFeedback(false)}
+                onFeedbackSubmitted={handleFeedbackSubmit}
+                onCancel={() => setShowFeedback(false)}
+                isOpen={showFeedback}
               />
             </div>
           </div>

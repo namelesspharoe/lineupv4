@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Camera } from 'lucide-react';
 import { User } from '../../../types';
 import { updateUser } from '../../../services/users';
@@ -10,14 +10,22 @@ interface EditUserModalProps {
   onUpdate: () => void;
 }
 
+interface FormErrors {
+  name?: string;
+  email?: string;
+  avatar?: string;
+  yearsOfExperience?: string;
+  hourlyRate?: string;
+}
+
 export function EditUserModal({ user, isOpen, onClose, onUpdate }: EditUserModalProps) {
   const [formData, setFormData] = useState({
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    avatar: user.avatar,
+    name: user.name || '',
+    email: user.email || '',
+    role: user.role || 'student',
+    avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
     bio: user.bio || '',
-    level: user.level || '',
+    level: user.level || 'beginner',
     specialties: user.specialties || [],
     languages: user.languages || [],
     yearsOfExperience: user.yearsOfExperience || 0,
@@ -26,23 +34,94 @@ export function EditUserModal({ user, isOpen, onClose, onUpdate }: EditUserModal
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  // Update form data when user prop changes
+  useEffect(() => {
+    setFormData({
+      name: user.name || '',
+      email: user.email || '',
+      role: user.role || 'student',
+      avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      bio: user.bio || '',
+      level: user.level || 'beginner',
+      specialties: user.specialties || [],
+      languages: user.languages || [],
+      yearsOfExperience: user.yearsOfExperience || 0,
+      hourlyRate: user.hourlyRate || 0,
+      qualifications: user.qualifications || ''
+    });
+    setFormErrors({});
+    setError(null);
+  }, [user]);
+
+  const validateForm = (): boolean => {
+    const errors: FormErrors = {};
+
+    if (!formData.name.trim()) {
+      errors.name = 'Name is required';
+    }
+
+    if (!formData.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    if (formData.role === 'instructor') {
+      if (formData.yearsOfExperience < 0) {
+        errors.yearsOfExperience = 'Years of experience cannot be negative';
+      }
+      if (formData.hourlyRate < 0) {
+        errors.hourlyRate = 'Hourly rate cannot be negative';
+      }
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
 
+    if (!validateForm()) {
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       setError(null);
 
-      await updateUser(user.id, formData);
+      // Prepare user data with proper defaults
+      const userData = {
+        ...formData,
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        bio: formData.bio.trim(),
+        specialties: formData.specialties || [],
+        languages: formData.languages || [],
+        yearsOfExperience: formData.yearsOfExperience || 0,
+        hourlyRate: formData.hourlyRate || 0,
+        qualifications: formData.qualifications.trim()
+      };
+
+      await updateUser(user.id, userData);
       onUpdate();
       onClose();
     } catch (err: any) {
       console.error('Error updating user:', err);
-      setError(err.message || 'Failed to update user');
+      setError(err.message || 'Failed to update user. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error for this field when user starts typing
+    if (formErrors[field as keyof FormErrors]) {
+      setFormErrors(prev => ({ ...prev, [field]: undefined }));
     }
   };
 
@@ -53,7 +132,7 @@ export function EditUserModal({ user, isOpen, onClose, onUpdate }: EditUserModal
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -64,7 +143,7 @@ export function EditUserModal({ user, isOpen, onClose, onUpdate }: EditUserModal
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Edit User</h2>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg">
+            <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
               {error}
             </div>
           )}
@@ -77,31 +156,36 @@ export function EditUserModal({ user, isOpen, onClose, onUpdate }: EditUserModal
                 </label>
                 <div className="flex items-center gap-4">
                   <img
-                    src={formData.avatar}
+                    src={formData.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
                     alt={formData.name}
                     className="w-20 h-20 rounded-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+                    }}
                   />
                   <input
-                    type="text"
+                    type="url"
                     value={formData.avatar}
-                    onChange={(e) => setFormData(prev => ({ ...prev, avatar: e.target.value }))}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                    onChange={(e) => handleInputChange('avatar', e.target.value)}
+                    className={`flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.avatar ? 'border-red-300' : 'border-gray-300'
+                    }`}
                     placeholder="Avatar URL"
                   />
                 </div>
+                {formErrors.avatar && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.avatar}</p>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Role
+                  Role *
                 </label>
                 <select
                   value={formData.role}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    role: e.target.value as 'admin' | 'instructor' | 'student'
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  onChange={(e) => handleInputChange('role', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="student">Student</option>
                   <option value="instructor">Instructor</option>
@@ -111,26 +195,38 @@ export function EditUserModal({ user, isOpen, onClose, onUpdate }: EditUserModal
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Name
+                  Name *
                 </label>
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    formErrors.name ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  required
                 />
+                {formErrors.name && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.name}</p>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email
+                  Email *
                 </label>
                 <input
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    formErrors.email ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  required
                 />
+                {formErrors.email && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
+                )}
               </div>
 
               {formData.role === 'instructor' && (
@@ -141,28 +237,35 @@ export function EditUserModal({ user, isOpen, onClose, onUpdate }: EditUserModal
                     </label>
                     <input
                       type="number"
+                      min="0"
                       value={formData.yearsOfExperience}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        yearsOfExperience: parseInt(e.target.value) 
-                      }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      onChange={(e) => handleInputChange('yearsOfExperience', parseInt(e.target.value) || 0)}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        formErrors.yearsOfExperience ? 'border-red-300' : 'border-gray-300'
+                      }`}
                     />
+                    {formErrors.yearsOfExperience && (
+                      <p className="mt-1 text-sm text-red-600">{formErrors.yearsOfExperience}</p>
+                    )}
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Hourly Rate
+                      Hourly Rate ($)
                     </label>
                     <input
                       type="number"
+                      min="0"
+                      step="0.01"
                       value={formData.hourlyRate}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        hourlyRate: parseInt(e.target.value) 
-                      }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      onChange={(e) => handleInputChange('hourlyRate', parseFloat(e.target.value) || 0)}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        formErrors.hourlyRate ? 'border-red-300' : 'border-gray-300'
+                      }`}
                     />
+                    {formErrors.hourlyRate && (
+                      <p className="mt-1 text-sm text-red-600">{formErrors.hourlyRate}</p>
+                    )}
                   </div>
 
                   <div className="col-span-2">
@@ -179,9 +282,9 @@ export function EditUserModal({ user, isOpen, onClose, onUpdate }: EditUserModal
                               const newSpecialties = e.target.checked
                                 ? [...formData.specialties, specialty]
                                 : formData.specialties.filter(s => s !== specialty);
-                              setFormData(prev => ({ ...prev, specialties: newSpecialties }));
+                              handleInputChange('specialties', newSpecialties);
                             }}
-                            className="rounded border-gray-300 text-blue-600"
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
                           <span className="text-gray-700">{specialty}</span>
                         </label>
@@ -203,9 +306,9 @@ export function EditUserModal({ user, isOpen, onClose, onUpdate }: EditUserModal
                               const newLanguages = e.target.checked
                                 ? [...formData.languages, language]
                                 : formData.languages.filter(l => l !== language);
-                              setFormData(prev => ({ ...prev, languages: newLanguages }));
+                              handleInputChange('languages', newLanguages);
                             }}
-                            className="rounded border-gray-300 text-blue-600"
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
                           <span className="text-gray-700">{language}</span>
                         </label>
@@ -222,8 +325,8 @@ export function EditUserModal({ user, isOpen, onClose, onUpdate }: EditUserModal
                   </label>
                   <select
                     value={formData.level}
-                    onChange={(e) => setFormData(prev => ({ ...prev, level: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    onChange={(e) => handleInputChange('level', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="beginner">Beginner</option>
                     <option value="intermediate">Intermediate</option>
@@ -239,9 +342,10 @@ export function EditUserModal({ user, isOpen, onClose, onUpdate }: EditUserModal
                 </label>
                 <textarea
                   value={formData.bio}
-                  onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
+                  onChange={(e) => handleInputChange('bio', e.target.value)}
                   rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Tell us about yourself..."
                 />
               </div>
 
@@ -252,28 +356,37 @@ export function EditUserModal({ user, isOpen, onClose, onUpdate }: EditUserModal
                   </label>
                   <textarea
                     value={formData.qualifications}
-                    onChange={(e) => setFormData(prev => ({ ...prev, qualifications: e.target.value }))}
+                    onChange={(e) => handleInputChange('qualifications', e.target.value)}
                     rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="List your certifications and qualifications..."
                   />
                 </div>
               )}
             </div>
 
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                disabled={isSubmitting}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                {isSubmitting ? 'Saving...' : 'Save Changes'}
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
               </button>
             </div>
           </form>

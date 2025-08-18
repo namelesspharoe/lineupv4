@@ -19,7 +19,7 @@ interface BookLessonModalProps {
 interface BookingForm {
   type: 'private' | 'group';
   date: string;
-  time: 'morning' | 'afternoon' | 'full_day';
+  sessionType: 'morning' | 'afternoon' | 'full_day';
   participants: number;
   skillLevel: 'first_time' | 'developing_turns' | 'linking_turns' | 'confident_turns' | 'consistent_blue';
   focus: string[];
@@ -50,7 +50,7 @@ export function BookLessonModal({ isOpen, onClose, instructor }: BookLessonModal
   const [formData, setFormData] = useState<BookingForm>({
     type: 'private',
     date: '',
-    time: 'morning',
+    sessionType: 'morning',
     participants: 1,
     skillLevel: 'first_time',
     focus: [],
@@ -110,9 +110,9 @@ export function BookLessonModal({ isOpen, onClose, instructor }: BookLessonModal
     const uniqueTimes = [...new Set(times)];
     setAvailableTimes(uniqueTimes);
 
-    // Reset time if current selection is not available
-    if (uniqueTimes.length > 0 && !uniqueTimes.includes(formData.time)) {
-      setFormData(prev => ({ ...prev, time: uniqueTimes[0] as 'morning' | 'afternoon' | 'full_day' }));
+    // Reset session type if current selection is not available
+    if (uniqueTimes.length > 0 && !uniqueTimes.includes(formData.sessionType)) {
+      setFormData(prev => ({ ...prev, sessionType: uniqueTimes[0] as 'morning' | 'afternoon' | 'full_day' }));
     }
   }, [formData.date, availability]);
 
@@ -177,7 +177,7 @@ export function BookLessonModal({ isOpen, onClose, instructor }: BookLessonModal
         }
       };
 
-      const timeRange = getTimeRange(formData.time);
+      const timeRange = getTimeRange(formData.sessionType);
 
       // Create lesson with studentIds array
       const lessonData = {
@@ -185,7 +185,7 @@ export function BookLessonModal({ isOpen, onClose, instructor }: BookLessonModal
         instructorId: instructor.id,
         studentIds: [user.id],
         date: formData.date,
-        time: formData.time,
+        sessionType: formData.sessionType,
         startTime: timeRange.startTime,
         endTime: timeRange.endTime,
         status: 'scheduled' as const,
@@ -328,18 +328,18 @@ export function BookLessonModal({ isOpen, onClose, instructor }: BookLessonModal
                       )}
                     </div>
                     <div>
-                      <label htmlFor="time" className="block text-sm font-medium text-gray-700 mb-2">
-                        Time
+                      <label htmlFor="sessionType" className="block text-sm font-medium text-gray-700 mb-2">
+                        Session Type
                       </label>
                       <select
-                        id="time"
+                        id="sessionType"
                         required
-                        value={formData.time}
-                        onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value as 'morning' | 'afternoon' | 'full_day' }))}
+                        value={formData.sessionType}
+                        onChange={(e) => setFormData(prev => ({ ...prev, sessionType: e.target.value as 'morning' | 'afternoon' | 'full_day' }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         disabled={!formData.date || availableTimes.length === 0}
                       >
-                        <option value="">Select a time</option>
+                        <option value="">Select a session type</option>
                         {availableTimes.map(time => (
                           <option key={time} value={time}>
                             {time === 'morning' ? 'Morning (9 AM - 12 PM)' :

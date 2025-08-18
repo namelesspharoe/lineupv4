@@ -33,7 +33,7 @@ export function DayDetailsModal({
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newLesson, setNewLesson] = useState({
     title: '',
-    time: 'morning' as 'morning' | 'afternoon' | 'full_day',
+    sessionType: 'morning' as 'morning' | 'afternoon' | 'full_day',
     skillLevel: 'first_time' as 'first_time' | 'developing_turns' | 'linking_turns' | 'confident_turns' | 'consistent_blue',
     maxStudents: 1,
     price: 50
@@ -48,7 +48,7 @@ export function DayDetailsModal({
   ];
 
   const getLessonsForTimeSlot = (timeSlot: string) => {
-    return lessons.filter(lesson => lesson.time === timeSlot);
+    return lessons.filter(lesson => lesson.sessionType === timeSlot);
   };
 
   const isAvailableForTimeSlot = (timeSlot: string) => {
@@ -70,7 +70,7 @@ export function DayDetailsModal({
     setIsLoading(true);
     try {
       // Map time slot to start and end times
-      const timeSlot = timeSlots.find(ts => ts.id === newLesson.time);
+      const timeSlot = timeSlots.find(ts => ts.id === newLesson.sessionType);
       if (!timeSlot) {
         throw new Error('Invalid time slot');
       }
@@ -81,7 +81,7 @@ export function DayDetailsModal({
         date: format(date, 'yyyy-MM-dd'),
         startTime: timeSlot.start,
         endTime: timeSlot.end,
-        time: newLesson.time, // Keep the time slot for reference
+        sessionType: newLesson.sessionType, // Keep the session type for reference
         skillLevel: newLesson.skillLevel,
         maxStudents: newLesson.maxStudents,
         price: newLesson.price,
@@ -99,7 +99,7 @@ export function DayDetailsModal({
       setShowCreateForm(false);
       setNewLesson({
         title: '',
-        time: 'morning',
+        sessionType: 'morning',
         skillLevel: 'first_time',
         maxStudents: 1,
         price: 50

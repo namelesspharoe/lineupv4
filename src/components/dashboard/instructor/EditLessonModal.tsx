@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search } from 'lucide-react';
+import { X, Search, UserPlus, AlertCircle, Users, UserX } from 'lucide-react';
 import { Lesson, User } from '../../../types';
 import { updateLesson } from '../../../services/lessons';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 
 interface EditLessonModalProps {
@@ -12,30 +12,68 @@ interface EditLessonModalProps {
   onUpdate: () => void;
 }
 
+interface FormErrors {
+  title?: string;
+  date?: string;
+  sessionType?: string;
+  price?: string;
+  maxStudents?: string;
+}
+
 export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLessonModalProps) {
   const [formData, setFormData] = useState({
-    title: lesson.title,
-    type: lesson.type,
-    maxStudents: lesson.maxStudents,
-    duration: lesson.duration,
-    skillLevel: lesson.skillLevel,
-    price: lesson.price,
-    description: lesson.description,
-    date: lesson.date,
-    time: lesson.time || '09:00',
-    status: lesson.status,
+    title: lesson.title || '',
+    type: lesson.type || 'private',
+    maxStudents: lesson.maxStudents || 1,
+    skillLevel: lesson.skillLevel || 'first_time',
+    price: lesson.price || 0,
+    description: lesson.description || '',
+    date: lesson.date || '',
+    sessionType: lesson.sessionType || 'morning', // Replace time with sessionType
+    status: lesson.status || 'available',
     notes: lesson.notes || '',
-    skillsFocus: lesson.skillsFocus,
+    skillsFocus: lesson.skillsFocus || [],
     studentIds: lesson.studentIds || []
   });
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [students, setStudents] = useState<User[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  // Update form data when lesson prop changes
+  useEffect(() => {
+    setFormData({
+      title: lesson.title || '',
+      type: lesson.type || 'private',
+      maxStudents: lesson.maxStudents || 1,
+      skillLevel: lesson.skillLevel || 'first_time',
+      price: lesson.price || 0,
+      description: lesson.description || '',
+      date: lesson.date || '',
+      sessionType: lesson.sessionType || 'morning',
+      status: lesson.status || 'available',
+      notes: lesson.notes || '',
+      skillsFocus: lesson.skillsFocus || [],
+      studentIds: lesson.studentIds || []
+    });
+    setFormErrors({});
+    setError(null);
+  }, [lesson]);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Load initial selected students
   useEffect(() => {
@@ -62,6 +100,7 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
         setSelectedStudents(loadedStudents);
       } catch (err) {
         console.error('Error loading selected students:', err);
+        setError('Failed to load selected students');
       } finally {
         setIsLoadingStudents(false);
       }
@@ -72,40 +111,71 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
 
   // Search for available students
   useEffect(() => {
-    if (searchQuery.length >= 2) {
-      const searchStudents = async () => {
-        setIsSearching(true);
-        try {
-          const q = query(
-            collection(db, 'users'),
-            where('role', '==', 'student'),
-            where('name', '>=', searchQuery),
-            where('name', '<=', searchQuery + '\uf8ff')
-          );
-          
-          const snapshot = await getDocs(q);
-          const fetchedStudents = snapshot.docs
-            .map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            })) as User[];
-          
-          // Filter out already selected students
-          setStudents(fetchedStudents.filter(student => 
-            !selectedStudents.some(selected => selected.id === student.id)
-          ));
-        } catch (err) {
-          console.error('Error searching students:', err);
-        } finally {
-          setIsSearching(false);
-        }
-      };
-
+    if (debouncedQuery.length >= 2) {
       searchStudents();
     } else {
       setStudents([]);
     }
-  }, [searchQuery, selectedStudents]);
+  }, [debouncedQuery, selectedStudents]);
+
+  const searchStudents = async () => {
+    setIsSearching(true);
+    setError(null);
+    
+    try {
+      const q = query(
+        collection(db, 'users'),
+        where('role', '==', 'student'),
+        orderBy('name'),
+        limit(20)
+      );
+      
+      const snapshot = await getDocs(q);
+      const fetchedStudents = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as User))
+        .filter(student => 
+          !selectedStudents.some(selected => selected.id === student.id) &&
+          student.name?.toLowerCase().includes(debouncedQuery.toLowerCase())
+        );
+      
+      setStudents(fetchedStudents);
+    } catch (err) {
+      console.error('Error searching students:', err);
+      setError('Failed to search students. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const errors: FormErrors = {};
+
+    if (!formData.title.trim()) {
+      errors.title = 'Title is required';
+    }
+
+    if (!formData.date) {
+      errors.date = 'Date is required';
+    }
+
+    if (!formData.sessionType) {
+      errors.sessionType = 'Session type is required';
+    }
+
+    if (formData.price < 0) {
+      errors.price = 'Price cannot be negative';
+    }
+
+    if (formData.type !== 'private' && formData.maxStudents < 2) {
+      errors.maxStudents = 'Group lessons must allow at least 2 students';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleAddStudent = (student: User) => {
     if (selectedStudents.length < formData.maxStudents) {
@@ -115,6 +185,7 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
         studentIds: [...prev.studentIds, student.id]
       }));
       setSearchQuery('');
+      setStudents([]);
     }
   };
 
@@ -126,9 +197,21 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
     }));
   };
 
+  const handleInputChange = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error for this field when user starts typing
+    if (formErrors[field as keyof FormErrors]) {
+      setFormErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    if (!validateForm()) {
+      return;
+    }
 
     if (formData.type !== 'private' && formData.studentIds.length === 0) {
       setError('Please select at least one student for group lessons');
@@ -139,28 +222,48 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
       setIsSubmitting(true);
       setError(null);
 
-      await updateLesson(lesson.id, formData);
+      // Prepare lesson data with proper defaults
+      const lessonData = {
+        ...formData,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        notes: formData.notes.trim(),
+        skillsFocus: formData.skillsFocus || [],
+        studentIds: formData.studentIds || [],
+        sessionType: formData.sessionType, // Include session type
+        updatedAt: new Date().toISOString()
+      };
+
+      await updateLesson(lesson.id, lessonData);
       onUpdate();
       onClose();
     } catch (err: any) {
       console.error('Error updating lesson:', err);
-      setError(err.message || 'Failed to update lesson');
+      setError(err.message || 'Failed to update lesson. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleClose = () => {
+    setSearchQuery('');
+    setStudents([]);
+    setError(null);
+    setFormErrors({});
+    onClose();
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
       
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
           <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
+            onClick={handleClose}
+            className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors z-10"
           >
             <X className="w-6 h-6" />
           </button>
@@ -169,8 +272,9 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Edit Lesson</h2>
 
             {error && (
-              <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg">
-                {error}
+              <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg border border-red-200 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
@@ -178,14 +282,20 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Title
+                    Title *
                   </label>
                   <input
                     type="text"
                     value={formData.title}
-                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    onChange={(e) => handleInputChange('title', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.title ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    required
                   />
+                  {formErrors.title && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.title}</p>
+                  )}
                 </div>
 
                 <div>
@@ -194,11 +304,8 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
                   </label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      status: e.target.value as 'available' | 'scheduled' | 'completed' | 'cancelled'
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    onChange={(e) => handleInputChange('status', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="available">Available</option>
                     <option value="scheduled">Scheduled</option>
@@ -213,12 +320,16 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
                   </label>
                   <select
                     value={formData.type}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      type: e.target.value as 'private' | 'group' | 'workshop',
-                      maxStudents: e.target.value === 'private' ? 1 : prev.maxStudents
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    onChange={(e) => {
+                      const newType = e.target.value as 'private' | 'group' | 'workshop';
+                      handleInputChange('type', newType);
+                      if (newType === 'private') {
+                        handleInputChange('maxStudents', 1);
+                      } else if (formData.maxStudents === 1) {
+                        handleInputChange('maxStudents', 2);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="private">Private</option>
                     <option value="group">Group</option>
@@ -229,64 +340,62 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
                 {formData.type !== 'private' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Maximum Students
+                      Maximum Students *
                     </label>
                     <input
                       type="number"
                       min="2"
                       max="20"
                       value={formData.maxStudents}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        maxStudents: parseInt(e.target.value) 
-                      }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      onChange={(e) => handleInputChange('maxStudents', parseInt(e.target.value))}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        formErrors.maxStudents ? 'border-red-300' : 'border-gray-300'
+                      }`}
                     />
+                    {formErrors.maxStudents && (
+                      <p className="mt-1 text-sm text-red-600">{formErrors.maxStudents}</p>
+                    )}
                   </div>
                 )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Date
+                    Date *
                   </label>
                   <input
                     type="date"
                     value={formData.date}
-                    onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    onChange={(e) => handleInputChange('date', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.date ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    required
                   />
+                  {formErrors.date && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.date}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Time
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.time}
-                    onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Duration (minutes)
+                    Session Type *
                   </label>
                   <select
-                    value={formData.duration}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      duration: parseInt(e.target.value) 
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    value={formData.sessionType}
+                    onChange={(e) => handleInputChange('sessionType', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
                   >
-                    <option value="60">60 minutes</option>
-                    <option value="90">90 minutes</option>
-                    <option value="120">120 minutes</option>
-                    <option value="180">180 minutes</option>
+                    <option value="morning">Morning (9:00 - 12:00)</option>
+                    <option value="afternoon">Afternoon (13:00 - 16:00)</option>
+                    <option value="full_day">Full Day (9:00 - 16:00)</option>
                   </select>
+                  {formErrors.sessionType && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.sessionType}</p>
+                  )}
                 </div>
+
+
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -294,8 +403,8 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
                   </label>
                   <select
                     value={formData.skillLevel}
-                    onChange={(e) => setFormData(prev => ({ ...prev, skillLevel: e.target.value as any }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    onChange={(e) => handleInputChange('skillLevel', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="first_time">First Time</option>
                     <option value="developing_turns">Developing Turns</option>
@@ -307,18 +416,21 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Price
+                    Price ($)
                   </label>
                   <input
                     type="number"
                     min="0"
+                    step="0.01"
                     value={formData.price}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      price: parseInt(e.target.value) 
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.price ? 'border-red-300' : 'border-gray-300'
+                    }`}
                   />
+                  {formErrors.price && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.price}</p>
+                  )}
                 </div>
 
                 <div className="col-span-2">
@@ -327,9 +439,10 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
                   </label>
                   <textarea
                     value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    onChange={(e) => handleInputChange('description', e.target.value)}
                     rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Describe what this lesson will cover..."
                   />
                 </div>
 
@@ -357,9 +470,9 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
                             const newSkills = e.target.checked
                               ? [...formData.skillsFocus, skill]
                               : formData.skillsFocus.filter(s => s !== skill);
-                            setFormData(prev => ({ ...prev, skillsFocus: newSkills }));
+                            handleInputChange('skillsFocus', newSkills);
                           }}
-                          className="rounded border-gray-300 text-blue-600"
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                         <span className="text-gray-700">{skill}</span>
                       </label>
@@ -373,52 +486,77 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
                   </label>
                   <textarea
                     value={formData.notes}
-                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    onChange={(e) => handleInputChange('notes', e.target.value)}
                     rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Additional notes about the lesson..."
                   />
                 </div>
 
                 {/* Student Selection */}
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Students ({selectedStudents.length}/{formData.maxStudents})
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Students ({selectedStudents.length}/{formData.maxStudents})
+                    </label>
+                    {selectedStudents.length > 0 && (
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Users className="w-4 h-4" />
+                        {selectedStudents.length} enrolled
+                      </div>
+                    )}
+                  </div>
                   
                   {/* Selected Students */}
-                  {selectedStudents.length > 0 && (
+                  {isLoadingStudents ? (
+                    <div className="mb-4 p-4 text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                      <p className="text-gray-500">Loading students...</p>
+                    </div>
+                  ) : selectedStudents.length > 0 ? (
                     <div className="mb-4 space-y-2">
                       {selectedStudents.map(student => (
                         <div
                           key={student.id}
-                          className="flex items-center justify-between p-3 bg-blue-50 rounded-lg"
+                          className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200"
                         >
                           <div className="flex items-center gap-3">
                             <img
-                              src={student.avatar}
+                              src={student.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
                               alt={student.name}
                               className="w-10 h-10 rounded-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+                              }}
                             />
                             <div>
-                              <p className="font-medium text-gray-900">{student.name}</p>
-                              <p className="text-sm text-gray-600">{student.level}</p>
+                              <p className="font-medium text-gray-900">{student.name || 'Unknown Student'}</p>
+                              <p className="text-sm text-gray-600">
+                                {student.level ? `${student.level} level` : 'No level specified'}
+                              </p>
                             </div>
                           </div>
                           <button
                             type="button"
                             onClick={() => handleRemoveStudent(student)}
-                            className="text-gray-400 hover:text-gray-600"
+                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                            title="Remove student"
                           >
-                            <X className="w-5 h-5" />
+                            <UserX className="w-5 h-5" />
                           </button>
                         </div>
                       ))}
                     </div>
+                  ) : (
+                    <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
+                      <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-500">No students enrolled yet</p>
+                    </div>
                   )}
 
+                  {/* Add Students Section */}
                   {selectedStudents.length < formData.maxStudents && (
-                    <>
+                    <div className="space-y-3">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                         <input
@@ -426,61 +564,100 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
                           placeholder="Search students by name..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          disabled={isSearching}
                         />
                       </div>
 
                       {/* Search Results */}
                       {isSearching ? (
-                        <div className="mt-2 p-4 text-center text-gray-500">
-                          Searching...
+                        <div className="p-4 text-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                          <p className="text-gray-500">Searching students...</p>
                         </div>
                       ) : students.length > 0 ? (
-                        <div className="mt-2 border border-gray-200 rounded-lg divide-y">
+                        <div className="border border-gray-200 rounded-lg divide-y max-h-48 overflow-y-auto">
                           {students.map(student => (
                             <div
                               key={student.id}
-                              className="p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+                              className="p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
                               onClick={() => handleAddStudent(student)}
                             >
                               <div className="flex items-center gap-3">
                                 <img
-                                  src={student.avatar}
+                                  src={student.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
                                   alt={student.name}
                                   className="w-10 h-10 rounded-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+                                  }}
                                 />
                                 <div>
-                                  <p className="font-medium text-gray-900">{student.name}</p>
-                                  <p className="text-sm text-gray-600">{student.level}</p>
+                                  <p className="font-medium text-gray-900">{student.name || 'Unknown Student'}</p>
+                                  <p className="text-sm text-gray-600">
+                                    {student.level ? `${student.level} level` : 'No level specified'}
+                                  </p>
                                 </div>
                               </div>
+                              <button
+                                type="button"
+                                className="p-1 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                title="Add student"
+                              >
+                                <UserPlus className="w-5 h-5" />
+                              </button>
                             </div>
                           ))}
                         </div>
                       ) : searchQuery.length >= 2 ? (
-                        <div className="mt-2 p-4 text-center text-gray-500">
-                          No students found
+                        <div className="p-4 text-center">
+                          <UserPlus className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                          <p className="text-gray-500">No students found</p>
+                          <p className="text-sm text-gray-400">Try a different search term</p>
                         </div>
-                      ) : null}
-                    </>
+                      ) : (
+                        <div className="p-4 text-center">
+                          <Search className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                          <p className="text-gray-500">
+                            Type at least 2 characters to search for students
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedStudents.length >= formData.maxStudents && (
+                    <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <p className="text-sm text-green-800">
+                        <strong>Maximum capacity reached!</strong> ({formData.maxStudents} students)
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3">
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  onClick={handleClose}
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isSubmitting ? 'Saving...' : 'Save Changes'}
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
                 </button>
               </div>
             </form>

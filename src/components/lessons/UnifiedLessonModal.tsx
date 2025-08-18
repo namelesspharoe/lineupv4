@@ -171,8 +171,8 @@ export function UnifiedLessonModal({
     setError(null);
 
     try {
-      // Determine time slot based on start/end times
-      const getTimeSlot = (startTime: string, endTime: string): 'morning' | 'afternoon' | 'full_day' => {
+      // Determine session type based on start/end times
+      const getSessionType = (startTime: string, endTime: string): 'morning' | 'afternoon' | 'full_day' => {
         if (startTime === '09:00' && endTime === '12:00') return 'morning';
         if (startTime === '13:00' && endTime === '16:00') return 'afternoon';
         if (startTime === '09:00' && endTime === '17:00') return 'full_day';
@@ -184,7 +184,7 @@ export function UnifiedLessonModal({
         instructorId: mode === 'book' && instructor ? instructor.id : user.id,
         studentIds: mode === 'book' ? [user.id] : formData.selectedStudents.map(s => s.id),
         date: formData.date,
-        time: getTimeSlot(formData.startTime, formData.endTime),
+        sessionType: getSessionType(formData.startTime, formData.endTime),
         startTime: formData.startTime,
         endTime: formData.endTime,
         status: (mode === 'book' ? 'scheduled' : 'available') as 'available' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled',

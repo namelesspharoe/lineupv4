@@ -40,12 +40,7 @@ import { ProfilePicturePopup } from '../../common/ProfilePicturePopup';
 import { achievementService } from '../../../services/achievements';
 import { StudentProfileModal } from '../../student/StudentProfileModal';
 
-// Helper function to calculate lesson duration in minutes
-const calculateDuration = (startTime: string, endTime: string): number => {
-  const [startHour, startMin] = startTime.split(':').map(Number);
-  const [endHour, endMin] = endTime.split(':').map(Number);
-  return (endHour * 60 + endMin) - (startHour * 60 + startMin);
-};
+
 
 
 interface ActiveLesson extends Lesson {
@@ -235,12 +230,12 @@ function LessonDetailsModal({ lesson, onClose, onAddStudent, onRemoveStudent }: 
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="p-4 bg-gray-50 rounded-lg">
+                            <div className="p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-2 text-gray-600 mb-1">
                   <Clock className="w-4 h-4" />
-                  <span>Duration</span>
+                  <span>Session Type</span>
                 </div>
-                                        <p className="text-lg font-medium text-gray-900">{lesson.startTime && lesson.endTime ? calculateDuration(lesson.startTime, lesson.endTime) : 180} minutes</p>
+                <p className="text-lg font-medium text-gray-900">{lesson.sessionType || 'morning'}</p>
               </div>
 
               <div className="p-4 bg-gray-50 rounded-lg">
@@ -849,7 +844,7 @@ export function InstructorDashboard({ user }: { user: User }) {
                              Time: {lesson.startTime && lesson.endTime ? `${lesson.startTime} - ${lesson.endTime}` : 'TBD'}
                            </span>
                            <span>
-                             Duration: {lesson.startTime && lesson.endTime ? calculateDuration(lesson.startTime, lesson.endTime) : 180} minutes
+                             Session: {lesson.sessionType || 'morning'}
                            </span>
                            <span>Level: {lesson.skillLevel}</span>
                          </div>

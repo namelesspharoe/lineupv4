@@ -165,7 +165,7 @@ export interface Lesson {
   instructorId: string;
   studentIds: string[];
   date: string;
-  time: 'morning' | 'afternoon' | 'full_day';
+  sessionType: 'morning' | 'afternoon' | 'full_day';
   startTime?: string;
   endTime?: string;
   status: 'available' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';

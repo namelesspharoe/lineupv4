@@ -20,9 +20,9 @@ const CheckoutSuccess = React.lazy(() => import('../pages/checkout/Success').the
 const CheckoutCancel = React.lazy(() => import('../pages/checkout/Cancel').then(module => ({ default: module.CheckoutCancel })));
 
 // Dashboard components
-const StudentDashboard = React.lazy(() => import('../components/dashboard/student/StudentDashboard').then(module => ({ default: module.StudentDashboard })));
-const InstructorDashboard = React.lazy(() => import('../components/dashboard/instructor/InstructorDashboard').then(module => ({ default: module.InstructorDashboard })));
-const AdminDashboard = React.lazy(() => import('../components/dashboard/admin/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
+const StudentDashboard = React.lazy(() => import('../components/dashboard/student').then(module => ({ default: module.StudentDashboard })));
+const InstructorDashboard = React.lazy(() => import('../components/dashboard/instructor').then(module => ({ default: module.InstructorDashboard })));
+const AdminDashboard = React.lazy(() => import('../components/dashboard/admin').then(module => ({ default: module.AdminDashboard })));
 
 // Protected route wrapper
 const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string }) => {

@@ -19,9 +19,11 @@ import {
   Target,
   MapPin,
   Plus,
-  CalendarDays
+  CalendarDays,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
-import { collection, query, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, getDocs, updateDoc, doc, deleteDoc, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { EditUserModal } from './EditUserModal';
 import { EditLessonModal } from '../instructor/EditLessonModal';
@@ -63,6 +65,9 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
   const [showAvailabilityForm, setShowAvailabilityForm] = useState(false);
   const [selectedInstructorId, setSelectedInstructorId] = useState<string | null>(null);
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -70,16 +75,29 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
 
   const loadDashboardData = async () => {
     try {
-      // Fetch users
-      const usersSnapshot = await getDocs(collection(db, 'users'));
+      setIsLoading(true);
+      setError(null);
+
+      // Fetch users with ordering and limit
+      const usersQuery = query(
+        collection(db, 'users'),
+        orderBy('name'),
+        limit(100)
+      );
+      const usersSnapshot = await getDocs(usersQuery);
       const fetchedUsers = usersSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as User[];
       setUsers(fetchedUsers);
 
-      // Fetch lessons
-      const lessonsSnapshot = await getDocs(collection(db, 'lessons'));
+      // Fetch lessons with ordering and limit
+      const lessonsQuery = query(
+        collection(db, 'lessons'),
+        orderBy('date', 'desc'),
+        limit(100)
+      );
+      const lessonsSnapshot = await getDocs(lessonsQuery);
       const fetchedLessons = lessonsSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -95,50 +113,96 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
       });
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      setError('Failed to load dashboard data. Please try refreshing the page.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadDashboardData();
+    setIsRefreshing(false);
+  };
+
   const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
     
     try {
       await deleteDoc(doc(db, 'users', userId));
       setUsers(users.filter(u => u.id !== userId));
       setShowUserActions(null);
+      
+      // Update stats
+      const deletedUser = users.find(u => u.id === userId);
+      if (deletedUser?.role === 'instructor') {
+        setStats(prev => ({ ...prev, activeInstructors: prev.activeInstructors - 1, totalUsers: prev.totalUsers - 1 }));
+      } else {
+        setStats(prev => ({ ...prev, totalUsers: prev.totalUsers - 1 }));
+      }
     } catch (error) {
       console.error('Error deleting user:', error);
+      alert('Failed to delete user. Please try again.');
     }
   };
 
   const handleDeleteLesson = async (lessonId: string) => {
-    if (!window.confirm('Are you sure you want to delete this lesson?')) return;
+    if (!window.confirm('Are you sure you want to delete this lesson? This action cannot be undone.')) return;
     
     try {
       await deleteDoc(doc(db, 'lessons', lessonId));
       setLessons(lessons.filter(l => l.id !== lessonId));
       setShowLessonActions(null);
+      
+      // Update stats
+      setStats(prev => ({ ...prev, totalLessons: prev.totalLessons - 1 }));
     } catch (error) {
       console.error('Error deleting lesson:', error);
+      alert('Failed to delete lesson. Please try again.');
     }
   };
 
   const handleUpdateUserRole = async (userId: string, newRole: 'student' | 'instructor' | 'admin') => {
     try {
       await updateDoc(doc(db, 'users', userId), { role: newRole });
-      setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
+      
+      const updatedUsers = users.map(u => u.id === userId ? { ...u, role: newRole } : u);
+      setUsers(updatedUsers);
+      
+      // Update stats
+      const oldRole = users.find(u => u.id === userId)?.role;
+      if (oldRole === 'instructor' && newRole !== 'instructor') {
+        setStats(prev => ({ ...prev, activeInstructors: prev.activeInstructors - 1 }));
+      } else if (oldRole !== 'instructor' && newRole === 'instructor') {
+        setStats(prev => ({ ...prev, activeInstructors: prev.activeInstructors + 1 }));
+      }
+      
       setShowUserActions(null);
     } catch (error) {
       console.error('Error updating user role:', error);
+      alert('Failed to update user role. Please try again.');
     }
   };
 
   const handleUpdateLessonStatus = async (lessonId: string, newStatus: 'available' | 'scheduled' | 'completed' | 'cancelled') => {
     try {
       await updateDoc(doc(db, 'lessons', lessonId), { status: newStatus });
-      setLessons(lessons.map(l => l.id === lessonId ? { ...l, status: newStatus } : l));
+      
+      const updatedLessons = lessons.map(l => l.id === lessonId ? { ...l, status: newStatus } : l);
+      setLessons(updatedLessons);
+      
+      // Update stats
+      const oldStatus = lessons.find(l => l.id === lessonId)?.status;
+      if (oldStatus === 'cancelled' && newStatus !== 'cancelled') {
+        setStats(prev => ({ ...prev, disputedLessons: prev.disputedLessons - 1 }));
+      } else if (oldStatus !== 'cancelled' && newStatus === 'cancelled') {
+        setStats(prev => ({ ...prev, disputedLessons: prev.disputedLessons + 1 }));
+      }
+      
       setShowLessonActions(null);
     } catch (error) {
       console.error('Error updating lesson status:', error);
+      alert('Failed to update lesson status. Please try again.');
     }
   };
 
@@ -225,8 +289,39 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     return `${students[0]} +${students.length - 1} more`;
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Header with refresh button */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200 flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -311,7 +406,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
               <select
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value as any)}
-                className="border border-gray-300 rounded-lg px-3 py-2"
+                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="all">All Roles</option>
                 <option value="student">Students</option>
@@ -341,116 +436,127 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedUser(u)}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={u.avatar || 'https://via.placeholder.com/40'}
-                          alt={u.name || 'User'}
-                          className="w-8 h-8 rounded-full object-cover"
-                        />
-                        <div>
-                          <p className="font-medium text-gray-900">{u.name || 'Unknown User'}</p>
-                          <p className="text-sm text-gray-500">{u.email || 'No email'}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRoleColor(u.role)}`}>
-                        {formatRole(u.role)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-50 text-green-600">
-                        Active
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowUserActions(showUserActions === u.id ? null : u.id);
-                          }}
-                          className="p-2 hover:bg-gray-100 rounded-lg"
-                        >
-                          <MoreVertical className="w-5 h-5 text-gray-500" />
-                        </button>
-                        
-                        {showUserActions === u.id && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-10">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUpdateUserRole(u.id, 'admin');
-                              }}
-                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                            >
-                              <Shield className="w-4 h-4" />
-                              Make Admin
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUpdateUserRole(u.id, 'instructor');
-                              }}
-                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                              Make Instructor
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUpdateUserRole(u.id, 'student');
-                              }}
-                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                            >
-                              <UserX className="w-4 h-4" />
-                              Make Student
-                            </button>
-                            {u.role === 'instructor' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleManageAvailability(u.id);
-                                }}
-                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                              >
-                                <CalendarDays className="w-4 h-4" />
-                                Manage Availability
-                              </button>
-                            )}
-                            {u.role === 'student' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedStudentForProfile(u);
-                                  setShowUserActions(null);
-                                }}
-                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                              >
-                                <Users className="w-4 h-4" />
-                                View Profile
-                              </button>
-                            )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteUser(u.id);
-                              }}
-                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                            >
-                              <Trash className="w-4 h-4" />
-                              Delete User
-                            </button>
+                {filteredUsers.length > 0 ? (
+                  filteredUsers.map((u) => (
+                    <tr key={u.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedUser(u)}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={u.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
+                            alt={u.name || 'User'}
+                            className="w-8 h-8 rounded-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+                            }}
+                          />
+                          <div>
+                            <p className="font-medium text-gray-900">{u.name || 'Unknown User'}</p>
+                            <p className="text-sm text-gray-500">{u.email || 'No email'}</p>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRoleColor(u.role)}`}>
+                          {formatRole(u.role)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-50 text-green-600">
+                          Active
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowUserActions(showUserActions === u.id ? null : u.id);
+                            }}
+                            className="p-2 hover:bg-gray-100 rounded-lg"
+                          >
+                            <MoreVertical className="w-5 h-5 text-gray-500" />
+                          </button>
+                          
+                          {showUserActions === u.id && (
+                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-10">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUpdateUserRole(u.id, 'admin');
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <Shield className="w-4 h-4" />
+                                Make Admin
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUpdateUserRole(u.id, 'instructor');
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                Make Instructor
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUpdateUserRole(u.id, 'student');
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <UserX className="w-4 h-4" />
+                                Make Student
+                              </button>
+                              {u.role === 'instructor' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleManageAvailability(u.id);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <CalendarDays className="w-4 h-4" />
+                                  Manage Availability
+                                </button>
+                              )}
+                              {u.role === 'student' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedStudentForProfile(u);
+                                    setShowUserActions(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <Users className="w-4 h-4" />
+                                  View Profile
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteUser(u.id);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                              >
+                                <Trash className="w-4 h-4" />
+                                Delete User
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                      {userSearchQuery || selectedRole !== 'all' ? 'No users found matching your criteria' : 'No users found'}
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -490,7 +596,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value as any)}
-                className="border border-gray-300 rounded-lg px-3 py-2"
+                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="all">All Status</option>
                 <option value="available">Available</option>
@@ -524,108 +630,116 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredLessons.map((lesson) => (
-                  <tr key={lesson.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedLesson(lesson)}>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{lesson.title}</p>
-                        <div className="flex items-center gap-4 mt-1">
-                          <div className="flex items-center gap-1 text-sm text-gray-500">
-                            <Calendar className="w-4 h-4" />
-                            {new Date(lesson.date).toLocaleDateString()}
-                          </div>
-                          <div className="flex items-center gap-1 text-sm text-gray-500">
-                            <Clock className="w-4 h-4" />
-                            {lesson.duration} mins
-                          </div>
-                          <div className="flex items-center gap-1 text-sm text-gray-500">
-                            <Target className="w-4 h-4" />
-                            {lesson.skillLevel}
+                {filteredLessons.length > 0 ? (
+                  filteredLessons.map((lesson) => (
+                    <tr key={lesson.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedLesson(lesson)}>
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="font-medium text-gray-900">{lesson.title || 'Untitled Lesson'}</p>
+                          <div className="flex items-center gap-4 mt-1">
+                            <div className="flex items-center gap-1 text-sm text-gray-500">
+                              <Calendar className="w-4 h-4" />
+                              {lesson.date ? new Date(lesson.date).toLocaleDateString() : 'No date'}
+                            </div>
+                            <div className="flex items-center gap-1 text-sm text-gray-500">
+                              <Clock className="w-4 h-4" />
+                              {lesson.sessionType || 'morning'}
+                            </div>
+                            <div className="flex items-center gap-1 text-sm text-gray-500">
+                              <Target className="w-4 h-4" />
+                              {lesson.skillLevel || 'Any level'}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-gray-900">{getInstructorName(lesson.instructorId)}</p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-gray-900">{getStudentNames(lesson.studentIds)}</p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(lesson.status)}`}>
-                        {formatStatus(lesson.status)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowLessonActions(showLessonActions === lesson.id ? null : lesson.id);
-                          }}
-                          className="p-2 hover:bg-gray-100 rounded-lg"
-                        >
-                          <MoreVertical className="w-5 h-5 text-gray-500" />
-                        </button>
-                        
-                        {showLessonActions === lesson.id && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-10">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUpdateLessonStatus(lesson.id, 'available');
-                              }}
-                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                              Mark Available
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUpdateLessonStatus(lesson.id, 'scheduled');
-                              }}
-                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                            >
-                              <Calendar className="w-4 h-4" />
-                              Mark Scheduled
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUpdateLessonStatus(lesson.id, 'completed');
-                              }}
-                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                              Mark Completed
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUpdateLessonStatus(lesson.id, 'cancelled');
-                              }}
-                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                            >
-                              <XCircle className="w-4 h-4" />
-                              Mark Cancelled
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteLesson(lesson.id);
-                              }}
-                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                            >
-                              <Trash className="w-4 h-4" />
-                              Delete Lesson
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-gray-900">{getInstructorName(lesson.instructorId)}</p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-gray-900">{getStudentNames(lesson.studentIds)}</p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(lesson.status)}`}>
+                          {formatStatus(lesson.status)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowLessonActions(showLessonActions === lesson.id ? null : lesson.id);
+                            }}
+                            className="p-2 hover:bg-gray-100 rounded-lg"
+                          >
+                            <MoreVertical className="w-5 h-5 text-gray-500" />
+                          </button>
+                          
+                          {showLessonActions === lesson.id && (
+                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-10">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUpdateLessonStatus(lesson.id, 'available');
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                Mark Available
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUpdateLessonStatus(lesson.id, 'scheduled');
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <Calendar className="w-4 h-4" />
+                                Mark Scheduled
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUpdateLessonStatus(lesson.id, 'completed');
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                Mark Completed
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUpdateLessonStatus(lesson.id, 'cancelled');
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                              >
+                                <XCircle className="w-4 h-4" />
+                                Mark Cancelled
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteLesson(lesson.id);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                              >
+                                <Trash className="w-4 h-4" />
+                                Delete Lesson
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                      {lessonSearchQuery || selectedStatus !== 'all' ? 'No lessons found matching your criteria' : 'No lessons found'}
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
