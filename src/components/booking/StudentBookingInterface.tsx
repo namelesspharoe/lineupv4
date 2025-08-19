@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, Star, Calendar, Clock, User, Filter, X, Snowflake, Mountain, Users, Award } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { User as UserType } from '../../types';
@@ -31,6 +32,7 @@ const LOCATIONS = ['Aspen', 'Vail', 'Breckenridge', 'Park City', 'Deer Valley', 
 
 export function StudentBookingInterface({ onBookingComplete }: StudentBookingInterfaceProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [instructors, setInstructors] = useState<UserType[]>([]);
   const [filteredInstructors, setFilteredInstructors] = useState<UserType[]>([]);
   const [selectedInstructor, setSelectedInstructor] = useState<UserType | null>(null);
@@ -709,8 +711,21 @@ export function StudentBookingInterface({ onBookingComplete }: StudentBookingInt
                  <button
                    onClick={(e) => {
                      e.stopPropagation();
-                     // Could open messaging modal or redirect to messages
-                     console.log('Message instructor:', instructor.name);
+                     // Navigate to messages with instructor data
+                     navigate('/messages', { 
+                       state: { 
+                         selectedInstructor: {
+                           id: instructor.id,
+                           name: instructor.name,
+                           image: instructor.avatar,
+                           location: instructor.preferredLocations?.[0] || 'Location not specified',
+                           specialties: instructor.specialties || [],
+                           languages: instructor.languages || [],
+                           experience: instructor.yearsOfExperience || 0,
+                           price: instructor.hourlyRate || 0
+                         }
+                       }
+                     });
                    }}
                    className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200 text-sm font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
                  >

@@ -117,7 +117,7 @@ export function Features() {
             </span>
           </h2>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
-            Experience the difference that professional instruction makes. Our platform connects you 
+            Experience the difference that professional ski and snowboard instruction makes. Our platform connects you 
             with certified instructors who are passionate about helping you master the slopes.
           </p>
         </div>
@@ -128,8 +128,8 @@ export function Features() {
             const IconComponent = feature.icon;
             return (
               <div key={index} className="group">
-                <div className={`${feature.bgColor} rounded-2xl p-6 h-full border border-gray-700 hover:border-gray-600 hover:shadow-lg transition-all duration-300 group-hover:scale-105`}>
-                  <div className={`w-14 h-14 ${feature.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                <div className={`${feature.bgColor} rounded-2xl p-6 h-full border border-gray-700 transition-all duration-300`}>
+                  <div className={`w-14 h-14 ${feature.color} rounded-xl flex items-center justify-center mb-4 transition-transform`}>
                     <IconComponent className="w-7 h-7 text-white" />
                   </div>
                   <h3 className="text-lg font-semibold text-white mb-3">{feature.title}</h3>

@@ -9,6 +9,8 @@ interface FilterPanelProps {
     price: number[];        // Array with min and max price [min, max]
     availability: string[]; // Array of selected availability options
     languages: string[];    // Array of selected languages
+    gender: string[];       // Array of selected genders
+    certification: string[]; // Array of selected certification levels
   };
   setFilters: React.Dispatch<React.SetStateAction<{
     discipline: string[];
@@ -16,6 +18,8 @@ interface FilterPanelProps {
     price: number[];
     availability: string[];
     languages: string[];
+    gender: string[];
+    certification: string[];
   }>>;
 }
 
@@ -67,6 +71,42 @@ export function FilterPanel({ filters, setFilters }: FilterPanelProps) {
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-gray-700">{level}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Gender Filter Section */}
+      <div>
+        <h3 className="font-medium text-gray-900 mb-3">Gender</h3>
+        <div className="space-y-2">
+          {['Male', 'Female', 'Non-binary'].map(gender => (
+            <label key={gender} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={filters.gender.includes(gender)}
+                onChange={() => toggleFilter('gender', gender)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-gray-700">{gender}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Certification Level Filter Section */}
+      <div>
+        <h3 className="font-medium text-gray-900 mb-3">Certification Level</h3>
+        <div className="space-y-2">
+          {['PSIA Level 1', 'PSIA Level 2', 'PSIA Level 3', 'AASI Level 1', 'AASI Level 2', 'AASI Level 3'].map(cert => (
+            <label key={cert} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={filters.certification.includes(cert)}
+                onChange={() => toggleFilter('certification', cert)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-gray-700">{cert}</span>
             </label>
           ))}
         </div>

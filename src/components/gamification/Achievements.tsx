@@ -124,6 +124,22 @@ function AchievementCard({ achievement, isUnlocked, onClick }: AchievementCardPr
           <span className="text-sm font-medium text-gray-700">{points} pts</span>
         </div>
 
+        {/* Action button for certain achievements */}
+        {!isUnlocked && achievement.id === 'profile_picture' && (
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                // Navigate to profile page to add picture
+                window.location.href = '/profile';
+              }}
+              className="w-full px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Add Profile Picture
+            </button>
+          </div>
+        )}
+
         {/* Unlock status */}
         {isUnlocked && 'unlockedDate' in achievement && (
           <div className="mt-3 pt-3 border-t border-gray-200">
@@ -138,7 +154,9 @@ function AchievementCard({ achievement, isUnlocked, onClick }: AchievementCardPr
       {!isUnlocked && (
         <div className="absolute inset-0 bg-gray-900/20 rounded-xl flex items-center justify-center">
           <div className="bg-white rounded-full p-2">
-            <X className="w-6 h-6 text-gray-400" />
+            <div className="w-6 h-6 text-gray-400 flex items-center justify-center">
+              <span className="text-lg">🔒</span>
+            </div>
           </div>
         </div>
       )}
@@ -338,7 +356,7 @@ export function Achievements({ studentId }: AchievementsProps) {
             {categories.map(category => (
               <button
                 key={category}
-                onClick={() => setSelectedCategory(category)}
+                onClick={() => setSelectedCategory(selectedCategory === category ? 'all' : category)}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   selectedCategory === category
                     ? 'bg-blue-600 text-white'
@@ -355,7 +373,7 @@ export function Achievements({ studentId }: AchievementsProps) {
             {rarities.map(rarity => (
               <button
                 key={rarity}
-                onClick={() => setSelectedRarity(rarity)}
+                onClick={() => setSelectedRarity(selectedRarity === rarity ? 'all' : rarity)}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   selectedRarity === rarity
                     ? 'bg-blue-600 text-white'

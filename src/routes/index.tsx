@@ -18,6 +18,7 @@ const Profile = React.lazy(() => import('../pages/Profile').then(module => ({ de
 const AchievementsPage = React.lazy(() => import('../pages/Achievements').then(module => ({ default: module.AchievementsPage })));
 const Lessons = React.lazy(() => import('../pages/Lessons').then(module => ({ default: module.Lessons })));
 const Stats = React.lazy(() => import('../pages/Stats').then(module => ({ default: module.Stats })));
+const Resources = React.lazy(() => import('../pages/Resources').then(module => ({ default: module.Resources })));
 const CheckoutSuccess = React.lazy(() => import('../pages/checkout/Success').then(module => ({ default: module.CheckoutSuccess })));
 const CheckoutCancel = React.lazy(() => import('../pages/checkout/Cancel').then(module => ({ default: module.CheckoutCancel })));
 
@@ -277,7 +278,7 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <Layout>
-          <div>Resources (TODO)</div>
+          <Resources />
         </Layout>
       </ProtectedRoute>
     ),

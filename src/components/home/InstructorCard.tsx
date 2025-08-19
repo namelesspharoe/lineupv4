@@ -126,12 +126,18 @@ export function InstructorCard({
         
         {/* Action Buttons */}
         <div className="flex gap-3">
-          <button className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 shadow-md">
+          <a 
+            href="/book-lesson"
+            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 shadow-md text-center"
+          >
             Book Lesson
-          </button>
-          <button className="px-4 py-2.5 border-2 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-600 rounded-xl font-semibold transition-all duration-200 hover:bg-blue-50">
+          </a>
+          <a 
+            href="/messages"
+            className="px-4 py-2.5 border-2 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-600 rounded-xl font-semibold transition-all duration-200 hover:bg-blue-50 flex items-center justify-center"
+          >
             <MessageSquare className="w-5 h-5" />
-          </button>
+          </a>
         </div>
       </div>
     </div>

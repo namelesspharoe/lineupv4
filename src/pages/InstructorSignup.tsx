@@ -316,7 +316,7 @@ export function InstructorSignup() {
                   Certifications
                 </label>
                 <div className="space-y-2">
-                  {['PSIA Level 1', 'PSIA Level 2', 'PSIA Level 3', 'AASI', 'First Aid', 'Avalanche Safety'].map((cert) => (
+                  {['PSIA Level 1', 'PSIA Level 2', 'PSIA Level 3', 'AASI Level 1', 'AASI Level 2', 'AASI Level 3', 'First Aid', 'Avalanche Safety'].map((cert) => (
                     <label key={cert} className="flex items-center">
                       <input
                         type="checkbox"
@@ -416,7 +416,7 @@ export function InstructorSignup() {
                   Specialties
                 </label>
                 <div className="space-y-2">
-                  {['Alpine Skiing', 'Snowboarding', 'Cross-Country', 'Freestyle', 'Racing', 'Children'].map((specialty) => (
+                  {['Alpine Skiing', 'Snowboarding', 'Cross-Country', 'Freestyle', 'Racing', 'Youth Instruction'].map((specialty) => (
                     <label key={specialty} className="flex items-center">
                       <input
                         type="checkbox"

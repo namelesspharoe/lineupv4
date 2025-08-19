@@ -61,7 +61,7 @@ export function Hero() {
         <img
           src="https://images.unsplash.com/photo-1551698618-1dfe5d97d256?auto=format&fit=crop&w=2000&q=80"
           alt="Ski slopes with snow-covered mountains"
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover object-center"
         />
       </div>
       

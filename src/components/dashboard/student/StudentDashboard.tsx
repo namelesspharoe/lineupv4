@@ -32,15 +32,15 @@ interface CancelLessonModalProps {
 const getLevelDescription = (level: string) => {
   switch (level) {
     case 'first_time':
-      return 'First Time on Snow';
+      return 'Level 1: First Time on Snow';
     case 'developing_turns':
-      return 'Developing Basic Turns';
+      return 'Level 2: Developing Basic Turns';
     case 'linking_turns':
-      return 'Linking Turns Together';
+      return 'Level 3: Linking Turns';
     case 'confident_turns':
-      return 'Confident Turn Control';
+      return 'Level 4: Confident Turn Control';
     case 'consistent_blue':
-      return 'Consistent on Blue Runs';
+      return 'Level 5: Consistent Blue Runs';
     default:
       return level;
   }

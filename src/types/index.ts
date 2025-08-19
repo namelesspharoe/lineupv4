@@ -35,6 +35,7 @@ export interface User {
   hourlyRate?: number;
   preferredLocations?: string[];
   qualifications?: string;
+  gender?: string;
   isGroup?: boolean;
   participants?: string[];
   createdAt?: string;

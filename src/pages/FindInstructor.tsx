@@ -31,7 +31,9 @@ export function FindInstructor() {
     level: [] as string[],
     price: [0, 200],
     availability: [] as string[],
-    languages: [] as string[]
+    languages: [] as string[],
+    gender: [] as string[],
+    certification: [] as string[]
   });
 
   // Fetch instructors from Firebase with their stats
@@ -50,26 +52,29 @@ export function FindInstructor() {
         const snapshot = await getDocs(instructorsQuery);
         const fetchedInstructors = snapshot.docs.map(doc => {
           const data = doc.data();
-          return {
-            id: doc.id,
-            name: data.name,
-            avatar: data.avatar,
-            specialties: data.specialties || [],
-            languages: data.languages || [],
-            yearsOfExperience: data.yearsOfExperience,
-            price: data.hourlyRate, // Map hourlyRate to price for consistency
-            preferredLocations: data.preferredLocations || [],
-            bio: data.bio,
-            level: data.level,
-            role: 'instructor',
-            stats: {
-              totalLessons: 0,
-              averageRating: 0,
-              totalStudents: 0,
-              totalReviews: 0,
-              lastUpdated: new Date().toISOString()
-            }
-          } as InstructorWithStats;
+                      return {
+              id: doc.id,
+              name: data.name,
+              email: data.email || '',
+              avatar: data.avatar,
+              specialties: data.specialties || [],
+              languages: data.languages || [],
+              yearsOfExperience: data.yearsOfExperience,
+              price: data.hourlyRate, // Map hourlyRate to price for consistency
+              preferredLocations: data.preferredLocations || [],
+              bio: data.bio,
+              level: data.level,
+              role: 'instructor',
+              gender: data.gender || 'Not specified',
+              certifications: data.certifications || [],
+              stats: {
+                totalLessons: 0,
+                averageRating: 0,
+                totalStudents: 0,
+                totalReviews: 0,
+                lastUpdated: new Date().toISOString()
+              }
+            } as InstructorWithStats;
         });
 
         // Try to fetch stats from instructorStats collection, fall back to defaults if not available
@@ -143,8 +148,14 @@ export function FindInstructor() {
       const matchesLanguages = filters.languages.length === 0 ||
         instructor.languages?.some(l => filters.languages.includes(l));
 
+      const matchesGender = filters.gender.length === 0 ||
+        instructor.gender && filters.gender.includes(instructor.gender);
+
+      const matchesCertification = filters.certification.length === 0 ||
+        instructor.certifications?.some(c => filters.certification.includes(c));
+
       return matchesSearch && matchesDiscipline && matchesLevel &&
-        matchesPrice && matchesLanguages;
+        matchesPrice && matchesLanguages && matchesGender && matchesCertification;
     });
   }, [searchQuery, filters, instructors]);
 

@@ -23,35 +23,13 @@ export function ProgressShowcase() {
             Master the Mountain
           </h2>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
-            From your first time on snow to advanced techniques, track your progress with detailed analytics, 
-            personalized goals, and achievement milestones that celebrate every step of your journey.
+            From your first time on snow to advanced techniques, track your progress with achievement milestones 
+            that celebrate every step of your journey.
           </p>
         </div>
 
         {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-16">
-          <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700 hover:bg-gray-750 transition-all duration-300 group">
-            <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-              <Activity className="w-7 h-7 text-white" />
-            </div>
-            <h3 className="text-xl font-semibold mb-4 text-white">Real-Time Analytics</h3>
-            <p className="text-gray-400 text-sm leading-relaxed">
-              Track performance metrics, lesson history, and skill improvements with detailed analytics 
-              that show your progression over time.
-            </p>
-          </div>
-
-          <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700 hover:bg-gray-750 transition-all duration-300 group">
-            <div className="w-14 h-14 bg-purple-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-              <Target className="w-7 h-7 text-white" />
-            </div>
-            <h3 className="text-xl font-semibold mb-4 text-white">Personalized Goals</h3>
-            <p className="text-gray-400 text-sm leading-relaxed">
-              Set custom goals based on your skill level and aspirations. Our AI adapts to your learning 
-              style and suggests the perfect next steps.
-            </p>
-          </div>
-
+        <div className="grid md:grid-cols-1 gap-8 max-w-2xl mx-auto mb-16">
           <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700 hover:bg-gray-750 transition-all duration-300 group">
             <div className="w-14 h-14 bg-yellow-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
               <Trophy className="w-7 h-7 text-white" />

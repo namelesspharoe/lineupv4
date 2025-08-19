@@ -108,11 +108,11 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
     <div className="min-h-screen bg-winter-light dark:bg-winter-dark flex flex-col">
       {/* Mobile Header - Simplified */}
       <header className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/50 z-40">
-        <div className="flex items-center justify-between px-4 h-full">
-          <div className="flex items-center gap-2">
-            <LayoutGrid className="w-5 h-5 text-frost-600 dark:text-frost-400" />
-            <span className="font-bold text-base text-gray-900 dark:text-white">SlopesMaster</span>
-          </div>
+                  <div className="flex items-center justify-between px-4 h-full">
+            <Link to="/" className="flex items-center gap-2">
+              <LayoutGrid className="w-5 h-5 text-frost-600 dark:text-frost-400" />
+              <span className="font-bold text-base text-gray-900 dark:text-white">SlopesMaster</span>
+            </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <button
@@ -192,10 +192,10 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
         <aside className="hidden lg:flex flex-col w-64 glass-card">
           <div className="p-4 border-b border-white/10">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <Link to="/" className="flex items-center gap-3">
                 <LayoutGrid className="w-6 h-6 text-frost-600 dark:text-frost-400" />
                 <span className="font-bold text-lg text-gray-900 dark:text-white">SlopesMaster</span>
-              </div>
+              </Link>
               <ThemeToggle />
             </div>
           </div>

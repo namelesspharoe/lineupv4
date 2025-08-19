@@ -42,7 +42,7 @@ export function PublicHeader() {
                   href="/instructor-signup"
                   className="px-4 py-2 border border-blue-600 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors"
                 >
-                  Become an Instructor
+                  Join as Instructor
                 </a>
               </div>
             </nav>
@@ -94,7 +94,7 @@ export function PublicHeader() {
                 href="/instructor-signup"
                 className="block w-full px-4 py-2 text-center border border-blue-600 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors"
               >
-                Become an Instructor
+                Join as Instructor
               </a>
             </div>
           </div>

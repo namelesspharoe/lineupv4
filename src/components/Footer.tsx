@@ -180,30 +180,38 @@ export function Footer() {
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-white">Services</h3>
               <ul className="space-y-2">
-                <li className="text-gray-300 flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-blue-400" />
-                  <span>Private Lessons</span>
+                <li>
+                  <Link to="/find-instructor" className="text-gray-300 hover:text-blue-400 transition-colors duration-200 flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-blue-400" />
+                    <span>Private Lessons</span>
+                  </Link>
                 </li>
-                <li className="text-gray-300 flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-400" />
-                  <span>Group Classes</span>
+                <li>
+                  <Link to="/find-instructor" className="text-gray-300 hover:text-blue-400 transition-colors duration-200 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-400" />
+                    <span>Group Classes</span>
+                  </Link>
                 </li>
-                <li className="text-gray-300 flex items-center gap-2">
-                  <Award className="w-4 h-4 text-blue-400" />
-                  <span>Certification Programs</span>
+                <li>
+                  <Link to="/find-instructor" className="text-gray-300 hover:text-blue-400 transition-colors duration-200 flex items-center gap-2">
+                    <Award className="w-4 h-4 text-blue-400" />
+                    <span>Certification Programs</span>
+                  </Link>
                 </li>
-                <li className="text-gray-300 flex items-center gap-2">
-                  <div className="relative w-4 h-4">
-                    {/* Small Mountain Icon */}
-                    <svg className="w-full h-full" viewBox="0 0 16 16">
-                      <polygon 
-                        points="2,14 8,4 14,14" 
-                        fill="#60a5fa"
-                      />
-                      <circle cx="8" cy="6" r="1" fill="white"/>
-                    </svg>
-                  </div>
-                  <span>Equipment Rental</span>
+                <li>
+                  <Link to="/find-instructor" className="text-gray-300 hover:text-blue-400 transition-colors duration-200 flex items-center gap-2">
+                    <div className="relative w-4 h-4">
+                      {/* Small Mountain Icon */}
+                      <svg className="w-full h-full" viewBox="0 0 16 16">
+                        <polygon 
+                          points="2,14 8,4 14,14" 
+                          fill="#60a5fa"
+                        />
+                        <circle cx="8" cy="6" r="1" fill="white"/>
+                      </svg>
+                    </div>
+                    <span>Equipment Rental</span>
+                  </Link>
                 </li>
               </ul>
             </div>
@@ -212,14 +220,14 @@ export function Footer() {
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-white">Contact Us</h3>
               <div className="space-y-3">
-                <div className="flex items-center gap-3 text-gray-300">
+                <a href="mailto:info@slopesmaster.com" className="flex items-center gap-3 text-gray-300 hover:text-blue-400 transition-colors duration-200">
                   <Mail className="w-4 h-4 text-blue-400 flex-shrink-0" />
                   <span>info@slopesmaster.com</span>
-                </div>
-                <div className="flex items-center gap-3 text-gray-300">
+                </a>
+                <a href="tel:+15551234567" className="flex items-center gap-3 text-gray-300 hover:text-blue-400 transition-colors duration-200">
                   <Phone className="w-4 h-4 text-blue-400 flex-shrink-0" />
                   <span>+1 (555) 123-4567</span>
-                </div>
+                </a>
                 <div className="flex items-start gap-3 text-gray-300">
                   <MapPin className="w-4 h-4 text-blue-400 flex-shrink-0 mt-1" />
                   <span>123 Mountain View Dr.<br />Aspen, CO 81611</span>

@@ -166,14 +166,14 @@ export function Testimonials() {
       <div className="container mx-auto px-6">
         {/* Header */}
         <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-full text-sm font-semibold mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold mb-6">
             <Quote className="w-5 h-5" />
             Real Stories from Real Students
           </div>
           
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
             What Our Students
-            <span className="block text-green-400">
+            <span className="block text-blue-400">
               Are Saying
             </span>
           </h2>
@@ -206,7 +206,7 @@ export function Testimonials() {
             <div className="bg-gray-900 rounded-2xl shadow-xl p-8 md:p-12 border border-gray-700">
               <div className="text-center">
                 {/* Quote Icon */}
-                <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
                   <Quote className="w-8 h-8 text-white" />
                 </div>
 
