@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, TimeEntry } from '../../types';
+import { TimeEntry } from '../../types';
 import { getTimeEntries } from '../../services/timesheet';
 import { TimesheetAnalytics } from './TimesheetAnalytics';
 
@@ -108,6 +108,12 @@ export function InstructorTimesheet({ instructorId }: InstructorTimesheetProps) 
                     Break Time
                   </th>
                   <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Hourly Rate
+                  </th>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Earnings
+                  </th>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
                 </tr>
@@ -138,6 +144,12 @@ export function InstructorTimesheet({ instructorId }: InstructorTimesheetProps) 
                         {totalBreakTime > 0 ? `${totalBreakTime} mins` : '-'}
                       </td>
                       <td className="py-3 px-4">
+                        {entry.hourlyRate ? `$${entry.hourlyRate}/hr` : '-'}
+                      </td>
+                      <td className="py-3 px-4">
+                        {entry.totalEarnings ? `$${entry.totalEarnings.toFixed(2)}` : '-'}
+                      </td>
+                      <td className="py-3 px-4">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                           entry.status === 'active' ? 'bg-green-50 text-green-600' :
                           entry.status === 'completed' ? 'bg-blue-50 text-blue-600' :
@@ -151,7 +163,7 @@ export function InstructorTimesheet({ instructorId }: InstructorTimesheetProps) 
                 })}
                 {timeEntries.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-gray-500">
+                    <td colSpan={7} className="py-8 text-center text-gray-500">
                       No time entries found for this period
                     </td>
                   </tr>

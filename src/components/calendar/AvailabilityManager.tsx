@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Save, X, Plus, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Calendar, Save, X, Plus, Trash2 } from 'lucide-react';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { createAvailabilityBatch, deleteAvailabilityForDates, getAvailabilityByInstructorId } from '../../services/availability';
-import { Availability } from '../../types';
 
 interface AvailabilityManagerProps {
   onClose: () => void;
@@ -27,13 +26,6 @@ const daysOfWeek = [
   { value: 'sunday', label: 'Sunday' }
 ];
 
-const timeSlots = [
-  { label: 'Morning (9:00 AM - 12:00 PM)', start: '09:00', end: '12:00' },
-  { label: 'Afternoon (1:00 PM - 4:00 PM)', start: '13:00', end: '16:00' },
-  { label: 'Full Day (9:00 AM - 5:00 PM)', start: '09:00', end: '17:00' },
-  { label: 'Custom', start: '', end: '' }
-];
-
 export function AvailabilityManager({ onClose, onSaved }: AvailabilityManagerProps) {
   const { user } = useAuth();
   const [patterns, setPatterns] = useState<AvailabilityPattern[]>([]);
@@ -43,13 +35,7 @@ export function AvailabilityManager({ onClose, onSaved }: AvailabilityManagerPro
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user) {
-      loadExistingAvailability();
-    }
-  }, [user]);
-
-  const loadExistingAvailability = async () => {
+  const loadExistingAvailability = useCallback(async () => {
     try {
       const availability = await getAvailabilityByInstructorId(user!.id);
       // Convert availability to patterns (simplified for now)
@@ -57,7 +43,13 @@ export function AvailabilityManager({ onClose, onSaved }: AvailabilityManagerPro
     } catch (err) {
       console.error('Error loading availability:', err);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadExistingAvailability();
+    }
+  }, [user, loadExistingAvailability]);
 
   const addPattern = () => {
     setPatterns([
@@ -123,7 +115,6 @@ export function AvailabilityManager({ onClose, onSaved }: AvailabilityManagerPro
 
     try {
       // Generate dates for the next 3 months based on patterns
-      const dates: Date[] = [];
       const startDate = new Date();
       const endDate = addDays(startDate, 90); // 3 months
 

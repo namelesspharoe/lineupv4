@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, User, MapPin } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, parseISO, startOfWeek, endOfWeek } from 'date-fns';
+import { ChevronLeft, ChevronRight, Plus, User, MapPin } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { getInstructorDailyLessons } from '../../services/lessons';
 import { getInstructorAvailability } from '../../services/availability';
@@ -36,7 +36,6 @@ export function AvailabilityCalendar({
 }: AvailabilityCalendarProps) {
   const { user } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDayDetails, setShowDayDetails] = useState(false);
@@ -48,7 +47,7 @@ export function AvailabilityCalendar({
     if (viewMode === 'instructor') return user?.id;
     if (instructor) return instructor.id;
     return null;
-  }, [viewMode, user?.id, instructor?.id]);
+  }, [viewMode, user?.id, instructor?.id, instructor]);
 
   // Generate calendar days for current month with proper padding
   const generateCalendarDays = useMemo(() => {
@@ -95,11 +94,6 @@ export function AvailabilityCalendar({
           // Determine available time slots
           const availableSlots = determineAvailableSlots(lessons, availability);
           
-          // Debug logging for availability calculation
-          if (lessons.length > 0 || availability.length > 0) {
-
-          }
-          
           return {
             ...day,
             lessons,
@@ -132,13 +126,13 @@ export function AvailabilityCalendar({
       // Skip cancelled lessons as they don't block the time slot
       if (lesson.status === 'cancelled') return;
       
-      if (lesson.time === 'morning') {
+      if (lesson.sessionType === 'morning') {
         const index = availableSlots.indexOf('morning');
         if (index > -1) availableSlots.splice(index, 1);
-      } else if (lesson.time === 'afternoon') {
+      } else if (lesson.sessionType === 'afternoon') {
         const index = availableSlots.indexOf('afternoon');
         if (index > -1) availableSlots.splice(index, 1);
-      } else if (lesson.time === 'full_day') {
+      } else if (lesson.sessionType === 'full_day') {
         // Full day lessons block morning, afternoon, and full day slots
         const fullDayIndex = availableSlots.indexOf('full_day');
         const morningIndex = availableSlots.indexOf('morning');
@@ -155,10 +149,10 @@ export function AvailabilityCalendar({
 
     // Additional check: if there are both morning and afternoon lessons, also block full day
     const hasMorningLesson = lessons.some(lesson => 
-      lesson.status !== 'cancelled' && lesson.time === 'morning'
+      lesson.status !== 'cancelled' && lesson.sessionType === 'morning'
     );
     const hasAfternoonLesson = lessons.some(lesson => 
-      lesson.status !== 'cancelled' && lesson.time === 'afternoon'
+      lesson.status !== 'cancelled' && lesson.sessionType === 'afternoon'
     );
     
     if (hasMorningLesson && hasAfternoonLesson) {
@@ -199,7 +193,10 @@ export function AvailabilityCalendar({
   };
 
   const handleTimeSlotClick = (day: CalendarDay, timeSlot: string) => {
-    setSelectedDay(day);
+    setSelectedDay({
+      ...day,
+      availableSlots: [timeSlot] // Focus on the specific time slot clicked
+    });
     setShowDayDetails(true);
   };
 
@@ -385,7 +382,7 @@ export function AvailabilityCalendar({
                       ? 'bg-red-200 text-red-700'
                       : 'bg-gray-200 text-gray-700'
                   }`}
-                  title={`${lesson.title} - ${lesson.time} (${lesson.status})`}
+                  title={`${lesson.title} - ${lesson.sessionType} (${lesson.status})`}
                 >
                   {lesson.title || 'Untitled Lesson'}
                 </div>

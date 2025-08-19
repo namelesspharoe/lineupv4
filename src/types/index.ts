@@ -261,6 +261,37 @@ export interface Availability {
   date: string;
   startTime: string;
   endTime: string;
+  source?: 'manual' | 'timesheet' | 'pattern';
+  timeEntryId?: string;
+  hourlyRate?: number;
+  totalEarnings?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TimeEntry {
+  id: string;
+  lessonId: string;
+  instructorId: string;
+  clockIn: string;
+  clockOut?: string;
+  status: 'active' | 'completed' | 'disputed';
+  verificationMethod: 'manual' | 'gps' | 'qr';
+  breaks: Array<{
+    startTime: string;
+    endTime?: string;
+    duration?: number;
+  }>;
+  notes?: string;
+  hourlyRate?: number;
+  totalEarnings?: number;
+  verificationData?: {
+    location?: {
+      latitude: number;
+      longitude: number;
+    };
+    disputeReason?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }

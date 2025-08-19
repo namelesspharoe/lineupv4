@@ -5,6 +5,8 @@ import { createLesson } from '../../services/lessons';
 import { User, Lesson } from '../../types';
 import { format } from 'date-fns';
 import { StudentSearch } from '../common/StudentSearch';
+import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 interface UnifiedLessonModalProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface UnifiedLessonModalProps {
   mode: 'create' | 'book'; // 'create' for admin/instructor, 'book' for student
   instructor?: User; // Required for booking mode
   existingLesson?: Lesson; // For editing existing lessons
+  isAdmin?: boolean; // For admin functionality
 }
 
 interface LessonFormData {
@@ -55,7 +58,8 @@ export function UnifiedLessonModal({
   onClose, 
   mode, 
   instructor, 
-  existingLesson 
+  existingLesson,
+  isAdmin = false
 }: UnifiedLessonModalProps) {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -63,6 +67,9 @@ export function UnifiedLessonModal({
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(0);
   const [customStartTime, setCustomStartTime] = useState('');
   const [customEndTime, setCustomEndTime] = useState('');
+  const [instructors, setInstructors] = useState<User[]>([]);
+  const [selectedInstructorId, setSelectedInstructorId] = useState<string>('');
+  const [isLoadingInstructors, setIsLoadingInstructors] = useState(false);
 
   const [formData, setFormData] = useState<LessonFormData>({
     title: '',
@@ -95,6 +102,7 @@ export function UnifiedLessonModal({
         notes: existingLesson.notes || '',
         selectedStudents: []
       });
+      setSelectedInstructorId(existingLesson.instructorId || '');
     } else if (instructor) {
       setFormData(prev => ({
         ...prev,
@@ -103,6 +111,38 @@ export function UnifiedLessonModal({
       }));
     }
   }, [existingLesson, instructor]);
+
+  // Load instructors for admin functionality
+  useEffect(() => {
+    const loadInstructors = async () => {
+      if (!isAdmin) return;
+
+      try {
+        setIsLoadingInstructors(true);
+        const q = query(
+          collection(db, 'users'),
+          where('role', '==', 'instructor'),
+          orderBy('name'),
+          limit(50)
+        );
+        
+        const snapshot = await getDocs(q);
+        const fetchedInstructors = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as User[];
+        
+        setInstructors(fetchedInstructors);
+      } catch (err) {
+        console.error('Error loading instructors:', err);
+        setError('Failed to load instructors');
+      } finally {
+        setIsLoadingInstructors(false);
+      }
+    };
+
+    loadInstructors();
+  }, [isAdmin]);
 
   const handleTimeSlotChange = (index: number) => {
     setSelectedTimeSlot(index);
@@ -179,9 +219,18 @@ export function UnifiedLessonModal({
         return 'morning'; // default
       };
 
+      // Debug: Log admin status and user info
+      console.log('UnifiedLessonModal - Debug info:', {
+        isAdmin,
+        userRole: user?.role,
+        userId: user?.id,
+        selectedInstructorId,
+        mode
+      });
+
       const lessonData = {
         title: formData.title,
-        instructorId: mode === 'book' && instructor ? instructor.id : user.id,
+        instructorId: isAdmin && selectedInstructorId ? selectedInstructorId : (mode === 'book' && instructor ? instructor.id : user.id),
         studentIds: mode === 'book' ? [user.id] : formData.selectedStudents.map(s => s.id),
         date: formData.date,
         sessionType: getSessionType(formData.startTime, formData.endTime),
@@ -259,6 +308,34 @@ export function UnifiedLessonModal({
                   required
                 />
               </div>
+
+              {isAdmin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Instructor
+                  </label>
+                  {isLoadingInstructors ? (
+                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <span className="text-gray-500">Loading instructors...</span>
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedInstructorId}
+                      onChange={(e) => setSelectedInstructorId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">Select an instructor</option>
+                      {instructors.map(instructor => (
+                        <option key={instructor.id} value={instructor.id}>
+                          {instructor.name || 'Unknown Instructor'}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

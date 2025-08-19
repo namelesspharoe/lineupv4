@@ -10,9 +10,10 @@ interface CreateLessonModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreated: () => void;
+  isAdmin?: boolean;
 }
 
-export function CreateLessonModal({ isOpen, onClose, onCreated }: CreateLessonModalProps) {
+export function CreateLessonModal({ isOpen, onClose, onCreated, isAdmin = false }: CreateLessonModalProps) {
   const { user } = useAuth();
   const [selectedInstructor, setSelectedInstructor] = useState<User | null>(null);
   const [instructorSearchQuery, setInstructorSearchQuery] = useState('');
@@ -25,22 +26,32 @@ export function CreateLessonModal({ isOpen, onClose, onCreated }: CreateLessonMo
       const searchInstructors = async () => {
         setIsSearchingInstructors(true);
         try {
+          // First, get all instructors
           const q = query(
             collection(db, 'users'),
-            where('role', '==', 'instructor'),
-            where('name', '>=', instructorSearchQuery),
-            where('name', '<=', instructorSearchQuery + '\uf8ff')
+            where('role', '==', 'instructor')
           );
           
           const snapshot = await getDocs(q);
-          const fetchedInstructors = snapshot.docs.map(doc => ({
+          const allInstructors = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           })) as User[];
           
-          setInstructors(fetchedInstructors);
+          // Then filter by search query (case-insensitive)
+          const searchTerm = instructorSearchQuery.toLowerCase();
+          const filteredInstructors = allInstructors.filter(instructor => 
+            instructor.name?.toLowerCase().includes(searchTerm) ||
+            instructor.email?.toLowerCase().includes(searchTerm) ||
+            instructor.specialties?.some(specialty => 
+              specialty.toLowerCase().includes(searchTerm)
+            )
+          );
+          
+          setInstructors(filteredInstructors);
         } catch (err) {
           console.error('Error searching instructors:', err);
+          setInstructors([]);
         } finally {
           setIsSearchingInstructors(false);
         }
@@ -53,19 +64,25 @@ export function CreateLessonModal({ isOpen, onClose, onCreated }: CreateLessonMo
   }, [instructorSearchQuery]);
 
   useEffect(() => {
-    if (user && user.role === 'instructor') {
+    if (user && user.role === 'instructor' && !isAdmin) {
       setSelectedInstructor(user);
     }
-  }, [user]);
+  }, [user, isAdmin]);
 
   const handleInstructorSelect = (instructor: User) => {
     setSelectedInstructor(instructor);
     setInstructors([]);
-    setInstructorSearchQuery(instructor.name);
+    setInstructorSearchQuery(instructor.name || '');
+  };
+
+  const handleClearSelection = () => {
+    setSelectedInstructor(null);
+    setInstructorSearchQuery('');
+    setInstructors([]);
   };
 
   const handleCreateLesson = () => {
-    if (selectedInstructor || user?.role === 'instructor') {
+    if (selectedInstructor || user?.role === 'instructor' || isAdmin) {
       setShowUnifiedModal(true);
     }
   };
@@ -126,30 +143,64 @@ export function CreateLessonModal({ isOpen, onClose, onCreated }: CreateLessonMo
                   </p>
                 )}
 
-                {instructors.length > 0 && (
+                {isSearchingInstructors && (
+                  <div className="mt-2 p-3 text-center text-gray-500">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    Searching instructors...
+                  </div>
+                )}
+
+                {!isSearchingInstructors && instructors.length > 0 && (
                   <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
                     {instructors.map(instructor => (
                       <button
                         key={instructor.id}
                         onClick={() => handleInstructorSelect(instructor)}
-                        className="w-full p-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                        className="w-full p-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors"
                       >
-                        <div className="font-medium">{instructor.name}</div>
+                        <div className="font-medium text-gray-900">{instructor.name || 'Unknown Instructor'}</div>
                         <div className="text-sm text-gray-600">
-                          {instructor.specialties?.join(', ')}
+                          {instructor.email}
                         </div>
+                        {instructor.specialties && instructor.specialties.length > 0 && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {instructor.specialties.join(', ')}
+                          </div>
+                        )}
                       </button>
                     ))}
                   </div>
                 )}
 
+                {!isSearchingInstructors && instructorSearchQuery.length >= 2 && instructors.length === 0 && (
+                  <div className="mt-2 p-3 text-center text-gray-500 bg-gray-50 rounded-lg">
+                    No instructors found matching "{instructorSearchQuery}"
+                  </div>
+                )}
+
                 {selectedInstructor && user?.role !== 'instructor' && (
                   <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="font-medium text-blue-900">
-                      Selected: {selectedInstructor.name}
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="font-medium text-blue-900">
+                          Selected: {selectedInstructor.name || 'Unknown Instructor'}
+                        </div>
+                        <div className="text-sm text-blue-700">
+                          {selectedInstructor.email}
+                        </div>
+                        {selectedInstructor.specialties && selectedInstructor.specialties.length > 0 && (
+                          <div className="text-xs text-blue-600 mt-1">
+                            {selectedInstructor.specialties.join(', ')}
+                          </div>
+                        )}
                       </div>
-                    <div className="text-sm text-blue-700">
-                      {selectedInstructor.specialties?.join(', ')}
+                      <button
+                        onClick={handleClearSelection}
+                        className="ml-2 p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
+                        title="Clear selection"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 )}
@@ -157,16 +208,18 @@ export function CreateLessonModal({ isOpen, onClose, onCreated }: CreateLessonMo
 
               {/* Create Lesson Button */}
               <div className="pt-4">
-                        <button
+                <button
                   onClick={handleCreateLesson}
-                  disabled={!selectedInstructor && user?.role !== 'instructor'}
+                  disabled={!selectedInstructor && user?.role !== 'instructor' && !isAdmin}
                   className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {user?.role === 'instructor' 
                     ? 'Create Lesson for Yourself' 
                     : selectedInstructor 
-                      ? `Create Lesson for ${selectedInstructor.name}`
-                      : 'Select an Instructor First'
+                      ? `Create Lesson for ${selectedInstructor.name || 'Selected Instructor'}`
+                      : isAdmin
+                        ? 'Create Lesson (Select Instructor in Next Step)'
+                        : 'Select an Instructor First'
                   }
                 </button>
               </div>
@@ -181,6 +234,7 @@ export function CreateLessonModal({ isOpen, onClose, onCreated }: CreateLessonMo
         onClose={handleUnifiedModalClose}
         mode="create"
         instructor={selectedInstructor || undefined}
+        isAdmin={isAdmin}
       />
     </>
   );

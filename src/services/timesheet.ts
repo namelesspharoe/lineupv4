@@ -18,7 +18,8 @@ import { TimeEntry } from '../types';
 export async function clockIn(
   lessonId: string,
   instructorId: string,
-  verificationMethod: 'manual' = 'manual'
+  verificationMethod: 'manual' = 'manual',
+  hourlyRate?: number
 ): Promise<string> {
   try {
     const timeEntry: Omit<TimeEntry, 'id'> = {
@@ -28,6 +29,7 @@ export async function clockIn(
       verificationMethod,
       status: 'active',
       breaks: [],
+      hourlyRate: hourlyRate || 50, // Default $50/hour if not provided
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -45,11 +47,52 @@ export async function clockOut(timeEntryId: string): Promise<void> {
     const clockOutTime = new Date();
     const timeEntryRef = doc(db, 'timeEntries', timeEntryId);
     
+    // Get the time entry to calculate earnings
+    const timeEntrySnap = await getDoc(timeEntryRef);
+    const timeEntry = timeEntrySnap.data();
+    
+    if (!timeEntry) {
+      throw new Error('Time entry not found');
+    }
+    
+    // Calculate total work time (excluding breaks)
+    const clockInTime = new Date(timeEntry.clockIn);
+    const totalWorkTimeMs = clockOutTime.getTime() - clockInTime.getTime();
+    
+    // Calculate total break time
+    const totalBreakTimeMs = timeEntry.breaks?.reduce((total: number, breakPeriod: any) => {
+      if (breakPeriod.duration) {
+        return total + (breakPeriod.duration * 60 * 1000); // Convert minutes to milliseconds
+      }
+      return total;
+    }, 0) || 0;
+    
+    // Calculate actual work time (total time minus breaks)
+    const actualWorkTimeMs = totalWorkTimeMs - totalBreakTimeMs;
+    const actualWorkHours = actualWorkTimeMs / (1000 * 60 * 60);
+    
+    // Get instructor's hourly rate (you might want to fetch this from user profile)
+    // For now, we'll use a default rate or calculate from lesson price
+    const hourlyRate = timeEntry.hourlyRate || 50; // Default $50/hour
+    
+    // Calculate total earnings
+    const totalEarnings = actualWorkHours * hourlyRate;
+    
     await updateDoc(timeEntryRef, {
       clockOut: clockOutTime.toISOString(),
       status: 'completed',
+      hourlyRate,
+      totalEarnings: Math.round(totalEarnings * 100) / 100, // Round to 2 decimal places
       updatedAt: new Date().toISOString()
     });
+
+    // Save timesheet data to calendar
+    try {
+      await saveTimesheetToCalendar(timeEntryRef.id);
+    } catch (calendarError) {
+      console.warn('Failed to save to calendar, but clock out was successful:', calendarError);
+      // Don't throw error here as clock out was successful
+    }
   } catch (error) {
     console.error('Error in clockOut:', error);
     throw new Error('Failed to clock out');
@@ -145,6 +188,34 @@ export async function getTimeEntries(
   }
 }
 
+export async function getTimeEntriesByInstructor(instructorId: string, date: string): Promise<TimeEntry[]> {
+  try {
+    // Get all time entries for the instructor
+    const q = query(
+      collection(db, 'timeEntries'),
+      where('instructorId', '==', instructorId),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    // Filter by date (time entries that started on the specified date)
+    const timeEntries = querySnapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as TimeEntry[];
+    
+    return timeEntries.filter(entry => {
+      const entryDate = new Date(entry.clockIn).toISOString().split('T')[0];
+      return entryDate === date;
+    });
+  } catch (error) {
+    console.error('Error getting time entries by instructor and date:', error);
+    throw new Error('Failed to get time entries');
+  }
+}
+
 export async function updateTimeEntryNotes(
   timeEntryId: string,
   notes: string
@@ -175,5 +246,64 @@ export async function disputeTimeEntry(
   } catch (error) {
     console.error('Error disputing time entry:', error);
     throw new Error('Failed to dispute time entry');
+  }
+}
+
+export async function saveTimesheetToCalendar(timeEntryId: string): Promise<void> {
+  try {
+    // Get the time entry
+    const timeEntryRef = doc(db, 'timeEntries', timeEntryId);
+    const timeEntrySnap = await getDoc(timeEntryRef);
+    const timeEntry = timeEntrySnap.data() as TimeEntry;
+
+    if (!timeEntry || timeEntry.status !== 'completed') {
+      throw new Error('Time entry not found or not completed');
+    }
+
+    // Create availability entry for the time period
+    const clockInDate = new Date(timeEntry.clockIn);
+    const clockOutDate = new Date(timeEntry.clockOut!);
+    
+    // Format times for availability
+    const startTime = clockInDate.toTimeString().slice(0, 5); // HH:MM format
+    const endTime = clockOutDate.toTimeString().slice(0, 5); // HH:MM format
+    
+    // Create availability for the specific date
+    const availabilityDate = clockInDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Prepare availability data, only including defined values
+    const availabilityData: any = {
+      instructorId: timeEntry.instructorId,
+      date: availabilityDate,
+      startTime,
+      endTime,
+      source: 'timesheet',
+      timeEntryId: timeEntryId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    // Only add optional fields if they have values
+    if (timeEntry.hourlyRate !== undefined) {
+      availabilityData.hourlyRate = timeEntry.hourlyRate;
+    }
+    if (timeEntry.totalEarnings !== undefined) {
+      availabilityData.totalEarnings = timeEntry.totalEarnings;
+    }
+    
+    console.log('Saving availability data:', availabilityData);
+    
+    // Add to availability collection
+    await addDoc(collection(db, 'instructorAvailability'), availabilityData);
+
+    console.log('Timesheet data saved to calendar successfully');
+  } catch (error) {
+    console.error('Error saving timesheet to calendar:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      code: (error as any)?.code,
+      details: (error as any)?.details
+    });
+    throw new Error('Failed to save timesheet to calendar');
   }
 }

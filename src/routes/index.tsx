@@ -16,12 +16,18 @@ const Messages = React.lazy(() => import('../pages/Messages').then(module => ({ 
 const Progress = React.lazy(() => import('../pages/Progress').then(module => ({ default: module.Progress })));
 const Profile = React.lazy(() => import('../pages/Profile').then(module => ({ default: module.Profile })));
 const AchievementsPage = React.lazy(() => import('../pages/Achievements').then(module => ({ default: module.AchievementsPage })));
+const Lessons = React.lazy(() => import('../pages/Lessons').then(module => ({ default: module.Lessons })));
+const Stats = React.lazy(() => import('../pages/Stats').then(module => ({ default: module.Stats })));
 const CheckoutSuccess = React.lazy(() => import('../pages/checkout/Success').then(module => ({ default: module.CheckoutSuccess })));
 const CheckoutCancel = React.lazy(() => import('../pages/checkout/Cancel').then(module => ({ default: module.CheckoutCancel })));
 
 // Dashboard components
 const StudentDashboard = React.lazy(() => import('../components/dashboard/student').then(module => ({ default: module.StudentDashboard })));
 const InstructorDashboard = React.lazy(() => import('../components/dashboard/instructor').then(module => ({ default: module.InstructorDashboard })));
+const InstructorDashboardLayout = React.lazy(() => import('../components/dashboard/instructor/InstructorDashboardLayout').then(module => ({ default: module.InstructorDashboardLayout })));
+const InstructorLessons = React.lazy(() => import('../components/dashboard/instructor/InstructorLessons').then(module => ({ default: module.InstructorLessons })));
+const InstructorTimeCard = React.lazy(() => import('../components/dashboard/instructor/InstructorTimeCard').then(module => ({ default: module.InstructorTimeCard })));
+const InstructorCalendarWrapper = React.lazy(() => import('../components/dashboard/instructor/InstructorCalendarWrapper').then(module => ({ default: module.InstructorCalendarWrapper })));
 const AdminDashboard = React.lazy(() => import('../components/dashboard/admin').then(module => ({ default: module.AdminDashboard })));
 
 // Protected route wrapper
@@ -62,12 +68,20 @@ const DashboardRoute = () => {
       {user.role === 'admin' ? (
         <AdminDashboard user={user} />
       ) : user.role === 'instructor' ? (
-        <InstructorDashboard user={user} />
+        <Navigate to="/dashboard/instructor/lessons" replace />
       ) : (
         <StudentDashboard user={user} />
       )}
     </Layout>
   );
+};
+
+const InstructorDashboardRoute = () => {
+  const { user } = useAuth();
+  
+  if (!user) return <Navigate to="/" replace />;
+
+  return <InstructorDashboardLayout user={user} />;
 };
 
 const HomeRoute = () => {
@@ -131,6 +145,34 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: '/dashboard/instructor',
+    element: (
+      <ProtectedRoute requiredRole="instructor">
+        <Layout>
+          <InstructorDashboardRoute />
+        </Layout>
+      </ProtectedRoute>
+    ),
+    children: [
+      {
+        path: 'lessons',
+        element: <InstructorLessons />
+      },
+      {
+        path: 'timecard',
+        element: <InstructorTimeCard />
+      },
+      {
+        path: 'calendar',
+        element: <InstructorCalendarWrapper />
+      },
+      {
+        path: '',
+        element: <Navigate to="lessons" replace />
+      }
+    ]
+  },
+  {
     path: '/messages',
     element: (
       <ProtectedRoute>
@@ -191,11 +233,21 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: '/stats',
+    element: (
+      <ProtectedRoute requiredRole="admin">
+        <Layout>
+          <Stats />
+        </Layout>
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: '/lessons',
     element: (
-      <ProtectedRoute requiredRole="instructor">
+      <ProtectedRoute>
         <Layout>
-          <div>Lessons Management (TODO)</div>
+          <Lessons />
         </Layout>
       </ProtectedRoute>
     ),

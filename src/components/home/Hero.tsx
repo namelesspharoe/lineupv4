@@ -65,35 +65,35 @@ export function Hero() {
         />
       </div>
       
-      <div className="container mx-auto px-6 relative z-10">
+      <div className="container mx-auto px-4 sm:px-6 relative z-10">
         <div className="max-w-4xl">
-          <div className="flex items-center gap-2 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-6">
             <div className="flex items-center gap-1">
-              <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-              <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-              <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-              <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-              <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+              <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-yellow-400" />
+              <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-yellow-400" />
+              <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-yellow-400" />
+              <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-yellow-400" />
+              <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-yellow-400" />
             </div>
-            <span className="text-gray-300 font-medium">Trusted by {stats.totalLessons.toLocaleString()}+ students worldwide</span>
+            <span className="text-sm sm:text-base text-gray-300 font-medium">Trusted by {stats.totalLessons.toLocaleString()}+ students worldwide</span>
           </div>
           
-          <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight">
             Find Your Perfect
             <span className="block text-blue-400">
               Ski & Snowboard Instructor
             </span>
           </h1>
           
-          <p className="text-xl text-gray-300 mb-8 leading-relaxed max-w-2xl">
+          <p className="text-lg sm:text-xl text-gray-300 mb-8 leading-relaxed max-w-2xl">
             Connect with certified instructors, book personalized lessons, and track your progress from beginner to expert. 
             Whether you're hitting the slopes for the first time or perfecting advanced techniques.
           </p>
           
-          <div className="flex flex-wrap gap-4 mb-12">
+          <div className="flex flex-col sm:flex-row gap-4 mb-12">
             <a 
               href="/find-instructor"
-              className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 flex items-center gap-2 shadow-lg"
+              className="px-6 sm:px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2 shadow-lg touch-manipulation"
             >
               <Mountain className="w-5 h-5" />
               Find Your Instructor
@@ -101,34 +101,34 @@ export function Hero() {
             </a>
             <a 
               href="/book-lesson"
-              className="px-8 py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-semibold transition-all duration-300 border border-gray-600 hover:border-gray-500"
+              className="px-6 sm:px-8 py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-semibold transition-all duration-300 border border-gray-600 hover:border-gray-500 flex items-center justify-center gap-2 touch-manipulation"
             >
-              <Snowflake className="w-5 h-5 inline mr-2" />
+              <Snowflake className="w-5 h-5" />
               Browse Lessons
             </a>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
             <div className="text-center">
               <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 mb-3 inline-block border border-gray-700">
-                <Users className="w-8 h-8 text-blue-400" />
+                <Users className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" />
               </div>
-              <p className="text-3xl font-bold text-white">{stats.totalInstructors}+</p>
-              <p className="text-gray-400 font-medium">Certified Instructors</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white">{stats.totalInstructors}+</p>
+              <p className="text-sm sm:text-base text-gray-400 font-medium">Certified Instructors</p>
             </div>
             <div className="text-center">
               <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 mb-3 inline-block border border-gray-700">
-                <Snowflake className="w-8 h-8 text-blue-400" />
+                <Snowflake className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" />
               </div>
-              <p className="text-3xl font-bold text-white">{stats.totalLessons.toLocaleString()}+</p>
-              <p className="text-gray-400 font-medium">Lessons Completed</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white">{stats.totalLessons.toLocaleString()}+</p>
+              <p className="text-sm sm:text-base text-gray-400 font-medium">Lessons Completed</p>
             </div>
             <div className="text-center">
               <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 mb-3 inline-block border border-gray-700">
-                <Star className="w-8 h-8 text-yellow-400" />
+                <Star className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400" />
               </div>
-              <p className="text-3xl font-bold text-white">{stats.averageRating}/5</p>
-              <p className="text-gray-400 font-medium">Average Rating</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white">{stats.averageRating}/5</p>
+              <p className="text-sm sm:text-base text-gray-400 font-medium">Average Rating</p>
             </div>
           </div>
         </div>

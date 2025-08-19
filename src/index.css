@@ -18,4 +18,194 @@
   .bg-winter-dark {
     @apply bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900;
   }
+
+  /* Mobile-specific improvements */
+  @media (max-width: 640px) {
+    /* Improve touch targets */
+    button, a {
+      @apply touch-manipulation;
+    }
+    
+    /* Better scrolling on mobile */
+    .overflow-auto, .overflow-y-auto {
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Prevent zoom on input focus */
+    input, textarea, select {
+      font-size: 16px;
+    }
+    
+    /* Better modal spacing on mobile */
+    .modal-content {
+      @apply mx-4 my-8;
+    }
+  }
+
+  /* Hide scrollbars for mobile */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Improved mobile navigation */
+  .mobile-nav-item {
+    @apply min-h-[44px] flex items-center px-4 py-3;
+  }
+
+  /* Better mobile card spacing */
+  .mobile-card {
+    @apply p-4 sm:p-6;
+  }
+
+  /* Mobile-friendly grid layouts */
+  .mobile-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6;
+  }
+
+  /* Mobile-optimized buttons */
+  .mobile-button {
+    @apply px-4 py-3 sm:px-6 sm:py-2 text-sm sm:text-base font-medium rounded-lg transition-all duration-200 touch-manipulation;
+  }
+
+  /* Mobile-friendly text sizing */
+  .mobile-text {
+    @apply text-sm sm:text-base;
+  }
+
+  .mobile-heading {
+    @apply text-lg sm:text-xl md:text-2xl font-bold;
+  }
+
+  /* Mobile-optimized spacing */
+  .mobile-spacing {
+    @apply space-y-4 sm:space-y-6;
+  }
+
+  .mobile-padding {
+    @apply p-4 sm:p-6 lg:p-8;
+  }
+
+  /* Social app-like styling */
+  .social-card {
+    @apply bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden;
+  }
+
+  .social-card-hover {
+    @apply hover:shadow-md transition-shadow duration-200;
+  }
+
+  /* Stories-like elements */
+  .story-circle {
+    @apply w-16 h-16 rounded-full bg-gradient-to-br p-0.5;
+  }
+
+  .story-circle-inner {
+    @apply w-full h-full rounded-full bg-white dark:bg-gray-900 flex items-center justify-center;
+  }
+
+  /* Bottom navigation styling */
+  .bottom-nav {
+    @apply fixed bottom-0 left-0 right-0 h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-t border-gray-200/50 dark:border-gray-700/50 z-40;
+  }
+
+  .bottom-nav-item {
+    @apply flex flex-col items-center justify-center w-full h-full rounded-lg transition-colors;
+  }
+
+  .bottom-nav-item-active {
+    @apply text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20;
+  }
+
+  .bottom-nav-item-inactive {
+    @apply text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white;
+  }
+
+  /* Mobile header styling */
+  .mobile-header {
+    @apply fixed top-0 left-0 right-0 h-14 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/50 z-40;
+  }
+
+  /* Quick actions grid */
+  .quick-actions-grid {
+    @apply grid grid-cols-4 gap-4;
+  }
+
+  .quick-action-item {
+    @apply flex flex-col items-center p-3 rounded-xl transition-colors;
+  }
+
+  /* Feed-like styling */
+  .feed-item {
+    @apply bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden cursor-pointer hover:shadow-md transition-shadow;
+  }
+
+  /* Achievement card styling */
+  .achievement-card {
+    @apply rounded-2xl p-6 text-white;
+  }
+
+  .achievement-card-unlocked {
+    @apply bg-gradient-to-br from-purple-500 to-purple-600;
+  }
+
+  .achievement-card-locked {
+    @apply bg-gray-100 dark:bg-gray-800;
+  }
+
+  /* Mobile animations */
+  .mobile-fade-in {
+    animation: mobileFadeIn 0.3s ease-out;
+  }
+
+  .mobile-slide-up {
+    animation: mobileSlideUp 0.3s ease-out;
+  }
+
+  @keyframes mobileFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes mobileSlideUp {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  /* Mobile gesture improvements */
+  .mobile-swipe {
+    @apply touch-pan-y;
+  }
+
+  .mobile-pinch {
+    @apply touch-pinch-zoom;
+  }
+
+  /* Mobile-safe area padding */
+  .mobile-safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .mobile-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Mobile status bar styling */
+  .mobile-status-bar {
+    @apply bg-black/20 backdrop-blur-md;
+  }
 }

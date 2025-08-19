@@ -140,7 +140,7 @@ export function ChatWindow({ otherUser, onClose }: ChatWindowProps) {
 
     try {
       setIsSending(true);
-      let attachments: MessageAttachment[] = [];
+      const attachments: MessageAttachment[] = [];
 
       // Upload file if selected
       if (selectedFile) {

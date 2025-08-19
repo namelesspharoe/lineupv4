@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Play, Square, Pause, Play as Resume, AlertCircle } from 'lucide-react';
 import { clockIn, clockOut, getActiveTimeEntry, startBreak, endBreak } from '../../services/timesheet';
-import { TimeEntry } from '../../types';
+import { TimeEntry, User } from '../../types';
 
 interface ClockInOutButtonProps {
   instructorId: string;
   lessonId?: string;
+  instructor?: User;
   onClockIn?: () => void;
   onClockOut?: () => void;
 }
@@ -13,6 +14,7 @@ interface ClockInOutButtonProps {
 export function ClockInOutButton({
   instructorId,
   lessonId = 'general',
+  instructor,
   onClockIn,
   onClockOut
 }: ClockInOutButtonProps) {
@@ -46,12 +48,13 @@ export function ClockInOutButton({
   const handleClockIn = async () => {
     try {
       setError(null);
-      const entryId = await clockIn(lessonId, instructorId);
+      const hourlyRate = instructor?.hourlyRate || instructor?.price || 50;
+      await clockIn(lessonId, instructorId, 'manual', hourlyRate);
       setActiveEntry(await getActiveTimeEntry(instructorId));
       onClockIn?.();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error clocking in:', err);
-      setError(err.message || 'Failed to clock in');
+      setError(err instanceof Error ? err.message : 'Failed to clock in');
     }
   };
 
@@ -70,9 +73,9 @@ export function ClockInOutButton({
       setActiveEntry(null);
       setIsOnBreak(false);
       onClockOut?.();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error clocking out:', err);
-      setError(err.message || 'Failed to clock out');
+      setError(err instanceof Error ? err.message : 'Failed to clock out');
     }
   };
 
@@ -92,9 +95,9 @@ export function ClockInOutButton({
       // Refresh active entry to get updated break info
       const updatedEntry = await getActiveTimeEntry(instructorId);
       setActiveEntry(updatedEntry);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error toggling break:', err);
-      setError(err.message || 'Failed to toggle break');
+      setError(err instanceof Error ? err.message : 'Failed to toggle break');
     }
   };
 

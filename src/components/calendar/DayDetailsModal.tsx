@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Calendar, Clock, User, MapPin, Plus } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Calendar, Clock, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { Lesson, Availability, User as UserType } from '../../types';
@@ -238,8 +238,8 @@ export function DayDetailsModal({
                           Time Slot
                         </label>
                         <select
-                          value={newLesson.time}
-                          onChange={(e) => setNewLesson(prev => ({ ...prev, time: e.target.value as any }))}
+                          value={newLesson.sessionType}
+                          onChange={(e) => setNewLesson(prev => ({ ...prev, sessionType: e.target.value as 'morning' | 'afternoon' | 'full_day' }))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           {availableSlots.map(slot => (
@@ -256,7 +256,7 @@ export function DayDetailsModal({
                         </label>
                         <select
                           value={newLesson.skillLevel}
-                          onChange={(e) => setNewLesson(prev => ({ ...prev, skillLevel: e.target.value as any }))}
+                          onChange={(e) => setNewLesson(prev => ({ ...prev, skillLevel: e.target.value as 'first_time' | 'developing_turns' | 'linking_turns' | 'confident_turns' | 'consistent_blue' }))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value="first_time">First Time</option>

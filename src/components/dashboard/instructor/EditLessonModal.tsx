@@ -10,6 +10,7 @@ interface EditLessonModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdate: () => void;
+  isAdmin?: boolean;
 }
 
 interface FormErrors {
@@ -20,7 +21,7 @@ interface FormErrors {
   maxStudents?: string;
 }
 
-export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLessonModalProps) {
+export function EditLessonModal({ lesson, isOpen, onClose, onUpdate, isAdmin = false }: EditLessonModalProps) {
   const [formData, setFormData] = useState({
     title: lesson.title || '',
     type: lesson.type || 'private',
@@ -33,15 +34,18 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
     status: lesson.status || 'available',
     notes: lesson.notes || '',
     skillsFocus: lesson.skillsFocus || [],
-    studentIds: lesson.studentIds || []
+    studentIds: lesson.studentIds || [],
+    instructorId: lesson.instructorId || ''
   });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [students, setStudents] = useState<User[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<User[]>([]);
+  const [instructors, setInstructors] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
+  const [isLoadingInstructors, setIsLoadingInstructors] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
@@ -60,7 +64,8 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
       status: lesson.status || 'available',
       notes: lesson.notes || '',
       skillsFocus: lesson.skillsFocus || [],
-      studentIds: lesson.studentIds || []
+      studentIds: lesson.studentIds || [],
+      instructorId: lesson.instructorId || ''
     });
     setFormErrors({});
     setError(null);
@@ -108,6 +113,38 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
 
     loadSelectedStudents();
   }, [formData.studentIds]);
+
+  // Load instructors for admin selection
+  useEffect(() => {
+    const loadInstructors = async () => {
+      if (!isAdmin) return;
+
+      try {
+        setIsLoadingInstructors(true);
+        const q = query(
+          collection(db, 'users'),
+          where('role', '==', 'instructor'),
+          orderBy('name'),
+          limit(50)
+        );
+        
+        const snapshot = await getDocs(q);
+        const fetchedInstructors = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as User[];
+        
+        setInstructors(fetchedInstructors);
+      } catch (err) {
+        console.error('Error loading instructors:', err);
+        setError('Failed to load instructors');
+      } finally {
+        setIsLoadingInstructors(false);
+      }
+    };
+
+    loadInstructors();
+  }, [isAdmin]);
 
   // Search for available students
   useEffect(() => {
@@ -313,6 +350,33 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate }: EditLesso
                     <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
+
+                {isAdmin && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Instructor
+                    </label>
+                    {isLoadingInstructors ? (
+                      <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        <span className="text-gray-500">Loading instructors...</span>
+                      </div>
+                    ) : (
+                      <select
+                        value={formData.instructorId}
+                        onChange={(e) => handleInputChange('instructorId', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Select an instructor</option>
+                        {instructors.map(instructor => (
+                          <option key={instructor.id} value={instructor.id}>
+                            {instructor.name || 'Unknown Instructor'}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
