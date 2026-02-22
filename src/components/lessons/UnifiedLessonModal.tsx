@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Calendar, Clock, Users, DollarSign, Target, FileText } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { createLesson } from '../../services/lessons';
@@ -35,8 +35,7 @@ interface LessonFormData {
 const timeSlots = [
   { label: 'Morning (9:00 AM - 12:00 PM)', start: '09:00', end: '12:00' },
   { label: 'Afternoon (1:00 PM - 4:00 PM)', start: '13:00', end: '16:00' },
-  { label: 'Full Day (9:00 AM - 5:00 PM)', start: '09:00', end: '17:00' },
-  { label: 'Custom', start: '', end: '' }
+  { label: 'Full Day (9:00 AM - 5:00 PM)', start: '09:00', end: '17:00' }
 ];
 
 const skillLevels = [
@@ -53,6 +52,12 @@ const skillOptions = [
   'Safety Awareness', 'Mountain Navigation'
 ];
 
+const lessonTypeLabels: Record<'private' | 'group' | 'workshop', string> = {
+  private: 'Private Lesson',
+  group: 'Group Lesson',
+  workshop: 'Workshop'
+};
+
 export function UnifiedLessonModal({ 
   isOpen, 
   onClose, 
@@ -65,8 +70,6 @@ export function UnifiedLessonModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(0);
-  const [customStartTime, setCustomStartTime] = useState('');
-  const [customEndTime, setCustomEndTime] = useState('');
   const [instructors, setInstructors] = useState<User[]>([]);
   const [selectedInstructorId, setSelectedInstructorId] = useState<string>('');
   const [isLoadingInstructors, setIsLoadingInstructors] = useState(false);
@@ -85,6 +88,13 @@ export function UnifiedLessonModal({
     notes: '',
     selectedStudents: []
   });
+
+  const getAutoLessonTitle = useCallback(() => {
+    const typeLabel = lessonTypeLabels[formData.type] || 'Lesson';
+    const instructorName = instructor?.name || 'Instructor';
+    const dateLabel = formData.date ? format(new Date(formData.date), 'MMM d, yyyy') : 'Date TBD';
+    return `${typeLabel} with ${instructorName} - ${dateLabel}`;
+  }, [formData.type, formData.date, instructor?.name]);
 
   useEffect(() => {
     if (existingLesson) {
@@ -106,11 +116,40 @@ export function UnifiedLessonModal({
     } else if (instructor) {
       setFormData(prev => ({
         ...prev,
-        price: instructor.price || 0,
+        price: instructor.price || prev.price,
         selectedStudents: []
       }));
     }
   }, [existingLesson, instructor]);
+
+  useEffect(() => {
+    if (mode === 'book' && instructor) {
+      const autoTitle = getAutoLessonTitle();
+      setFormData(prev => {
+        let changed = false;
+        const updates: Partial<LessonFormData> = {};
+
+        if (prev.title !== autoTitle) {
+          updates.title = autoTitle;
+          changed = true;
+        }
+
+        const autoDescription = `${lessonTypeLabels[prev.type] || 'Lesson'} experience with ${instructor.name || 'Instructor'}`;
+        if (prev.description !== autoDescription) {
+          updates.description = autoDescription;
+          changed = true;
+        }
+
+        const instructorRate = instructor.price ?? prev.price;
+        if (instructorRate && prev.price !== instructorRate) {
+          updates.price = instructorRate;
+          changed = true;
+        }
+
+        return changed ? { ...prev, ...updates } : prev;
+      });
+    }
+  }, [mode, instructor, getAutoLessonTitle]);
 
   // Load instructors for admin functionality
   useEffect(() => {
@@ -146,24 +185,12 @@ export function UnifiedLessonModal({
 
   const handleTimeSlotChange = (index: number) => {
     setSelectedTimeSlot(index);
-    if (index < 3) {
-      const slot = timeSlots[index];
-      setFormData(prev => ({
-        ...prev,
-        startTime: slot.start,
-        endTime: slot.end
-      }));
-    }
-  };
-
-  const handleCustomTimeChange = () => {
-    if (customStartTime && customEndTime) {
-      setFormData(prev => ({
-        ...prev,
-        startTime: customStartTime,
-        endTime: customEndTime
-      }));
-    }
+    const slot = timeSlots[index];
+    setFormData(prev => ({
+      ...prev,
+      startTime: slot.start,
+      endTime: slot.end
+    }));
   };
 
   const handleSkillToggle = (skill: string) => {
@@ -267,63 +294,77 @@ export function UnifiedLessonModal({
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-100 dark:border-gray-800">
           {/* Header */}
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 rounded-t-xl">
+          <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-4 rounded-t-xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 {mode === 'create' ? 'Create New Lesson' : 'Book Lesson'}
                 {existingLesson && ' - Edit'}
               </h2>
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 text-gray-700 dark:text-gray-300" />
               </button>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-600">{error}</p>
+              <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-red-600 dark:text-red-300">{error}</p>
               </div>
             )}
 
             {/* Basic Information */}
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900">Lesson Details</h3>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Lesson Details</h3>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Lesson Title
                 </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="e.g., Beginner Ski Lesson"
-                  required
-                />
+                {mode === 'book' ? (
+                  <>
+                    <input
+                      type="text"
+                      value={formData.title}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg cursor-not-allowed"
+                    />
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Automatically generated as "{lessonTypeLabels[formData.type]} with {instructor?.name || 'Instructor'}" on the selected date.
+                    </p>
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="e.g., Beginner Ski Lesson"
+                    required
+                  />
+                )}
               </div>
 
               {isAdmin && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Instructor
                   </label>
                   {isLoadingInstructors ? (
-                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 flex items-center gap-2">
+                    <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center gap-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                      <span className="text-gray-500">Loading instructors...</span>
+                      <span className="text-gray-500 dark:text-gray-400">Loading instructors...</span>
                     </div>
                   ) : (
                     <select
                       value={selectedInstructorId}
                       onChange={(e) => setSelectedInstructorId(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
                     >
                       <option value="">Select an instructor</option>
@@ -339,21 +380,21 @@ export function UnifiedLessonModal({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Date
                   </label>
                   <input
                     type="date"
                     value={formData.date}
                     onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min={format(new Date(), 'yyyy-MM-dd')}
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Lesson Type
                   </label>
                   <select
@@ -364,7 +405,7 @@ export function UnifiedLessonModal({
                       maxStudents: e.target.value === 'private' ? 1 : prev.maxStudents,
                       selectedStudents: e.target.value === 'private' ? prev.selectedStudents.slice(0, 1) : prev.selectedStudents
                     }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="private">Private Lesson</option>
                     <option value="group">Group Lesson</option>
@@ -393,7 +434,7 @@ export function UnifiedLessonModal({
             {/* Student Selection - Only show for create mode */}
             {mode === 'create' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">Assign Students</h3>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">Assign Students</h3>
                 <StudentSearch
                   onStudentSelect={handleStudentSelect}
                   onStudentRemove={handleStudentRemove}
@@ -407,7 +448,7 @@ export function UnifiedLessonModal({
 
             {/* Time Selection */}
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900">Time Selection</h3>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Time Selection</h3>
               
               <div className="grid grid-cols-2 gap-3">
                 {timeSlots.map((slot, index) => (
@@ -417,60 +458,25 @@ export function UnifiedLessonModal({
                     onClick={() => handleTimeSlotChange(index)}
                     className={`p-3 border rounded-lg text-left transition-colors ${
                       selectedTimeSlot === index
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-300 hover:border-gray-400'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400/60 dark:bg-blue-900/20 dark:text-blue-200'
+                        : 'border-gray-300 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500'
                     }`}
                   >
-                    <div className="font-medium">{slot.label}</div>
-                    {index < 3 && (
-                      <div className="text-sm text-gray-600">
-                        {slot.start} - {slot.end}
-                      </div>
-                    )}
+                    <div className="font-medium text-gray-900 dark:text-gray-100">{slot.label}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      {slot.start} - {slot.end}
+                    </div>
                   </button>
                 ))}
               </div>
-
-              {selectedTimeSlot === 3 && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Start Time
-                    </label>
-                    <input
-                      type="time"
-                      value={customStartTime}
-                      onChange={(e) => {
-                        setCustomStartTime(e.target.value);
-                        handleCustomTimeChange();
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      End Time
-                    </label>
-                    <input
-                      type="time"
-                      value={customEndTime}
-                      onChange={(e) => {
-                        setCustomEndTime(e.target.value);
-                        handleCustomTimeChange();
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Skill Level and Focus */}
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900">Skill Level & Focus</h3>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Skill Level & Focus</h3>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Skill Level
                 </label>
                 <select
@@ -479,7 +485,7 @@ export function UnifiedLessonModal({
                     ...prev, 
                     skillLevel: e.target.value as any 
                   }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   {skillLevels.map(level => (
                     <option key={level.value} value={level.value}>
@@ -490,7 +496,7 @@ export function UnifiedLessonModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Skills to Focus On
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -501,8 +507,8 @@ export function UnifiedLessonModal({
                       onClick={() => handleSkillToggle(skill)}
                       className={`p-2 text-sm border rounded-lg transition-colors ${
                         formData.skillsFocus.includes(skill)
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-300 hover:border-gray-400'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-900/20 dark:text-blue-200'
+                          : 'border-gray-300 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500 dark:text-gray-200'
                       }`}
                     >
                       {skill}
@@ -512,74 +518,48 @@ export function UnifiedLessonModal({
               </div>
             </div>
 
-            {/* Pricing */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900">Pricing</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Hourly Rate ($)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="text-sm text-gray-600">Total Cost</div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    ${calculateTotal().toFixed(2)}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {calculateHours()} hours × ${formData.price}/hour
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Description and Notes */}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Description
                 </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Describe what this lesson will cover..."
-                  required
-                />
+                {mode === 'book' ? (
+                  <div className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg text-gray-700 dark:text-gray-200">
+                    {formData.description || 'Description will be generated automatically.'}
+                  </div>
+                ) : (
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Describe what this lesson will cover..."
+                    required
+                  />
+                )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Additional Notes
                 </label>
                 <textarea
                   value={formData.notes}
                   onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                   rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Any special requirements or notes..."
                 />
               </div>
             </div>
 
             {/* Submit Button */}
-            <div className="flex gap-3 pt-4 border-t border-gray-200">
+            <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 Cancel
               </button>

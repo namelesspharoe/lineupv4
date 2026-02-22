@@ -1,570 +1,487 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { User, Lesson } from '../types';
-import { getLessonsByStudent } from '../services/lessons';
-import { getUserById } from '../services/users';
-import { createConversation } from '../services/messages';
-import { Calendar, MapPin, Clock, Star, MessageSquare, User2, Filter, Search, Plus, Heart, Share2, MoreHorizontal, BookOpen, Trophy, TrendingUp, X, Target, Users, Award, CheckCircle, Play, AlertCircle } from 'lucide-react';
+import { useMemo, useState, useCallback, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { Calendar, Users, CheckCircle, AlertCircle, Clock, Search, Filter, RefreshCw, Plus, BarChart2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useDataLoader } from '../hooks/useDataLoader';
+import { Lesson, User } from '../types';
+import { getLessonsByStudent, getLessonsByInstructor, getAllLessons } from '../services/lessons';
+import { getUserById } from '../services/users';
+import { getLessonDate } from '../utils/lessonDate';
+import { LessonDetailsModal } from '../components/dashboard/student/components/LessonDetailsModal';
 import { InstructorProfileModal } from '../components/instructor/InstructorProfileModal';
+import { buildInstructorProfile } from '../utils/instructorProfile';
 
-interface LessonDetailsModalProps {
-  lesson: (Lesson & { instructor?: User }) | null;
-  onClose: () => void;
-  onLessonUpdate: () => void;
+type LessonFilter = 'all' | 'upcoming' | 'completed' | 'cancelled';
+
+interface LessonsPayload {
+  lessons: Lesson[];
+  participants: Record<string, User>;
 }
 
-function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDetailsModalProps) {
-  const navigate = useNavigate();
-  const { user } = useAuth();
+const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?w=200&auto=format&fit=crop';
 
-  if (!lesson) return null;
+const statusMeta: Record<
+  NonNullable<Lesson['status']>,
+  { label: string; color: string; badge: string }
+> = {
+  available: {
+    label: 'Available',
+    color: 'text-slate-600',
+    badge: 'bg-slate-50 text-slate-700 border border-slate-200'
+  },
+  scheduled: {
+    label: 'Scheduled',
+    color: 'text-blue-600',
+    badge: 'bg-blue-50 text-blue-700 border border-blue-200'
+  },
+  in_progress: {
+    label: 'In Progress',
+    color: 'text-amber-600',
+    badge: 'bg-amber-50 text-amber-700 border border-amber-200'
+  },
+  completed: {
+    label: 'Completed',
+    color: 'text-emerald-600',
+    badge: 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+  },
+  cancelled: {
+    label: 'Cancelled',
+    color: 'text-red-600',
+    badge: 'bg-red-50 text-red-700 border border-red-200'
+  }
+};
 
-  const handleMessageInstructor = async () => {
-    if (!lesson.instructor || !user) return;
-    
-    try {
-      const initialMessage = `Hi ${lesson.instructor.name}! I have a question about our lesson on ${new Date(lesson.date).toLocaleDateString()}.`;
-      await createConversation(user.id, lesson.instructor.id, initialMessage);
-      navigate('/messages');
-    } catch (error) {
-      console.error('Error creating conversation:', error);
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return <Calendar className="w-4 h-4" />;
-      case 'in_progress':
-        return <Play className="w-4 h-4" />;
-      case 'completed':
-        return <CheckCircle className="w-4 h-4" />;
-      case 'cancelled':
-        return <AlertCircle className="w-4 h-4" />;
-      default:
-        return <Calendar className="w-4 h-4" />;
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Lesson Details
-            </h2>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-        
-        <div className="p-6 space-y-6">
-          {/* Lesson Info */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 dark:text-white">{lesson.title}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {new Date(lesson.date).toLocaleDateString()} • {lesson.sessionType === 'morning' ? 'Morning' : lesson.sessionType === 'afternoon' ? 'Afternoon' : 'Full Day'}
-                </p>
-              </div>
-            </div>
-            
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
-              lesson.status === 'scheduled' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' :
-              lesson.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
-              lesson.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
-              'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-            }`}>
-              {getStatusIcon(lesson.status)}
-              {lesson.status.replace('_', ' ')}
-            </div>
-          </div>
-
-          {/* Instructor Info */}
-          {lesson.instructor && (
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-              <h4 className="font-medium text-gray-900 dark:text-white mb-3">Instructor</h4>
-              <div className="flex items-center gap-3">
-                <img
-                  src={lesson.instructor.avatar}
-                  alt={lesson.instructor.name}
-                  className="w-12 h-12 rounded-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                  onClick={() => {
-                    // This will be handled by the parent component
-                    onClose();
-                    // Trigger instructor profile modal
-                    window.dispatchEvent(new CustomEvent('showInstructorProfile', { 
-                      detail: { instructor: lesson.instructor } 
-                    }));
-                  }}
-                />
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900 dark:text-white">{lesson.instructor.name}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Instructor</p>
-                </div>
-                <button
-                  onClick={handleMessageInstructor}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                >
-                  Message
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Skills Focus */}
-          {lesson.skillsFocus && lesson.skillsFocus.length > 0 && (
-            <div>
-              <h4 className="font-medium text-gray-900 dark:text-white mb-3">Skills Focus</h4>
-              <div className="flex flex-wrap gap-2">
-                {lesson.skillsFocus.map((skill, index) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full text-sm"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Lesson Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">Time</span>
-              </div>
-              <p className="font-medium text-gray-900 dark:text-white">
-                {lesson.sessionType === 'morning' ? 'Morning (9 AM - 12 PM)' :
-                 lesson.sessionType === 'afternoon' ? 'Afternoon (12 PM - 5 PM)' :
-                 'Full Day (9 AM - 5 PM)'}
-              </p>
-            </div>
-            
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <MapPin className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">Location</span>
-              </div>
-              <p className="font-medium text-gray-900 dark:text-white">Main Lodge</p>
-            </div>
-            
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Target className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">Level</span>
-              </div>
-              <p className="font-medium text-gray-900 dark:text-white">{lesson.skillLevel?.replace('_', ' ') || 'Not specified'}</p>
-            </div>
-            
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Users className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">Type</span>
-              </div>
-              <p className="font-medium text-gray-900 dark:text-white">{lesson.type || 'Private'}</p>
-            </div>
-          </div>
-
-          {/* Notes */}
-          {lesson.notes && (
-            <div>
-              <h4 className="font-medium text-gray-900 dark:text-white mb-3">Notes</h4>
-              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-                <p className="text-gray-700 dark:text-gray-300">{lesson.notes}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            {lesson.instructor && (
-              <button
-                onClick={handleMessageInstructor}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Message Instructor
-              </button>
-            )}
-            {lesson.status === 'scheduled' && (
-              <button className="flex-1 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
-                Cancel Lesson
-              </button>
-            )}
-            {lesson.status === 'completed' && (
-              <button className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-                Write Review
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+function sanitizeAvatar(src?: string | null) {
+  if (!src || src.startsWith('blob:')) {
+    return DEFAULT_AVATAR;
+  }
+  return src;
 }
 
 export function Lessons() {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const [lessons, setLessons] = useState<(Lesson & { instructor?: User })[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all');
+  const [filter, setFilter] = useState<LessonFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedLesson, setSelectedLesson] = useState<(Lesson & { instructor?: User }) | null>(null);
   const [selectedInstructor, setSelectedInstructor] = useState<User | null>(null);
 
-  useEffect(() => {
-    loadLessons();
-    
-    // Listen for instructor profile modal events
-    const handleShowInstructorProfile = (event: CustomEvent) => {
-      setSelectedInstructor(event.detail.instructor);
-    };
-    
-    window.addEventListener('showInstructorProfile', handleShowInstructorProfile as EventListener);
-    
-    return () => {
-      window.removeEventListener('showInstructorProfile', handleShowInstructorProfile as EventListener);
-    };
-  }, []);
-
-  const loadLessons = async () => {
-    if (!user) return;
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const lessonsData = await getLessonsByStudent(user.id);
-      
-      // Fetch instructor data for each lesson
-      const lessonsWithInstructors = await Promise.all(
-        lessonsData.map(async (lesson) => {
-          try {
-            const instructor = await getUserById(lesson.instructorId);
-            return { ...lesson, instructor: instructor || undefined };
-          } catch (err) {
-            console.error('Error fetching instructor:', err);
-            return lesson;
-          }
-        })
-      );
-      
-      setLessons(lessonsWithInstructors);
-    } catch (err: any) {
-      console.error('Error loading lessons:', err);
-      setError(err.message || 'Failed to load lessons');
-    } finally {
-      setIsLoading(false);
+  const loadLessons = useCallback(async (): Promise<LessonsPayload> => {
+    if (!user) {
+      return { lessons: [], participants: {} };
     }
-  };
 
-  const handleMessageInstructor = async (instructor: User) => {
-    if (!user) return;
-    
-    try {
-      const initialMessage = `Hi ${instructor.name}! I'd like to start a conversation.`;
-      await createConversation(user.id, instructor.id, initialMessage);
-      navigate('/messages');
-    } catch (error) {
-      console.error('Error creating conversation:', error);
+    let lessons: Lesson[] = [];
+
+    if (user.role === 'student') {
+      lessons = await getLessonsByStudent(user.id);
+    } else if (user.role === 'instructor') {
+      lessons = await getLessonsByInstructor(user.id);
+    } else {
+      lessons = await getAllLessons();
     }
-  };
 
-  const handleInstructorClick = (instructor: User) => {
-    setSelectedInstructor(instructor);
-  };
+    const participantIds = new Set<string>();
+    lessons.forEach((lesson) => {
+      if (lesson.instructorId) {
+        participantIds.add(lesson.instructorId);
+      }
+      (lesson.studentIds || []).forEach((id) => id && participantIds.add(id));
+    });
 
-  const filteredLessons = lessons.filter(lesson => {
-    const now = new Date();
-    const lessonDate = new Date(lesson.date);
-    
-    switch (filter) {
-      case 'upcoming':
-        return lessonDate >= now && lesson.status !== 'cancelled';
-      case 'past':
-        return lessonDate < now || lesson.status === 'completed';
-      default:
-        return true;
-    }
+    const participantEntries = await Promise.all(
+      Array.from(participantIds).map(async (id) => {
+        try {
+          const participant = await getUserById(id);
+          return participant ? [id, participant] : null;
+        } catch (error) {
+          console.warn('Failed to load participant', id, error);
+          return null;
+        }
+      })
+    );
+
+    const participants = Object.fromEntries(
+      participantEntries.filter(Boolean) as [string, User][]
+    );
+
+    return { lessons, participants };
+  }, [user]);
+
+  const {
+    data,
+    isLoading,
+    error,
+    refetch
+  } = useDataLoader({
+    loadFn: loadLessons,
+    dependencies: [loadLessons],
+    enabled: Boolean(user)
   });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
-      case 'in_progress':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
-      case 'completed':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
-    }
-  };
+  const lessons = data?.lessons ?? [];
+  const participants = data?.participants ?? {};
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return 'Scheduled';
-      case 'in_progress':
-        return 'In Progress';
-      case 'completed':
-        return 'Completed';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return status;
-    }
-  };
+  const stats = useMemo(() => {
+    const now = Date.now();
+    const upcoming = lessons.filter((lesson) => {
+      const date = getLessonDate(lesson).getTime();
+      return !isNaN(date) && date >= now && lesson.status !== 'cancelled';
+    }).length;
+    const completed = lessons.filter((lesson) => lesson.status === 'completed').length;
+    const cancelled = lessons.filter((lesson) => lesson.status === 'cancelled').length;
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading your lessons...</p>
-        </div>
-      </div>
-    );
+    return {
+      total: lessons.length,
+      upcoming,
+      completed,
+      cancelled
+    };
+  }, [lessons]);
+
+  const filteredLessons = useMemo(() => {
+    const now = Date.now();
+
+    return lessons
+      .filter((lesson) => {
+        const date = getLessonDate(lesson).getTime();
+        if (isNaN(date)) {
+          return filter === 'all' || lesson.status === filter;
+        }
+
+        switch (filter) {
+          case 'upcoming':
+            return date >= now && lesson.status !== 'cancelled';
+          case 'completed':
+            return lesson.status === 'completed';
+          case 'cancelled':
+            return lesson.status === 'cancelled';
+          default:
+            return true;
+        }
+      })
+      .filter((lesson) => {
+        if (!searchQuery) return true;
+        const target = searchQuery.toLowerCase();
+        const instructorName = participants[lesson.instructorId || '']?.name?.toLowerCase() ?? '';
+        const studentNames = (lesson.studentIds || [])
+          .map((id) => participants[id]?.name?.toLowerCase() ?? '')
+          .join(' ');
+
+        return (
+          lesson.title?.toLowerCase().includes(target) ||
+          instructorName.includes(target) ||
+          studentNames.includes(target)
+        );
+      })
+      .sort((a, b) => getLessonDate(b).getTime() - getLessonDate(a).getTime());
+  }, [lessons, participants, filter, searchQuery]);
+
+  if (!user) {
+    return null;
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <button
-            onClick={loadLessons}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const canViewDetails = user.role === 'student' || user.role === 'instructor';
+
+  const roleLabel =
+    user.role === 'admin'
+      ? 'Admin oversight across every lesson in the system.'
+      : user.role === 'instructor'
+      ? 'Track every session on your calendar, including past completions.'
+      : 'See your booked lessons, their status, and get ready faster.';
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Lessons</h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            {filteredLessons.length} lesson{filteredLessons.length !== 1 ? 's' : ''} found
+          <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+            Lessons Control
           </p>
+          <h1 className="mt-1 text-3xl font-bold text-gray-900 dark:text-white">Lessons</h1>
+          <p className="mt-1 text-gray-600 dark:text-gray-400 max-w-2xl">{roleLabel}</p>
         </div>
-        <Link
-          to="/book-lesson"
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Book Lesson</span>
-          <span className="sm:hidden">Book</span>
-        </Link>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="flex">
+        <div className="flex flex-col sm:flex-row gap-3">
           <button
-            onClick={() => setFilter('all')}
-            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
-              filter === 'all'
-                ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 border-b-2 border-blue-600'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
+            onClick={refetch}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
           >
-            All ({lessons.length})
+            <RefreshCw className="h-4 w-4" />
+            Refresh
           </button>
-          <button
-            onClick={() => setFilter('upcoming')}
-            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
-              filter === 'upcoming'
-                ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 border-b-2 border-blue-600'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
-          >
-            Upcoming ({lessons.filter(l => new Date(l.date) >= new Date() && l.status !== 'cancelled').length})
-          </button>
-          <button
-            onClick={() => setFilter('past')}
-            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
-              filter === 'past'
-                ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 border-b-2 border-blue-600'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
-          >
-            Past ({lessons.filter(l => new Date(l.date) < new Date() || l.status === 'completed').length})
-          </button>
+          {user.role === 'student' && (
+            <Link
+              to="/book-lesson"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4" />
+              Book Lesson
+            </Link>
+          )}
         </div>
       </div>
 
-      {/* Lessons Feed */}
-      {filteredLessons.length === 0 ? (
-        <div className="text-center py-12">
-          <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-            No lessons found
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Lessons"
+          value={stats.total}
+          icon={<BarChart2 className="h-5 w-5 text-blue-600" />}
+        />
+        <StatCard
+          title="Upcoming"
+          value={stats.upcoming}
+          icon={<Calendar className="h-5 w-5 text-emerald-600" />}
+        />
+        <StatCard
+          title="Completed"
+          value={stats.completed}
+          icon={<CheckCircle className="h-5 w-5 text-indigo-600" />}
+        />
+        <StatCard
+          title="Cancelled"
+          value={stats.cancelled}
+          icon={<AlertCircle className="h-5 w-5 text-red-600" />}
+        />
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex flex-wrap gap-2">
+          {(['all', 'upcoming', 'completed', 'cancelled'] as LessonFilter[]).map((item) => (
+            <button
+              key={item}
+              onClick={() => setFilter(item)}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                filter === item
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+              }`}
+            >
+              {item === 'all' ? 'All' : item.charAt(0).toUpperCase() + item.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by title, student, or instructor"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-10 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-blue-900/40"
+            />
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            <Filter className="h-4 w-4" />
+            {filteredLessons.length} result{filteredLessons.length === 1 ? '' : 's'}
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">
+          <p className="font-semibold">Unable to load lessons.</p>
+          <p className="text-sm opacity-80">{error.message}</p>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <div className="text-center">
+            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600" />
+            <p className="text-gray-500 dark:text-gray-400">Syncing lessons…</p>
+          </div>
+        </div>
+      ) : filteredLessons.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-gray-300 p-12 text-center dark:border-gray-700">
+          <Calendar className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">
+            No lessons match this view
           </h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            {filter === 'upcoming' 
-              ? "You don't have any upcoming lessons scheduled."
-              : filter === 'past'
-              ? "You haven't completed any lessons yet."
-              : "You don't have any lessons yet."
-            }
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Try adjusting filters or booking a new lesson.
           </p>
-          <Link
-            to="/book-lesson"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Book Your First Lesson
-          </Link>
+          {user.role === 'student' && (
+            <Link
+              to="/book-lesson"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4" />
+              Book a lesson
+            </Link>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredLessons.map(lesson => (
-            <div
-              key={lesson.id}
-              className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow"
-            >
-              <div className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3 flex-1">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Calendar className="w-6 h-6 text-white" />
+          {filteredLessons.map((lesson) => {
+            const date = getLessonDate(lesson);
+            const instructor = lesson.instructorId ? participants[lesson.instructorId] : undefined;
+            const students =
+              lesson.studentIds?.map((id) => participants[id]?.name).filter(Boolean) ?? [];
+            const sessionLabel =
+              lesson.sessionType === 'morning'
+                ? 'Morning'
+                : lesson.sessionType === 'afternoon'
+                ? 'Afternoon'
+                : 'Full Day';
+
+            return (
+              <div
+                key={lesson.id}
+                role={canViewDetails ? 'button' : undefined}
+                tabIndex={canViewDetails ? 0 : undefined}
+                onClick={
+                  canViewDetails
+                    ? () =>
+                        setSelectedLesson({
+                          ...lesson,
+                          instructor
+                        })
+                    : undefined
+                }
+                onKeyDown={
+                  canViewDetails
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedLesson({
+                            ...lesson,
+                            instructor
+                          });
+                        }
+                      }
+                    : undefined
+                }
+                className={`rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-gray-800 dark:bg-gray-900 ${
+                  canViewDetails ? 'cursor-pointer' : ''
+                }`}
+              >
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex flex-1 flex-col gap-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {lesson.title || 'Untitled lesson'}
+                      </h3>
+                      <StatusBadge status={lesson.status} />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-gray-900 dark:text-white">{lesson.title}</h3>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(lesson.status)}`}>
-                          {getStatusText(lesson.status)}
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        {isNaN(date.getTime()) ? 'Date TBD' : date.toLocaleDateString()}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        {sessionLabel}
+                      </span>
+                      {lesson.type && (
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="h-4 w-4" />
+                          {lesson.type.charAt(0).toUpperCase() + lesson.type.slice(1)}
                         </span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 mb-2">
-                        <span>{new Date(lesson.date).toLocaleDateString()}</span>
-                        <span>•</span>
-                        <span>{lesson.sessionType === 'morning' ? 'Morning' : lesson.sessionType === 'afternoon' ? 'Afternoon' : 'Full Day'}</span>
-                      </div>
-                      {lesson.instructor && (
-                        <div className="flex items-center gap-2">
-                          <img
-                            src={lesson.instructor.avatar}
-                            alt={lesson.instructor.name}
-                            className="w-6 h-6 rounded-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={() => handleInstructorClick(lesson.instructor!)}
-                          />
-                          <span className="text-sm text-gray-600 dark:text-gray-400">{lesson.instructor.name}</span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-sm">
+                      {user.role !== 'student' && students.length > 0 && (
+                        <div className="inline-flex flex-wrap items-center gap-2 rounded-xl bg-gray-100 px-3 py-1 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                          <Users className="h-4 w-4" />
+                          <span>
+                            {students.slice(0, 2).join(', ')}
+                            {students.length > 2 ? ` +${students.length - 2}` : ''}
+                          </span>
                         </div>
                       )}
-                      {lesson.skillsFocus && lesson.skillsFocus.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {lesson.skillsFocus.slice(0, 3).map((skill, index) => (
-                            <span
-                              key={index}
-                              className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                          {lesson.skillsFocus.length > 3 && (
-                            <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full">
-                              +{lesson.skillsFocus.length - 3} more
-                            </span>
-                          )}
-                        </div>
+                      {instructor && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (user.role === 'student') {
+                              setSelectedInstructor(instructor);
+                            }
+                          }}
+                          onKeyDown={(event) => {
+                            event.stopPropagation();
+                            if ((event.key === 'Enter' || event.key === ' ') && user.role === 'student') {
+                              event.preventDefault();
+                              setSelectedInstructor(instructor);
+                            }
+                          }}
+                          className="inline-flex items-center gap-2 rounded-xl bg-gray-100 px-3 py-1 text-left text-gray-700 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-gray-800 dark:text-gray-300"
+                        >
+                          <img
+                            src={sanitizeAvatar(instructor.avatar)}
+                            alt={instructor.name}
+                            className="h-6 w-6 rounded-full object-cover"
+                          />
+                          <span className="font-medium">{instructor.name}</span>
+                        </button>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                      <Heart className="w-4 h-4" />
-                    </button>
-                    <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
+
+                  <div className="flex items-center gap-3">
+                    <div className="text-right text-sm text-gray-500 dark:text-gray-400">
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {lesson.price ? `$${lesson.price.toFixed(0)}` : '—'}
+                      </p>
+                      <p>{lesson.skillLevel?.replace('_', ' ') || 'Any level'}</p>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <button
-                    onClick={() => setSelectedLesson(lesson)}
-                    className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
-                  >
-                    View Details
-                  </button>
-                  {lesson.instructor && (
-                    <button
-                      onClick={() => handleMessageInstructor(lesson.instructor!)}
-                      className="flex-1 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                      Message
-                    </button>
-                  )}
-                  {lesson.status === 'scheduled' && (
-                    <button className="flex-1 px-3 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-sm font-medium">
-                      Cancel
-                    </button>
-                  )}
-                  {lesson.status === 'completed' && (
-                    <button className="flex-1 px-3 py-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors text-sm font-medium flex items-center justify-center gap-2">
-                      <Star className="w-4 h-4" />
-                      Review
-                    </button>
-                  )}
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Lesson Details Modal */}
-      {selectedLesson && (
+      {canViewDetails && selectedLesson && (
         <LessonDetailsModal
           lesson={selectedLesson}
           onClose={() => setSelectedLesson(null)}
-          onLessonUpdate={loadLessons}
+          onLessonUpdate={() => {
+            setSelectedLesson(null);
+            refetch();
+          }}
         />
       )}
 
-      {/* Instructor Profile Modal */}
-      {selectedInstructor && (
+      {user.role === 'student' && selectedInstructor && (
         <InstructorProfileModal
-          instructor={{
-            id: selectedInstructor.id,
-            name: selectedInstructor.name,
-            image: selectedInstructor.avatar,
-                         location: 'Mountain Resort',
-            rating: 4.8,
-            reviewCount: 127,
-            price: 120,
-            specialties: ['Skiing', 'Snowboarding', 'Freestyle'],
-            experience: 8,
-            languages: ['English', 'Spanish'],
-            availability: 'Weekdays & Weekends'
-          }}
+          instructor={buildInstructorProfile(selectedInstructor)}
           onClose={() => setSelectedInstructor(null)}
         />
       )}
     </div>
   );
 }
+
+interface StatCardProps {
+  title: string;
+  value: number;
+  icon: ReactNode;
+}
+
+function StatCard({ title, value, icon }: StatCardProps) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
+          <p className="text-2xl font-semibold text-gray-900 dark:text-white">{value}</p>
+        </div>
+        <div className="rounded-xl bg-gray-100 p-3 dark:bg-gray-800">{icon}</div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: NonNullable<Lesson['status']> }) {
+  const meta = statusMeta[status] ?? statusMeta.scheduled;
+  return (
+    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${meta.badge}`}>
+      {meta.label}
+    </span>
+  );
+}
+
+export default Lessons;

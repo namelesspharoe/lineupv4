@@ -10,7 +10,6 @@ import { FullPageSpinner } from '../components/LoadingSpinner';
 const Home = React.lazy(() => import('../pages/Home').then(module => ({ default: module.Home })));
 const StudentSignup = React.lazy(() => import('../pages/StudentSignup').then(module => ({ default: module.StudentSignup })));
 const InstructorSignup = React.lazy(() => import('../pages/InstructorSignup').then(module => ({ default: module.InstructorSignup })));
-const FindInstructor = React.lazy(() => import('../pages/FindInstructor').then(module => ({ default: module.FindInstructor })));
 const BookLesson = React.lazy(() => import('../pages/BookLesson').then(module => ({ default: module.BookLesson })));
 const Messages = React.lazy(() => import('../pages/Messages').then(module => ({ default: module.Messages })));
 const Progress = React.lazy(() => import('../pages/Progress').then(module => ({ default: module.Progress })));
@@ -21,6 +20,10 @@ const Stats = React.lazy(() => import('../pages/Stats').then(module => ({ defaul
 const Resources = React.lazy(() => import('../pages/Resources').then(module => ({ default: module.Resources })));
 const CheckoutSuccess = React.lazy(() => import('../pages/checkout/Success').then(module => ({ default: module.CheckoutSuccess })));
 const CheckoutCancel = React.lazy(() => import('../pages/checkout/Cancel').then(module => ({ default: module.CheckoutCancel })));
+const UsersPage = React.lazy(() => import('../pages/Users'));
+const StudentsPage = React.lazy(() => import('../pages/Students'));
+const SchedulePage = React.lazy(() => import('../pages/Schedule'));
+const SettingsPage = React.lazy(() => import('../pages/Settings'));
 
 // Dashboard components
 const StudentDashboard = React.lazy(() => import('../components/dashboard/student').then(module => ({ default: module.StudentDashboard })));
@@ -123,11 +126,7 @@ const router = createBrowserRouter([
   },
   {
     path: '/find-instructor',
-    element: (
-      <Layout>
-        <FindInstructor />
-      </Layout>
-    ),
+    element: <Navigate to="/book-lesson" replace />,
   },
   {
     path: '/book-lesson',
@@ -228,7 +227,7 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute requiredRole="admin">
         <Layout>
-          <div>Users Management (TODO)</div>
+          <UsersPage />
         </Layout>
       </ProtectedRoute>
     ),
@@ -258,7 +257,7 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute requiredRole="instructor">
         <Layout>
-          <div>Students Management (TODO)</div>
+          <StudentsPage />
         </Layout>
       </ProtectedRoute>
     ),
@@ -268,7 +267,7 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <Layout>
-          <div>Schedule (TODO)</div>
+          <SchedulePage />
         </Layout>
       </ProtectedRoute>
     ),
@@ -288,7 +287,7 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute requiredRole="admin">
         <Layout>
-          <div>Settings (TODO)</div>
+          <SettingsPage />
         </Layout>
       </ProtectedRoute>
     ),

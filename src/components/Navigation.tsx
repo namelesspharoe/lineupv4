@@ -49,7 +49,7 @@ const studentLinks = [
   { name: 'Dashboard', icon: BarChart2, href: '/dashboard' },
   { name: 'My Progress', icon: GraduationCap, href: '/progress' },
   { name: 'Achievements', icon: Trophy, href: '/achievements' },
-  { name: 'Schedule', icon: Calendar, href: '/schedule' },
+  { name: 'Lessons', icon: BookOpen, href: '/lessons' },
   { name: 'Messages', icon: MessageSquare, href: '/messages' },
   { name: 'Profile', icon: User, href: '/profile' },
   { name: 'Resources', icon: Video, href: '/resources' },

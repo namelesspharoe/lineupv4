@@ -86,9 +86,14 @@ export function Hero() {
           </h1>
           
           <p className="text-lg sm:text-xl text-gray-300 mb-8 leading-relaxed max-w-2xl">
-            Connect with certified instructors, book personalized lessons, and track your progress from beginner to expert. 
-            Whether you're hitting the slopes for the first time or perfecting advanced techniques.
+            Our AI-powered matching system connects you with the perfect instructor based on your skill level, 
+            learning goals, and preferences. Book personalized lessons and track your progress from beginner to expert.
           </p>
+          
+          <div className="mb-8 inline-flex items-center gap-2 px-4 py-2 bg-blue-600/20 backdrop-blur-sm border border-blue-500/30 rounded-full">
+            <span className="text-sm font-semibold text-blue-300">✨ AI-Powered Matching</span>
+            <span className="text-xs text-gray-400">Find your perfect match instantly</span>
+          </div>
           
           <div className="flex flex-col sm:flex-row gap-4 mb-12">
             <a 

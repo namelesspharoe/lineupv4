@@ -26,7 +26,7 @@ import {
   User as UserIcon
 } from 'lucide-react';
 import { UnifiedLessonModal } from '../lessons/UnifiedLessonModal';
-import { AvailabilityCalendar } from '../calendar/AvailabilityCalendar';
+import { InstructorCalendar } from '../dashboard/instructor/InstructorCalendar';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { collection, query, getDocs, where, doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -821,8 +821,8 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
                 </div>
               </div>
               <div className="p-6">
-                <AvailabilityCalendar
-                  instructor={{
+                <InstructorCalendar
+                  user={{
                     id: instructor.id,
                     name: instructor.name,
                     role: 'instructor',
@@ -830,11 +830,6 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
                     avatar: instructor.image,
                     price: instructor.price || 0,
                     specialties: instructor.specialties || []
-                  }}
-                  viewMode="student"
-                  onLessonCreated={() => {
-                    setShowCalendar(false);
-                    setShowBooking(true);
                   }}
                 />
               </div>

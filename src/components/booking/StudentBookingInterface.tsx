@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, Star, Calendar, Clock, User, Filter, X, Snowflake, Mountain, Users, Award } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { User as UserType } from '../../types';
-import { AvailabilityCalendar } from '../calendar/AvailabilityCalendar';
 import { UnifiedLessonModal } from '../lessons/UnifiedLessonModal';
 import { useLessonBooking } from '../../hooks/useLessonBooking';
 import { InstructorProfileModal } from '../instructor/InstructorProfileModal';

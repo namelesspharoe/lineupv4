@@ -11,11 +11,21 @@ import {
   Star,
   Zap,
   Heart,
-  CheckCircle
+  CheckCircle,
+  Sparkles
 } from 'lucide-react';
 
 export function Features() {
   const features = [
+    {
+      icon: Sparkles,
+      title: 'AI-Powered Matching',
+      description: 'Our intelligent system analyzes your preferences, skill level, and goals to match you with the perfect instructor automatically.',
+      color: 'bg-gradient-to-br from-purple-600 to-blue-600',
+      bgColor: 'bg-gray-800',
+      iconColor: 'text-purple-400',
+      featured: true
+    },
     {
       icon: Shield,
       title: 'Certified Instructors',
@@ -117,8 +127,8 @@ export function Features() {
             </span>
           </h2>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
-            Experience the difference that professional ski and snowboard instruction makes. Our platform connects you 
-            with certified instructors who are passionate about helping you master the slopes.
+            Experience the difference that professional ski and snowboard instruction makes. Our AI-powered platform 
+            intelligently matches you with certified instructors who are perfectly suited to help you master the slopes.
           </p>
         </div>
 
@@ -126,10 +136,17 @@ export function Features() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-20">
           {features.map((feature, index) => {
             const IconComponent = feature.icon;
+            const isFeatured = feature.featured;
             return (
-              <div key={index} className="group">
-                <div className={`${feature.bgColor} rounded-2xl p-6 h-full border border-gray-700 transition-all duration-300`}>
-                  <div className={`w-14 h-14 ${feature.color} rounded-xl flex items-center justify-center mb-4 transition-transform`}>
+              <div key={index} className={`group ${isFeatured ? 'md:col-span-2 lg:col-span-1' : ''}`}>
+                <div className={`${feature.bgColor} rounded-2xl p-6 h-full border ${isFeatured ? 'border-purple-500/50 shadow-lg shadow-purple-500/20' : 'border-gray-700'} transition-all duration-300 hover:scale-105`}>
+                  {isFeatured && (
+                    <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 bg-purple-600/20 border border-purple-500/30 rounded-full">
+                      <Sparkles className="w-4 h-4 text-purple-400" />
+                      <span className="text-xs font-semibold text-purple-300">NEW</span>
+                    </div>
+                  )}
+                  <div className={`w-14 h-14 ${feature.color} rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110`}>
                     <IconComponent className="w-7 h-7 text-white" />
                   </div>
                   <h3 className="text-lg font-semibold text-white mb-3">{feature.title}</h3>

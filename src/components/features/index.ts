@@ -35,10 +35,8 @@ export { BookLessonModal } from '../instructor/BookLessonModal';
 export { FilterPanel } from '../instructor/FilterPanel';
 export { Slider } from '../instructor/Slider';
 
-// Calendar & Availability
-export { AvailabilityCalendar } from '../calendar/AvailabilityCalendar';
-export { AvailabilityManager } from '../calendar/AvailabilityManager';
-export { DayDetailsModal } from '../calendar/DayDetailsModal';
+// Calendar
+export { InstructorCalendar } from '../dashboard/instructor/InstructorCalendar';
 
 // Booking System
 export { StudentBookingInterface } from '../booking/StudentBookingInterface';

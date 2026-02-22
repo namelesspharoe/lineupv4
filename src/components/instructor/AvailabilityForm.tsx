@@ -189,85 +189,99 @@ export function AvailabilityForm({
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {instructor ? `Manage Availability - ${instructor.name}` : 'Manage Availability'}
-            </h2>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
-            >
-              <X className="w-6 h-6" />
-            </button>
+        <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          {/* Header */}
+          <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 md:px-6 py-4 rounded-t-2xl z-10">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
+                  {instructor ? `Manage Availability` : 'Manage Availability'}
+                </h2>
+                {instructor && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {instructor.name}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
           
-          <form onSubmit={handleSubmit} className="p-6">
+          <form onSubmit={handleSubmit} className="p-4 md:p-6">
             <div className="space-y-6">
               {error && (
-                <div className="p-4 bg-red-50 text-red-600 rounded-lg">
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl">
                   {error}
                 </div>
               )}
 
               {/* Current Availability Display */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-gray-900 mb-3">Current Availability</h3>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-2 mb-3">
+                  <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Current Availability</h3>
+                </div>
                 {existingAvailability && existingAvailability.length > 0 ? (
-                  <div className="space-y-2">
-                    <p className="text-sm text-gray-600">
-                      You have {existingAvailability.length} available day{existingAvailability.length !== 1 ? 's' : ''} set up
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      You have <span className="font-semibold text-gray-900 dark:text-white">{existingAvailability.length}</span> available day{existingAvailability.length !== 1 ? 's' : ''} set up
                     </p>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {existingAvailability.slice(0, 6).map((slot) => (
                         <div
                           key={slot.id}
-                          className="p-2 bg-green-100 border border-green-300 rounded text-xs"
+                          className="p-2.5 bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded-lg text-xs"
                         >
-                          <div className="font-medium text-green-800">
-                            {new Date(slot.date).toLocaleDateString()}
+                          <div className="font-semibold text-green-800 dark:text-green-300">
+                            {format(parse(slot.date, 'yyyy-MM-dd', new Date()), 'MMM d')}
                           </div>
-                          <div className="text-green-600">
+                          <div className="text-green-600 dark:text-green-400 mt-0.5">
                             {slot.startTime} - {slot.endTime}
                           </div>
                         </div>
                       ))}
                     </div>
                     {existingAvailability.length > 6 && (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
                         +{existingAvailability.length - 6} more day{existingAvailability.length - 6 !== 1 ? 's' : ''}
                       </p>
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500">No availability set up yet</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No availability set up yet</p>
                 )}
               </div>
 
+              {/* Month Navigation */}
               <div className="flex items-center justify-between mb-4">
                 <button
                   type="button"
                   onClick={() => setCurrentMonth(prev => subMonths(prev, 1))}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                 >
-                  <ChevronLeft className="w-5 h-5" />
+                  <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                 </button>
-                <h3 className="text-lg font-medium text-gray-900">
+                <h3 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-white">
                   {format(currentMonth, 'MMMM yyyy')}
                 </h3>
                 <button
                   type="button"
                   onClick={() => setCurrentMonth(prev => addMonths(prev, 1))}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                 >
-                  <ChevronRight className="w-5 h-5" />
+                  <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                 </button>
               </div>
 
               {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 gap-1 md:gap-2">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="p-2 text-center text-sm font-medium text-gray-500">
+                  <div key={day} className="p-2 text-center text-xs md:text-sm font-semibold text-gray-500 dark:text-gray-400">
                     {day}
                   </div>
                 ))}
@@ -286,50 +300,52 @@ export function AvailabilityForm({
                       onClick={() => handleDateClick(date)}
                       disabled={!isCurrentMonth || isScheduled}
                       className={`
-                        p-2 text-sm rounded-lg transition-colors relative
-                        ${!isCurrentMonth ? 'text-gray-300' : ''}
-                        ${isCurrentMonth && !isScheduled ? 'hover:bg-gray-100' : ''}
-                        ${isScheduled ? 'bg-red-50 text-red-400 cursor-not-allowed' : ''}
-                        ${isSelected ? 'bg-green-500 text-white' : ''}
-                        ${isToday ? 'ring-2 ring-blue-500' : ''}
+                        aspect-square p-1 md:p-2 text-xs md:text-sm rounded-lg transition-all relative
+                        ${!isCurrentMonth ? 'text-gray-300 dark:text-gray-700' : 'text-gray-900 dark:text-gray-100'}
+                        ${isCurrentMonth && !isScheduled ? 'hover:bg-gray-100 dark:hover:bg-gray-800 hover:scale-105' : ''}
+                        ${isScheduled ? 'bg-red-50 dark:bg-red-900/20 text-red-400 dark:text-red-400 cursor-not-allowed opacity-60' : ''}
+                        ${isSelected ? 'bg-blue-600 dark:bg-blue-500 text-white shadow-md scale-105 font-semibold' : ''}
+                        ${isToday && !isSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''}
                       `}
                     >
                       {date.getDate()}
                       {isScheduled && (
-                        <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-400 rounded-full"></div>
+                        <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full"></div>
                       )}
                     </button>
                   );
                 })}
               </div>
 
-              <div className="flex items-center gap-4 text-sm text-gray-600">
+              {/* Legend */}
+              <div className="flex flex-wrap items-center gap-4 text-xs md:text-sm text-gray-600 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-800">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-green-500 rounded"></div>
-                  <span>Available</span>
+                  <div className="w-4 h-4 bg-blue-600 dark:bg-blue-500 rounded"></div>
+                  <span>Selected</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-red-50 border border-red-200 rounded"></div>
+                  <div className="w-4 h-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded"></div>
                   <span>Scheduled</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-gray-100 rounded"></div>
+                  <div className="w-4 h-4 bg-gray-100 dark:bg-gray-800 rounded"></div>
                   <span>Unavailable</span>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              {/* Actions */}
+              <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="px-4 py-2.5 bg-blue-600 dark:bg-blue-500 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-sm hover:shadow-md"
                 >
                   {isSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>

@@ -4,8 +4,9 @@ import { Navigation } from './Navigation';
 import { PublicHeader } from './PublicHeader';
 import { Footer } from './Footer';
 import { ThemeToggle } from './ThemeToggle';
+import { LessonBookingChatbot } from './chatbot/LessonBookingChatbot';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutGrid, LogOut, Menu, X, ChevronDown, User2, User, Home, Calendar, MessageSquare, User as UserIcon, BarChart2, Trophy, BookOpen, Clock } from 'lucide-react';
+import { LayoutGrid, LogOut, Menu, X, ChevronDown, User, Home, Calendar, MessageSquare, User as UserIcon, BarChart2, Trophy, BookOpen, Clock } from 'lucide-react';
 
 export function Layout({ children, showNavigation = true }: { children: React.ReactNode; showNavigation?: boolean }) {
   const { user, logout } = useAuth();
@@ -86,8 +87,8 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
     } else if (user.role === 'instructor') {
       return [
         { icon: Home, label: 'Home', href: '/dashboard' },
-        { icon: BookOpen, label: 'Lessons', href: '/dashboard/instructor/lessons' },
-        { icon: Calendar, label: 'Calendar', href: '/dashboard/instructor/calendar' },
+        { icon: BookOpen, label: 'Lessons', href: '/lessons' },
+        { icon: Calendar, label: 'Calendar', href: '/schedule' },
         { icon: Clock, label: 'Time', href: '/dashboard/instructor/timecard' },
         { icon: UserIcon, label: 'Profile', href: '/profile' },
       ];
@@ -291,6 +292,9 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
       
       {/* Footer */}
       <Footer />
+      
+      {/* AI Chatbot - Show for all users */}
+      <LessonBookingChatbot />
     </div>
   );
 }

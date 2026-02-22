@@ -46,3 +46,12 @@ export function FooterBottom({ currentYear }: FooterBottomProps) {
 }
 
 
+
+
+
+
+
+
+
+
+

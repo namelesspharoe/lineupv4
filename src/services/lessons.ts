@@ -82,6 +82,19 @@ export async function getLessonsByInstructor(instructorId: string): Promise<Less
   } as Lesson));
 }
 
+export async function getAllLessons(): Promise<Lesson[]> {
+  const lessonsQuery = query(
+    collection(db, 'lessons'),
+    orderBy('date', 'desc')
+  );
+
+  const snapshot = await getDocs(lessonsQuery);
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  } as Lesson));
+}
+
 export async function getInstructorDailyLessons(
   instructorId: string,
   date: string

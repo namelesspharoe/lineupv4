@@ -6,15 +6,25 @@ import {
   Mountain, 
   CheckCircle, 
   Star,
-  ArrowRight
+  ArrowRight,
+  Sparkles
 } from 'lucide-react';
 
 export function HowItWorks() {
   const steps = [
     {
+      icon: Sparkles,
+      title: 'Get AI Recommendations',
+      description: 'Our AI analyzes your preferences, skill level, and learning goals to instantly match you with the perfect instructors.',
+      color: 'bg-gradient-to-br from-purple-600 to-blue-600',
+      bgColor: 'bg-gray-800',
+      iconColor: 'text-purple-400',
+      featured: true
+    },
+    {
       icon: Search,
-      title: 'Find Your Instructor',
-      description: 'Browse our network of certified instructors, read reviews, and find the perfect match for your skill level and goals.',
+      title: 'Browse & Compare',
+      description: 'Review AI-matched instructors, read detailed profiles and reviews, and compare options to find your ideal match.',
       color: 'bg-blue-600',
       bgColor: 'bg-gray-800',
       iconColor: 'text-blue-400'
@@ -91,19 +101,26 @@ export function HowItWorks() {
 
         {/* Steps */}
         <div className="max-w-6xl mx-auto mb-16">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-8">
             {steps.map((step, index) => {
               const IconComponent = step.icon;
+              const isFeatured = step.featured;
               return (
                 <div key={index} className="relative">
                   {/* Step Number */}
-                  <div className="absolute -top-4 -left-4 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm z-10">
+                  <div className={`absolute -top-4 -left-4 w-8 h-8 ${isFeatured ? 'bg-gradient-to-br from-purple-600 to-blue-600' : 'bg-blue-600'} text-white rounded-full flex items-center justify-center font-bold text-sm z-10 shadow-lg`}>
                     {index + 1}
                   </div>
                   
                   {/* Step Card */}
-                  <div className={`${step.bgColor} rounded-2xl p-6 h-full border border-gray-700 hover:border-gray-600 hover:shadow-lg transition-all duration-300 group`}>
-                    <div className={`w-14 h-14 ${step.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                  <div className={`${step.bgColor} rounded-2xl p-6 h-full border ${isFeatured ? 'border-purple-500/50 shadow-lg shadow-purple-500/20' : 'border-gray-700'} hover:border-gray-600 hover:shadow-xl transition-all duration-300 group`}>
+                    {isFeatured && (
+                      <div className="mb-3 inline-flex items-center gap-2 px-2 py-1 bg-purple-600/20 border border-purple-500/30 rounded-full">
+                        <Sparkles className="w-3 h-3 text-purple-400" />
+                        <span className="text-xs font-semibold text-purple-300">AI-Powered</span>
+                      </div>
+                    )}
+                    <div className={`w-14 h-14 ${step.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg`}>
                       <IconComponent className="w-7 h-7 text-white" />
                     </div>
                     <h3 className="text-lg font-semibold text-white mb-3">{step.title}</h3>
@@ -113,7 +130,7 @@ export function HowItWorks() {
                   {/* Arrow (except for last step) */}
                   {index < steps.length - 1 && (
                     <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2 z-10">
-                      <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                      <div className={`w-8 h-8 ${isFeatured ? 'bg-gradient-to-br from-purple-600 to-blue-600' : 'bg-blue-600'} rounded-full flex items-center justify-center shadow-lg`}>
                         <ArrowRight className="w-4 h-4 text-white" />
                       </div>
                     </div>

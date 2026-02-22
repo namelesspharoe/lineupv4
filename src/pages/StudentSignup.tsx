@@ -21,6 +21,17 @@ interface FormData {
   hasKids: boolean;
   termsAccepted: boolean;
   newsletter: boolean;
+  // New fields for AI matching
+  preferredLocations: string[];
+  preferredLanguages: string[];
+  maxPrice: number;
+  preferredLessonType: 'private' | 'group' | 'workshop' | 'any';
+  learningGoals: string[];
+  preferredDays: string[];
+  preferredTimes: string[];
+  preferredInstructorGender: string;
+  preferredInstructorExperience: string;
+  learningStyle: string;
 }
 
 interface FormErrors {
@@ -50,7 +61,18 @@ export function StudentSignup() {
     interests: [],
     hasKids: false,
     termsAccepted: false,
-    newsletter: false
+    newsletter: false,
+    // New fields for AI matching
+    preferredLocations: [],
+    preferredLanguages: [],
+    maxPrice: 150,
+    preferredLessonType: 'any',
+    learningGoals: [],
+    preferredDays: [],
+    preferredTimes: [],
+    preferredInstructorGender: 'any',
+    preferredInstructorExperience: 'any',
+    learningStyle: 'balanced'
   });
   
   // Navigate to dashboard when user is available after signup
@@ -91,10 +113,14 @@ export function StudentSignup() {
     }
 
     if (currentStep === 3) {
-      // Kid profiles validation happens in the KidProfileForm component
+      // Preferences validation - all optional but helpful
     }
 
     if (currentStep === 4) {
+      // Kid profiles validation happens in the KidProfileForm component
+    }
+
+    if (currentStep === 5) {
       if (!formData.termsAccepted) newErrors.terms = 'You must accept the terms and conditions';
     }
 
@@ -114,7 +140,7 @@ export function StudentSignup() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting || step !== 4) return;
+    if (isSubmitting || step !== 5) return;
 
     try {
       setIsSubmitting(true);
@@ -136,6 +162,20 @@ export function StudentSignup() {
         address: formData.address,
         level: formData.level,
         specialties: formData.interests,
+        // New preference fields for AI matching
+        preferredLocations: formData.preferredLocations,
+        languages: formData.preferredLanguages,
+        // Store additional preferences in a studentPreferences object
+        studentPreferences: {
+          maxPrice: formData.maxPrice,
+          preferredLessonType: formData.preferredLessonType,
+          learningGoals: formData.learningGoals,
+          preferredDays: formData.preferredDays,
+          preferredTimes: formData.preferredTimes,
+          preferredInstructorGender: formData.preferredInstructorGender,
+          preferredInstructorExperience: formData.preferredInstructorExperience,
+          learningStyle: formData.learningStyle
+        },
         createdAt: new Date().toISOString()
       };
       
@@ -215,7 +255,7 @@ export function StudentSignup() {
         </div>
 
         <div className="flex justify-center space-x-2">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3, 4, 5].map((s) => (
             <div
               key={s}
               className={`h-2 w-12 rounded-full ${
@@ -414,7 +454,250 @@ export function StudentSignup() {
             </div>
           )}
 
-          {step === 3 && formData.hasKids && (
+          {step === 3 && (
+            <div className="space-y-6">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="text-lg font-medium text-blue-900 mb-2">Help us find your perfect instructor</h3>
+                <p className="text-blue-700 text-sm">
+                  These preferences help our AI match you with the best instructors. All fields are optional.
+                </p>
+              </div>
+
+              {/* Preferred Locations */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Preferred Resorts/Locations
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Aspen', 'Vail', 'Breckenridge', 'Park City', 'Deer Valley', 'Jackson Hole', 'Big Sky', 'Telluride'].map((location) => (
+                    <label key={location} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.preferredLocations.includes(location)}
+                        onChange={(e) => {
+                          const newLocations = e.target.checked
+                            ? [...formData.preferredLocations, location]
+                            : formData.preferredLocations.filter(l => l !== location);
+                          setFormData(prev => ({ ...prev, preferredLocations: newLocations }));
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-gray-700 text-sm">{location}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Preferred Languages */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Preferred Languages (optional)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['English', 'Spanish', 'French', 'German', 'Italian', 'Japanese'].map((language) => (
+                    <label key={language} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.preferredLanguages.includes(language)}
+                        onChange={(e) => {
+                          const newLanguages = e.target.checked
+                            ? [...formData.preferredLanguages, language]
+                            : formData.preferredLanguages.filter(l => l !== language);
+                          setFormData(prev => ({ ...prev, preferredLanguages: newLanguages }));
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-gray-700 text-sm">{language}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Budget */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Maximum Price per Hour: ${formData.maxPrice}
+                </label>
+                <input
+                  type="range"
+                  min="50"
+                  max="300"
+                  step="10"
+                  value={formData.maxPrice}
+                  onChange={(e) => setFormData(prev => ({ ...prev, maxPrice: parseInt(e.target.value) }))}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>$50</span>
+                  <span>$300</span>
+                </div>
+              </div>
+
+              {/* Preferred Lesson Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Preferred Lesson Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: 'any', label: 'Any' },
+                    { value: 'private', label: 'Private' },
+                    { value: 'group', label: 'Group' },
+                    { value: 'workshop', label: 'Workshop' }
+                  ].map((type) => (
+                    <label key={type.value} className="flex items-center">
+                      <input
+                        type="radio"
+                        name="lessonType"
+                        checked={formData.preferredLessonType === type.value}
+                        onChange={() => setFormData(prev => ({ ...prev, preferredLessonType: type.value as any }))}
+                        className="text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-gray-700 text-sm">{type.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Learning Goals */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Learning Goals (select all that apply)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Improve Technique', 'Learn New Skills', 'Build Confidence', 'Prepare for Competition', 'Safety Training', 'Have Fun'].map((goal) => (
+                    <label key={goal} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.learningGoals.includes(goal)}
+                        onChange={(e) => {
+                          const newGoals = e.target.checked
+                            ? [...formData.learningGoals, goal]
+                            : formData.learningGoals.filter(g => g !== goal);
+                          setFormData(prev => ({ ...prev, learningGoals: newGoals }));
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-gray-700 text-sm">{goal}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Preferred Days */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Preferred Days (optional)
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+                    <label key={day} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.preferredDays.includes(day)}
+                        onChange={(e) => {
+                          const newDays = e.target.checked
+                            ? [...formData.preferredDays, day]
+                            : formData.preferredDays.filter(d => d !== day);
+                          setFormData(prev => ({ ...prev, preferredDays: newDays }));
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-1 text-gray-700 text-xs">{day.slice(0, 3)}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Preferred Times */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Preferred Times (optional)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['Morning', 'Afternoon', 'Evening'].map((time) => (
+                    <label key={time} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.preferredTimes.includes(time)}
+                        onChange={(e) => {
+                          const newTimes = e.target.checked
+                            ? [...formData.preferredTimes, time]
+                            : formData.preferredTimes.filter(t => t !== time);
+                          setFormData(prev => ({ ...prev, preferredTimes: newTimes }));
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-gray-700 text-sm">{time}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Instructor Preferences */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Preferred Instructor Gender
+                  </label>
+                  <select
+                    value={formData.preferredInstructorGender}
+                    onChange={(e) => setFormData(prev => ({ ...prev, preferredInstructorGender: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="any">No Preference</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="non-binary">Non-binary</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Preferred Instructor Experience
+                  </label>
+                  <select
+                    value={formData.preferredInstructorExperience}
+                    onChange={(e) => setFormData(prev => ({ ...prev, preferredInstructorExperience: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="any">No Preference</option>
+                    <option value="beginner">1-3 years</option>
+                    <option value="intermediate">3-5 years</option>
+                    <option value="advanced">5-10 years</option>
+                    <option value="expert">10+ years</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Learning Style */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Learning Style
+                </label>
+                <div className="space-y-2">
+                  {[
+                    { value: 'structured', label: 'Structured - I prefer clear plans and step-by-step instruction' },
+                    { value: 'balanced', label: 'Balanced - Mix of structure and flexibility' },
+                    { value: 'flexible', label: 'Flexible - I like to adapt and explore as we go' }
+                  ].map((style) => (
+                    <label key={style.value} className="flex items-start">
+                      <input
+                        type="radio"
+                        name="learningStyle"
+                        checked={formData.learningStyle === style.value}
+                        onChange={() => setFormData(prev => ({ ...prev, learningStyle: style.value }))}
+                        className="mt-1 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-gray-700 text-sm">{style.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && formData.hasKids && (
             <div className="space-y-6">
               <h3 className="text-lg font-medium text-gray-900">Kid Profiles</h3>
               
@@ -446,13 +729,13 @@ export function StudentSignup() {
             </div>
           )}
 
-          {step === 3 && !formData.hasKids && (
+          {step === 4 && !formData.hasKids && (
             <div className="text-center py-8">
               <p className="text-gray-600">No kid profiles to add.</p>
             </div>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <div className="space-y-6">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <h3 className="text-lg font-medium text-blue-900 mb-2">Almost there!</h3>
@@ -510,7 +793,7 @@ export function StudentSignup() {
             )}
             
             <div className="ml-auto">
-              {step < 4 ? (
+              {step < 5 ? (
                 <button
                   type="button"
                   onClick={handleNext}
