@@ -106,10 +106,10 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
   const mobileNavItems = getMobileNavItems();
 
   return (
-    <div className="min-h-screen bg-winter-light dark:bg-winter-dark flex flex-col">
-      {/* Mobile Header - Simplified */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/50 z-40">
-                  <div className="flex items-center justify-between px-4 h-full">
+    <div className="min-h-screen flex flex-col bg-slate-100 dark:bg-gray-950 lg:bg-winter-light lg:dark:bg-winter-dark">
+      {/* Mobile header: solid bar (no blur) so the shell feels grounded on small screens */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 border-b border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+                  <div className="flex h-full items-center justify-between px-3 sm:px-4">
             <Link to="/" className="flex items-center gap-2">
               <LayoutGrid className="w-5 h-5 text-frost-600 dark:text-frost-400" />
               <span className="font-bold text-base text-gray-900 dark:text-white">SlopesMaster</span>
@@ -134,22 +134,23 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
 
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
-        <div 
-          className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden dark:bg-black/60"
           onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden
         />
       )}
 
       {/* Mobile Side Menu */}
       <div
         id="mobile-menu"
-        className={`lg:hidden fixed top-14 left-0 w-80 h-[calc(100vh-3.5rem)] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-50 transition-transform duration-300 transform flex flex-col ${
+        className={`fixed bottom-0 left-0 top-14 z-50 flex w-[min(100vw-2.5rem,20rem)] flex-col border-r border-gray-200 bg-white shadow-xl transition-transform duration-200 ease-out dark:border-gray-800 dark:bg-gray-950 sm:w-80 lg:hidden ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+          <div className="border-b border-gray-200 p-3 dark:border-gray-800 sm:p-4">
+            <div className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900">
               <img
                 src={user.avatar}
                 alt={user.name}
@@ -161,25 +162,26 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
               </div>
             </div>
           </div>
-          <div className="p-4">
+          <div className="p-3 sm:p-4">
             <Navigation onItemClick={() => setIsMobileMenuOpen(false)} />
           </div>
         </div>
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex-shrink-0 border-t border-gray-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-gray-800 dark:bg-gray-950 sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
           <Link
             to="/profile"
             onClick={() => setIsMobileMenuOpen(false)}
-            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-xl flex items-center gap-3 mb-3 text-gray-700 dark:text-gray-300"
+            className="mb-2 flex w-full items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5 text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 sm:mb-3 sm:px-4 sm:py-3"
           >
             <User className="w-5 h-5" />
             View Profile
           </Link>
           <button
+            type="button"
             onClick={() => {
               logout();
               setIsMobileMenuOpen(false);
             }}
-            className="w-full px-4 py-3 text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl flex items-center gap-3"
+            className="flex w-full items-center gap-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-400 sm:px-4 sm:py-3"
           >
             <LogOut className="w-5 h-5" />
             Sign Out
@@ -187,8 +189,8 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
         </div>
       </div>
 
-      {/* Desktop Layout */}
-      <div className="flex h-screen pt-14 lg:pt-0">
+      {/* Main shell: min-h-0 lets the scroll region fill space without “floating” overflow on mobile */}
+      <div className="flex min-h-0 flex-1 pt-14 lg:h-screen lg:pt-0">
         {/* Desktop Sidebar */}
         <aside className="hidden lg:flex flex-col w-64 glass-card">
           <div className="p-4 border-b border-white/10">
@@ -260,8 +262,8 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto">
-          <div className="p-4 sm:p-6 lg:p-8 pb-8">{children}</div>
+        <main className="min-h-0 flex-1 overflow-auto bg-slate-100 dark:bg-gray-950 lg:bg-transparent lg:dark:bg-transparent">
+          <div className="px-3 py-3 pb-6 sm:px-6 sm:py-6 sm:pb-8 lg:p-8 lg:pb-8">{children}</div>
         </main>
       </div>
       
