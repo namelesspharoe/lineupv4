@@ -76,13 +76,13 @@ export function Navigation({ onItemClick }: NavigationProps) {
           key={link.href}
           to={link.href}
           onClick={onItemClick}
-          className="flex items-center justify-between px-4 py-4 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 group active:bg-blue-100 dark:active:bg-blue-900/30 touch-manipulation"
+          className="flex items-center justify-between px-3 py-3 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 group active:bg-blue-100 dark:active:bg-blue-900/30 touch-manipulation"
         >
           <div className="flex items-center gap-4">
             <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-colors">
               <link.icon className="w-5 h-5" />
             </div>
-            <span className="text-base font-medium">{link.name}</span>
+            <span className="text-sm font-medium leading-snug">{link.name}</span>
           </div>
           <ChevronRight className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity" />
         </Link>

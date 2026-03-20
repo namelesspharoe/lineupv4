@@ -12,6 +12,8 @@
     "seed": "node scripts/seed-firebase.js",
     "seed-achievements": "node scripts/seed-achievements.js",
     "seed-progress": "node scripts/seed-progress.js",
+    "seed-mountains": "node scripts/seed-mountains.js",
+    "reseed": "npm run clear && npm run seed && npm run seed-mountains",
     "clear": "node scripts/clear-firebase.js",
     "seed-instructor-stats": "node scripts/seed-instructor-stats.js"
   },

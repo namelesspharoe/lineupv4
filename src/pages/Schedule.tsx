@@ -8,7 +8,7 @@ import { InstructorCalendar } from '../components/dashboard/instructor/Instructo
 import { useAdminData } from '../components/dashboard/admin/hooks/useAdminData';
 import { useDataLoader } from '../hooks/useDataLoader';
 import { getLessonsByStudent } from '../services/lessons';
-import { getLessonDate, getLessonDayKey } from '../utils/lessonDate';
+import { getLessonDate, getLessonDayKey, isLessonUpcoming } from '../utils/lessonDate';
 
 const withLessonDate = (lesson: Lesson) => ({
   lesson,
@@ -26,7 +26,12 @@ function StudentScheduleView({ userId }: { userId: string }) {
   const entries = lessonList.map(withLessonDate);
 
   const upcoming = entries
-    .filter(({ lesson, date }) => !isNaN(date.getTime()) && ['scheduled', 'in_progress'].includes(lesson.status))
+    .filter(
+      ({ lesson, date }) =>
+        isLessonUpcoming(lesson) &&
+        !isNaN(date.getTime()) &&
+        ['scheduled', 'in_progress'].includes(lesson.status)
+    )
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
   const past = entries
@@ -71,7 +76,7 @@ function StudentScheduleView({ userId }: { userId: string }) {
               {upcoming.map(({ lesson, date }) => (
                 <div key={lesson.id} className="rounded-2xl border border-gray-200 p-4 hover:border-blue-200 transition">
                   <p className="text-sm text-gray-500 uppercase tracking-wide mb-1">
-                    {lesson.sessionType.replace('_', ' ')}
+                    {(lesson.sessionType || 'session').replace('_', ' ')}
                   </p>
                   <p className="text-lg font-semibold text-gray-900">{lesson.title}</p>
                   <p className="text-sm text-gray-600">

@@ -1,13 +1,13 @@
 import { User, Lesson } from '../types';
-import { collection, query, getDocs, where, doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { getLessonsByStudent } from './lessons';
 import { instructorMatchingService } from './instructorMatching';
+import * as tools from './agentTools';
 
 export interface AIAgentResponse {
   message: string;
   suggestions?: string[];
-  actionType?: 'instructor_match' | 'lesson_booking' | 'general' | 'recommendation';
+  actionType?: 'instructor_match' | 'lesson_booking' | 'general' | 'recommendation' | 'messages' | 'progress' | 'achievements' | 'schedule' | 'resources' | 'profile' | 'timecard' | 'students' | 'users' | 'stats';
   data?: any;
 }
 
@@ -51,6 +51,39 @@ export const aiAgentService = {
 
     if (this.isRecommendationRequest(message)) {
       return await this.handleRecommendation(userId, currentUser);
+    }
+
+    const role = (currentUser?.role || 'student') as tools.UserRole;
+
+    if (this.isMessages(message)) {
+      return await this.handleMessages(userId, currentUser);
+    }
+    if (this.isProgress(message) && role === 'student') {
+      return await this.handleProgress(userId, currentUser);
+    }
+    if (this.isAchievements(message) && role === 'student') {
+      return await this.handleAchievements(userId, currentUser);
+    }
+    if (this.isSchedule(message)) {
+      return await this.handleSchedule(userId, role, currentUser);
+    }
+    if (this.isResources(message)) {
+      return this.handleResources(currentUser);
+    }
+    if (this.isProfile(message)) {
+      return await this.handleProfile(userId, message, currentUser);
+    }
+    if (this.isTimecard(message) && role === 'instructor') {
+      return await this.handleTimecard(userId, currentUser);
+    }
+    if (this.isStudents(message) && role === 'instructor') {
+      return await this.handleStudents(userId, currentUser);
+    }
+    if (this.isUsers(message) && role === 'admin') {
+      return await this.handleUsers(currentUser);
+    }
+    if (this.isStats(message) && role === 'admin') {
+      return this.handleStats(currentUser);
     }
 
     // Default response
@@ -103,26 +136,69 @@ export const aiAgentService = {
     return keywords.some(keyword => message.includes(keyword));
   },
 
+  isMessages(message: string): boolean {
+    const keywords = ['message', 'messages', 'conversation', 'conversations', 'chat', 'inbox', 'unread'];
+    return keywords.some(keyword => message.includes(keyword));
+  },
+
+  isProgress(message: string): boolean {
+    const keywords = ['progress', 'how am i', 'level', 'skill', 'improvement', 'track'];
+    return keywords.some(keyword => message.includes(keyword));
+  },
+
+  isAchievements(message: string): boolean {
+    const keywords = ['achievement', 'achievements', 'badge', 'badges', 'points', 'rewards'];
+    return keywords.some(keyword => message.includes(keyword));
+  },
+
+  isSchedule(message: string): boolean {
+    const keywords = ['schedule', 'calendar', 'availability', 'when am i', 'my calendar'];
+    return keywords.some(keyword => message.includes(keyword));
+  },
+
+  isResources(message: string): boolean {
+    const keywords = ['resource', 'resources', 'tips', 'help', 'learn', 'guide'];
+    return keywords.some(keyword => message.includes(keyword));
+  },
+
+  isProfile(message: string): boolean {
+    const keywords = ['profile', 'my profile', 'instructor profile', 'view profile'];
+    return keywords.some(keyword => message.includes(keyword));
+  },
+
+  isTimecard(message: string): boolean {
+    const keywords = ['timecard', 'time card', 'timesheet', 'hours', 'clock', 'earnings'];
+    return keywords.some(keyword => message.includes(keyword));
+  },
+
+  isStudents(message: string): boolean {
+    const keywords = ['my students', 'students', 'student list'];
+    return keywords.some(keyword => message.includes(keyword));
+  },
+
+  isUsers(message: string): boolean {
+    const keywords = ['users', 'all users', 'user list', 'manage users'];
+    return keywords.some(keyword => message.includes(keyword));
+  },
+
+  isStats(message: string): boolean {
+    const keywords = ['stats', 'statistics', 'dashboard', 'overview'];
+    return keywords.some(keyword => message.includes(keyword));
+  },
+
   /**
    * Handle greeting messages
    */
   handleGreeting(user?: User): AIAgentResponse {
     const name = user?.name?.split(' ')[0] || 'there';
     const role = user?.role || 'student';
-    
+    const studentSuggestions = ['Find me an instructor', 'Show my lesson history', 'How do I book a lesson?', 'My progress'];
+    const instructorSuggestions = ['My lessons', 'My schedule', 'Timecard', 'My students'];
+    const adminSuggestions = ['Users', 'Stats', 'Settings'];
+    const suggestions = role === 'admin' ? adminSuggestions : role === 'instructor' ? instructorSuggestions : studentSuggestions;
     return {
-      message: `Hello ${name}! 👋 I'm your AI assistant. I can help you:\n\n` +
-               `• Find the perfect instructor for your skill level\n` +
-               `• Book lessons and check availability\n` +
-               `• Answer questions about our platform\n` +
-               `• Get personalized recommendations\n\n` +
-               `What would you like help with today?`,
-      suggestions: [
-        'Find me an instructor',
-        'Show my lesson history',
-        'How do I book a lesson?',
-        'What are the best instructors?'
-      ],
+      message: `Hello ${name}! 👋 I'm your AI assistant. I can help you with lessons, ${role === 'instructor' ? 'your schedule and students' : role === 'admin' ? 'users and stats' : 'progress and booking'}.\n\nWhat would you like help with today?`,
+      suggestions,
       actionType: 'general'
     };
   },
@@ -133,12 +209,11 @@ export const aiAgentService = {
   async handleInstructorSearch(
     userId: string,
     message: string,
-    user?: User
+    _user?: User
   ): Promise<AIAgentResponse> {
     try {
       // Extract preferences from message
       const resort = this.extractResort(message);
-      const level = user?.level || this.extractLevel(message);
       
       // Get AI recommendations
       const matches = await instructorMatchingService.matchStudentWithInstructors(
@@ -200,18 +275,18 @@ export const aiAgentService = {
    */
   async handleLessonBooking(
     userId: string,
-    message: string,
+    _message: string,
     user?: User
   ): Promise<AIAgentResponse> {
     try {
-      // Get user's past lessons
-      const pastLessons = await getLessonsByStudent(userId);
+      const role = (user?.role || 'student') as tools.UserRole;
+      const pastLessons = await tools.getMyLessons(userId, role);
       const upcomingLessons = pastLessons.filter(
-        lesson => lesson.status === 'scheduled' || lesson.status === 'in_progress'
+        (lesson: Lesson) => lesson.status === 'scheduled' || lesson.status === 'in_progress'
       );
 
       if (upcomingLessons.length > 0) {
-        const lessonList = upcomingLessons.slice(0, 3).map(lesson => 
+        const lessonList = upcomingLessons.slice(0, 3).map((lesson: Lesson) =>
           `• ${lesson.title} - ${lesson.date}`
         ).join('\n');
 
@@ -222,7 +297,7 @@ export const aiAgentService = {
           suggestions: [
             'Book another lesson',
             'View all my lessons',
-            'Find an instructor'
+            role === 'student' ? 'Find an instructor' : 'My schedule'
           ],
           actionType: 'lesson_booking',
           data: { lessons: upcomingLessons }
@@ -230,17 +305,17 @@ export const aiAgentService = {
       }
 
       return {
-        message: `You don't have any upcoming lessons yet. Let me help you find the perfect instructor to book with! 🎿\n\n` +
-                 `I can:\n` +
-                 `• Match you with instructors based on your preferences\n` +
-                 `• Show you available instructors at your preferred resort\n` +
-                 `• Help you schedule your first lesson\n\n` +
-                 `What would you like to do?`,
-        suggestions: [
-          'Find me an instructor',
-          'Show available instructors',
-          'How do I book a lesson?'
-        ],
+        message: role === 'instructor'
+          ? `You don't have any upcoming lessons scheduled. Check your availability or students list.`
+          : `You don't have any upcoming lessons yet. Let me help you find the perfect instructor to book with! 🎿\n\n` +
+            `I can:\n` +
+            `• Match you with instructors based on your preferences\n` +
+            `• Show you available instructors at your preferred resort\n` +
+            `• Help you schedule your first lesson\n\n` +
+            `What would you like to do?`,
+        suggestions: role === 'instructor'
+          ? ['My schedule', 'My students', 'My availability']
+          : ['Find me an instructor', 'Show available instructors', 'How do I book a lesson?'],
         actionType: 'lesson_booking'
       };
     } catch (error) {
@@ -255,7 +330,7 @@ export const aiAgentService = {
   /**
    * Handle general questions
    */
-  async handleQuestion(message: string, user?: User): Promise<AIAgentResponse> {
+  async handleQuestion(message: string, _user?: User): Promise<AIAgentResponse> {
     // Common questions and answers
     const qa: Record<string, string> = {
       'how do i book': 'To book a lesson:\n1. Go to "Book Lesson" page\n2. Browse or use AI recommendations\n3. Select an instructor\n4. Choose date and time\n5. Confirm booking',
@@ -294,7 +369,7 @@ export const aiAgentService = {
   /**
    * Handle recommendation requests
    */
-  async handleRecommendation(userId: string, user?: User): Promise<AIAgentResponse> {
+  async handleRecommendation(userId: string, _user?: User): Promise<AIAgentResponse> {
     try {
       const matches = await instructorMatchingService.matchStudentWithInstructors(
         userId,
@@ -340,26 +415,201 @@ export const aiAgentService = {
     }
   },
 
+  async handleMessages(userId: string, _user?: User): Promise<AIAgentResponse> {
+    try {
+      const summary = await tools.getMyMessagesSummary(userId);
+      const { conversationCount, unreadCount } = summary;
+      const msg = unreadCount > 0
+        ? `You have ${conversationCount} conversation${conversationCount !== 1 ? 's' : ''} and **${unreadCount}** unread message${unreadCount !== 1 ? 's' : ''}.`
+        : `You have ${conversationCount} conversation${conversationCount !== 1 ? 's' : ''}.`;
+      return {
+        message: `${msg}\n\nOpen Messages to view and reply.`,
+        suggestions: ['Open Messages', 'Find an instructor', 'My lessons'],
+        actionType: 'messages',
+        data: { conversationCount, unreadCount }
+      };
+    } catch (error) {
+      console.error('Error in messages:', error);
+      return { message: 'I couldn\'t load your messages. Try opening Messages from the menu.', actionType: 'messages', suggestions: ['Open Messages'] };
+    }
+  },
+
+  async handleProgress(userId: string, _user?: User): Promise<AIAgentResponse> {
+    try {
+      const { progress, analytics } = await tools.getMyProgress(userId);
+      if (!progress && !analytics) {
+        return {
+          message: 'You don\'t have progress recorded yet. Complete lessons and get feedback from instructors to see your progress here.',
+          suggestions: ['Book a lesson', 'My lessons', 'My achievements'],
+          actionType: 'progress'
+        };
+      }
+      const level = (progress?.level ?? analytics?.recentProgress?.[0]?.currentLevel) ?? '—';
+      const total = progress?.totalLessons ?? progress?.completedLessons ?? 0;
+      const msg = `Your progress: **Level** ${level}, **${total}** lesson${total !== 1 ? 's' : ''} completed.`;
+      return {
+        message: `${msg}\n\nOpen Progress to see details and skill breakdown.`,
+        suggestions: ['Open Progress', 'My achievements', 'My lessons'],
+        actionType: 'progress',
+        data: { progress, analytics }
+      };
+    } catch (error) {
+      console.error('Error in progress:', error);
+      return { message: 'I couldn\'t load your progress. Try the Progress page.', actionType: 'progress', suggestions: ['Open Progress'] };
+    }
+  },
+
+  async handleAchievements(userId: string, _user?: User): Promise<AIAgentResponse> {
+    try {
+      const stats = await tools.getMyAchievements(userId);
+      const { totalAchievements, totalPoints, recentAchievements } = stats;
+      const recent = recentAchievements?.length ? recentAchievements.slice(0, 3).map((a: { name: string; icon?: string }) => `${a.icon || '🏅'} ${a.name}`).join(', ') : 'none yet';
+      const message = `You have **${totalAchievements}** achievement${totalAchievements !== 1 ? 's' : ''} (${totalPoints} points). Recent: ${recent}.`;
+      return {
+        message: `${message}\n\nOpen Achievements to see all badges.`,
+        suggestions: ['Open Achievements', 'My progress', 'My lessons'],
+        actionType: 'achievements',
+        data: stats
+      };
+    } catch (error) {
+      console.error('Error in achievements:', error);
+      return { message: 'I couldn\'t load achievements. Try the Achievements page.', actionType: 'achievements', suggestions: ['Open Achievements'] };
+    }
+  },
+
+  async handleSchedule(userId: string, role: tools.UserRole, _user?: User): Promise<AIAgentResponse> {
+    try {
+      if (role === 'instructor') {
+        const availability = await tools.getMyAvailability(userId);
+        const count = availability?.length ?? 0;
+        const message = count > 0
+          ? `You have **${count}** availability slot${count !== 1 ? 's' : ''} set. Open Schedule to manage your calendar.`
+          : 'You don\'t have any availability set yet. Open Schedule to add your available times.';
+        return {
+          message,
+          suggestions: ['Open Schedule', 'My lessons', 'Timecard'],
+          actionType: 'schedule',
+          data: { availability }
+        };
+      }
+      const lessons = await tools.getMyLessons(userId, 'student');
+      const upcoming = lessons.filter((l: Lesson) => l.status === 'scheduled' || l.status === 'in_progress');
+      const message = upcoming.length > 0
+        ? `You have **${upcoming.length}** upcoming lesson${upcoming.length !== 1 ? 's' : ''}. Open Schedule to see the full calendar.`
+        : 'You don\'t have any lessons scheduled. Book a lesson to get started.';
+      return {
+        message,
+        suggestions: ['Open Schedule', 'Book a lesson', 'My lessons'],
+        actionType: 'schedule',
+        data: { lessons: upcoming }
+      };
+    } catch (error) {
+      console.error('Error in schedule:', error);
+      return { message: 'I couldn\'t load schedule. Try the Schedule page.', actionType: 'schedule', suggestions: ['Open Schedule'] };
+    }
+  },
+
+  handleResources(_user?: User): AIAgentResponse {
+    return {
+      message: 'Resources include tips, guides, and learning materials. Open the Resources page to browse.',
+      suggestions: ['Open Resources', 'My progress', 'How do I book a lesson?'],
+      actionType: 'resources'
+    };
+  },
+
+  async handleProfile(userId: string, _message: string, _user?: User): Promise<AIAgentResponse> {
+    const profileUser = await tools.getProfile(userId);
+    if (!profileUser) {
+      return {
+        message: 'I couldn\'t load that profile. Try opening Profile from the menu.',
+        suggestions: ['My profile', 'Find an instructor'],
+        actionType: 'profile'
+      };
+    }
+    const name = profileUser.name || 'User';
+    return {
+      message: `**${name}** — ${profileUser.role}. Open profile to view or edit.`,
+      suggestions: ['My profile', 'Find an instructor', 'My lessons'],
+      actionType: 'profile',
+      data: { profileUserId: profileUser.id, user: profileUser }
+    };
+  },
+
+  async handleTimecard(userId: string, _user?: User): Promise<AIAgentResponse> {
+    try {
+      const summary = await tools.getTimecardSummary(userId);
+      const { activeEntry, entriesToday, completedToday, totalEarningsToday } = summary;
+      let message = activeEntry
+        ? 'You have an **active** time entry. Clock out from the Timecard page when done.'
+        : `Today: **${entriesToday}** entr${entriesToday !== 1 ? 'ies' : 'y'}, **${completedToday}** completed.`;
+      if (typeof totalEarningsToday === 'number' && totalEarningsToday > 0) {
+        message += ` Earnings today: $${totalEarningsToday.toFixed(2)}.`;
+      }
+      return {
+        message: `${message}\n\nOpen Timecard to log hours.`,
+        suggestions: ['Open Timecard', 'My schedule', 'My lessons'],
+        actionType: 'timecard',
+        data: summary
+      };
+    } catch (error) {
+      console.error('Error in timecard:', error);
+      return { message: 'I couldn\'t load your timecard. Try the Timecard page.', actionType: 'timecard', suggestions: ['Open Timecard'] };
+    }
+  },
+
+  async handleStudents(userId: string, _user?: User): Promise<AIAgentResponse> {
+    try {
+      const studentIds = await tools.getMyStudentsList(userId);
+      const count = studentIds.length;
+      return {
+        message: `You have **${count}** student${count !== 1 ? 's' : ''} who have taken lessons with you. Open Students to view the list.`,
+        suggestions: ['Open Students', 'My lessons', 'My schedule'],
+        actionType: 'students',
+        data: { studentIds }
+      };
+    } catch (error) {
+      console.error('Error in students:', error);
+      return { message: 'I couldn\'t load your students. Try the Students page.', actionType: 'students', suggestions: ['Open Students'] };
+    }
+  },
+
+  async handleUsers(_user?: User): Promise<AIAgentResponse> {
+    try {
+      const list = await tools.getUsersList();
+      const count = list?.length ?? 0;
+      return {
+        message: `There are **${count}** users. Open Users to manage.`,
+        suggestions: ['Open Users', 'Stats', 'Settings'],
+        actionType: 'users',
+        data: { count }
+      };
+    } catch (error) {
+      console.error('Error in users:', error);
+      return { message: 'I couldn\'t load users. Try the Users page.', actionType: 'users', suggestions: ['Open Users'] };
+    }
+  },
+
+  handleStats(_user?: User): AIAgentResponse {
+    return {
+      message: 'Open Stats for an overview of platform statistics and insights.',
+      suggestions: ['Open Stats', 'Users', 'Settings'],
+      actionType: 'stats'
+    };
+  },
+
   /**
    * Handle default/unrecognized messages
    */
-  handleDefault(message: string, user?: User): AIAgentResponse {
+  handleDefault(_message: string, user?: User): AIAgentResponse {
+    const role = user?.role || 'student';
+    const suggestions = role === 'admin'
+      ? ['Users', 'Stats', 'Settings']
+      : role === 'instructor'
+        ? ['My lessons', 'My schedule', 'Timecard', 'My students']
+        : ['Find me an instructor', 'How do I book a lesson?', 'Show my lessons', 'My progress'];
     return {
-      message: `I'm not sure I understand. I can help you with:\n\n` +
-               `• Finding instructors that match your preferences\n` +
-               `• Booking and managing lessons\n` +
-               `• Answering questions about the platform\n` +
-               `• Getting personalized recommendations\n\n` +
-               `Try asking something like:\n` +
-               `• "Find me an instructor"\n` +
-               `• "Show my lessons"\n` +
-               `• "How do I book?"`,
-      suggestions: [
-        'Find me an instructor',
-        'How do I book a lesson?',
-        'Show my lessons',
-        'What can you help with?'
-      ],
+      message: `I'm not sure I understand. I can help with lessons, ${role === 'student' ? 'progress and booking' : role === 'instructor' ? 'schedule and students' : 'users and stats'}. Try one of the suggestions below.`,
+      suggestions,
       actionType: 'general'
     };
   },

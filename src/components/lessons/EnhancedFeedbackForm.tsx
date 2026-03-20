@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { addLessonFeedback } from '../../services/lessons';
+import { addLessonFeedback, updateLessonFeedback } from '../../services/lessons';
 import { LessonFeedback, User } from '../../types';
 
 interface EnhancedFeedbackFormProps {
@@ -9,6 +9,7 @@ interface EnhancedFeedbackFormProps {
   onFeedbackSubmitted: () => void;
   onCancel: () => void;
   isOpen: boolean;
+  existingFeedback?: LessonFeedback | null;
 }
 
 const SKILL_LEVELS = [
@@ -83,7 +84,8 @@ export const EnhancedFeedbackForm: React.FC<EnhancedFeedbackFormProps> = ({
   studentId,
   onFeedbackSubmitted,
   onCancel,
-  isOpen
+  isOpen,
+  existingFeedback
 }) => {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -95,6 +97,22 @@ export const EnhancedFeedbackForm: React.FC<EnhancedFeedbackFormProps> = ({
   const [checkedSkills, setCheckedSkills] = useState<Set<string>>(new Set());
   const [recommendations, setRecommendations] = useState('');
   const [instructorNotes, setInstructorNotes] = useState('');
+
+  useEffect(() => {
+    if (isOpen && existingFeedback) {
+      setSelectedSport((existingFeedback.sport === 'snowboarding' ? 'snowboarding' : 'skiing'));
+      setSelectedLevel(existingFeedback.skillAssessment?.currentLevel ?? 'first_time');
+      setCheckedSkills(new Set(existingFeedback.strengths ?? []));
+      setRecommendations(existingFeedback.skillAssessment?.recommendations ?? '');
+      setInstructorNotes(existingFeedback.instructorNotes ?? '');
+    } else if (isOpen && !existingFeedback) {
+      setSelectedSport('skiing');
+      setSelectedLevel('first_time');
+      setCheckedSkills(new Set());
+      setRecommendations('');
+      setInstructorNotes('');
+    }
+  }, [isOpen, existingFeedback]);
 
   // Get current checklist based on sport and level
   const currentChecklist = SKILL_CHECKLISTS[selectedSport][selectedLevel as keyof typeof SKILL_CHECKLISTS[typeof selectedSport]] || [];
@@ -180,15 +198,17 @@ export const EnhancedFeedbackForm: React.FC<EnhancedFeedbackFormProps> = ({
         }
       };
       
-      console.log('Submitting feedback:', feedback);
+      if (existingFeedback?.id) {
+        await updateLessonFeedback(existingFeedback.id, feedback);
+        setSuccess('Feedback updated successfully.');
+      } else {
+        await addLessonFeedback(lessonId, feedback);
+        setSuccess('Feedback submitted successfully! Student progress has been updated.');
+      }
       
-      await addLessonFeedback(lessonId, feedback);
-      setSuccess('Feedback submitted successfully! Student progress has been updated.');
-      
-      // Close form after a short delay to show success message
       setTimeout(() => {
         onFeedbackSubmitted();
-      }, 2000);
+      }, 1500);
     } catch (err) {
       console.error('Error submitting feedback:', err);
       setError(err instanceof Error ? err.message : 'Failed to submit feedback');
@@ -204,7 +224,9 @@ export const EnhancedFeedbackForm: React.FC<EnhancedFeedbackFormProps> = ({
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Lesson Feedback Form</h2>
+            <h2 className="text-2xl font-bold text-gray-900">
+              {existingFeedback ? 'Edit Feedback' : 'Lesson Feedback Form'}
+            </h2>
             <button
               onClick={onCancel}
               className="text-gray-400 hover:text-gray-600"
@@ -347,7 +369,7 @@ export const EnhancedFeedbackForm: React.FC<EnhancedFeedbackFormProps> = ({
                 disabled={isSubmitting}
                 className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
-                {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
+                {isSubmitting ? (existingFeedback ? 'Updating...' : 'Submitting...') : (existingFeedback ? 'Update Feedback' : 'Submit Feedback')}
               </button>
             </div>
           </form>

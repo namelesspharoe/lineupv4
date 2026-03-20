@@ -26,6 +26,7 @@ export interface User {
   phone?: string;
   address?: string;
   homeMountain?: string; // Only for instructors
+  mountainId?: string;
   specialties?: string[];
   level?: string;
   certifications?: string[];
@@ -39,6 +40,24 @@ export interface User {
   isGroup?: boolean;
   participants?: string[];
   createdAt?: string;
+}
+
+export interface Mountain {
+  id: string;
+  name: string;
+  description?: string;
+  location?: string;
+  privateLessonPrice?: number;
+  groupLessonPrice?: number;
+  /** Reported base depth (inches); used to sort resorts for students (higher first). */
+  baseDepthInches?: number;
+  /** Optional secondary sort / display: fresh snow in last 24h (inches). */
+  snowfall24hInches?: number;
+  /** When snow figures were last updated (ISO string). */
+  snowReportUpdatedAt?: string;
+  instructorIds: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SkillProgress {
@@ -171,6 +190,8 @@ export interface Lesson {
   endTime?: string;
   status: 'available' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   notes?: string;
+  /** Instructor scratchpad during / right after the session (not the public lesson description). */
+  sessionNotes?: string;
   skillsFocus: string[];
   type: 'private' | 'group' | 'workshop';
   maxStudents: number;

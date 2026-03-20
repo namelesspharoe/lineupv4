@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Calendar, Clock, Users, DollarSign, Target, FileText } from 'lucide-react';
+import { X, Calendar, Clock, Users, DollarSign, Target, FileText, MapPin } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { createLesson } from '../../services/lessons';
-import { User, Lesson } from '../../types';
+import { User, Lesson, Mountain } from '../../types';
 import { format } from 'date-fns';
 import { StudentSearch } from '../common/StudentSearch';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { getMountainById, getMountains, getStudentFacingMountainLessonRate } from '../../services/mountains';
+import { getUserById } from '../../services/users';
 
 interface UnifiedLessonModalProps {
   isOpen: boolean;
@@ -46,12 +48,6 @@ const skillLevels = [
   { value: 'consistent_blue', label: 'Consistent Blue Runs' }
 ];
 
-const skillOptions = [
-  'Basic Stance', 'Turning', 'Speed Control', 'Edge Control',
-  'Carving', 'Freestyle', 'Terrain Park', 'Powder Riding',
-  'Safety Awareness', 'Mountain Navigation'
-];
-
 const lessonTypeLabels: Record<'private' | 'group' | 'workshop', string> = {
   private: 'Private Lesson',
   group: 'Group Lesson',
@@ -73,6 +69,8 @@ export function UnifiedLessonModal({
   const [instructors, setInstructors] = useState<User[]>([]);
   const [selectedInstructorId, setSelectedInstructorId] = useState<string>('');
   const [isLoadingInstructors, setIsLoadingInstructors] = useState(false);
+  const [instructorMountainLabel, setInstructorMountainLabel] = useState<string | null>(null);
+  const [isLoadingMountain, setIsLoadingMountain] = useState(false);
 
   const [formData, setFormData] = useState<LessonFormData>({
     title: '',
@@ -80,7 +78,7 @@ export function UnifiedLessonModal({
     startTime: '09:00',
     endTime: '12:00',
     type: 'private',
-    maxStudents: 1,
+    maxStudents: 10,
     skillLevel: 'first_time',
     price: instructor?.price || 0,
     description: '',
@@ -91,10 +89,31 @@ export function UnifiedLessonModal({
 
   const getAutoLessonTitle = useCallback(() => {
     const typeLabel = lessonTypeLabels[formData.type] || 'Lesson';
-    const instructorName = instructor?.name || 'Instructor';
     const dateLabel = formData.date ? format(new Date(formData.date), 'MMM d, yyyy') : 'Date TBD';
-    return `${typeLabel} with ${instructorName} - ${dateLabel}`;
-  }, [formData.type, formData.date, instructor?.name]);
+
+    let instructorName: string | undefined;
+
+    if (mode === 'book' && instructor) {
+      instructorName = instructor.name;
+    } else if (isAdmin && selectedInstructorId) {
+      const selectedInstructor = instructors.find(i => i.id === selectedInstructorId);
+      instructorName = selectedInstructor?.name;
+    } else if (user) {
+      instructorName = user.name;
+    }
+
+    const safeInstructorName = instructorName || 'Instructor';
+    return `${safeInstructorName} ${typeLabel} - ${dateLabel}`;
+  }, [
+    formData.type,
+    formData.date,
+    mode,
+    instructor,
+    isAdmin,
+    selectedInstructorId,
+    instructors,
+    user
+  ]);
 
   useEffect(() => {
     if (existingLesson) {
@@ -114,42 +133,74 @@ export function UnifiedLessonModal({
       });
       setSelectedInstructorId(existingLesson.instructorId || '');
     } else if (instructor) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        price: instructor.price || prev.price,
+        // Students book at resort rates; price is filled from mountains in a separate effect.
+        price:
+          mode === 'book' && !isAdmin ? prev.price : instructor.price || prev.price,
         selectedStudents: []
       }));
     }
-  }, [existingLesson, instructor]);
+  }, [existingLesson, instructor, mode, isAdmin]);
 
   useEffect(() => {
-    if (mode === 'book' && instructor) {
-      const autoTitle = getAutoLessonTitle();
-      setFormData(prev => {
-        let changed = false;
-        const updates: Partial<LessonFormData> = {};
+    if (existingLesson) return;
 
-        if (prev.title !== autoTitle) {
-          updates.title = autoTitle;
-          changed = true;
-        }
+    const autoTitle = getAutoLessonTitle();
 
+    setFormData(prev => {
+      let changed = false;
+      const updates: Partial<LessonFormData> = {};
+
+      if (prev.title !== autoTitle) {
+        updates.title = autoTitle;
+        changed = true;
+      }
+
+      if (mode === 'book' && instructor) {
         const autoDescription = `${lessonTypeLabels[prev.type] || 'Lesson'} experience with ${instructor.name || 'Instructor'}`;
         if (prev.description !== autoDescription) {
           updates.description = autoDescription;
           changed = true;
         }
 
-        const instructorRate = instructor.price ?? prev.price;
-        if (instructorRate && prev.price !== instructorRate) {
-          updates.price = instructorRate;
-          changed = true;
+        if (!(mode === 'book' && !isAdmin)) {
+          const instructorRate = instructor.price ?? prev.price;
+          if (instructorRate && prev.price !== instructorRate) {
+            updates.price = instructorRate;
+            changed = true;
+          }
         }
+      }
 
-        return changed ? { ...prev, ...updates } : prev;
-      });
-    }
-  }, [mode, instructor, getAutoLessonTitle]);
+      return changed ? { ...prev, ...updates } : prev;
+    });
+  }, [mode, instructor, getAutoLessonTitle, existingLesson, isAdmin]);
+
+  // Student booking: lesson price from mountain only (not instructor hourlyRate).
+  useEffect(() => {
+    if (!isOpen || mode !== 'book' || isAdmin || !instructor?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [fullUser, mountains] = await Promise.all([
+          getUserById(instructor.id),
+          getMountains().catch(() => [] as Mountain[])
+        ]);
+        if (cancelled) return;
+        const merged: User = fullUser ? { ...instructor, ...fullUser } : instructor;
+        const rate = getStudentFacingMountainLessonRate(merged, mountains);
+        if (rate != null) {
+          setFormData((prev) => ({ ...prev, price: rate }));
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, mode, isAdmin, instructor]);
 
   // Load instructors for admin functionality
   useEffect(() => {
@@ -183,6 +234,73 @@ export function UnifiedLessonModal({
     loadInstructors();
   }, [isAdmin]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      setInstructorMountainLabel(null);
+      setIsLoadingMountain(false);
+      return;
+    }
+
+    const targetInstructor: User | undefined =
+      mode === 'book' && instructor
+        ? instructor
+        : isAdmin && selectedInstructorId
+          ? instructors.find((i) => i.id === selectedInstructorId)
+          : undefined;
+
+    if (!targetInstructor?.id) {
+      setInstructorMountainLabel(null);
+      setIsLoadingMountain(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const resolveMountain = async () => {
+      setIsLoadingMountain(true);
+      try {
+        // Booking often passes a slim User (no homeMountain/mountainId). Always load Firestore profile.
+        const fullUser = await getUserById(targetInstructor.id);
+        if (cancelled) return;
+
+        const homeMountain =
+          (fullUser?.homeMountain?.trim() || targetInstructor.homeMountain?.trim()) || undefined;
+        const mountainId = fullUser?.mountainId || targetInstructor.mountainId;
+
+        if (homeMountain) {
+          setInstructorMountainLabel(homeMountain);
+          return;
+        }
+
+        if (mountainId) {
+          const mountain = await getMountainById(mountainId);
+          if (!cancelled) {
+            setInstructorMountainLabel(mountain?.name ?? null);
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setInstructorMountainLabel(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setInstructorMountainLabel(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingMountain(false);
+        }
+      }
+    };
+
+    void resolveMountain();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, mode, instructor, isAdmin, selectedInstructorId, instructors]);
+
   const handleTimeSlotChange = (index: number) => {
     setSelectedTimeSlot(index);
     const slot = timeSlots[index];
@@ -190,15 +308,6 @@ export function UnifiedLessonModal({
       ...prev,
       startTime: slot.start,
       endTime: slot.end
-    }));
-  };
-
-  const handleSkillToggle = (skill: string) => {
-    setFormData(prev => ({
-      ...prev,
-      skillsFocus: prev.skillsFocus.includes(skill)
-        ? prev.skillsFocus.filter(s => s !== skill)
-        : [...prev.skillsFocus, skill]
     }));
   };
 
@@ -326,29 +435,38 @@ export function UnifiedLessonModal({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Lesson Title
                 </label>
-                {mode === 'book' ? (
-                  <>
-                    <input
-                      type="text"
-                      value={formData.title}
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg cursor-not-allowed"
-                    />
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Automatically generated as "{lessonTypeLabels[formData.type]} with {instructor?.name || 'Instructor'}" on the selected date.
-                    </p>
-                  </>
-                ) : (
+                <>
                   <input
                     type="text"
                     value={formData.title}
-                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., Beginner Ski Lesson"
-                    required
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg cursor-not-allowed"
                   />
-                )}
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Automatically generated from instructor name, lesson type, and date.
+                  </p>
+                </>
               </div>
+
+              {mode === 'book' && instructor && (
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Instructor mountain</p>
+                      {isLoadingMountain ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Loading…</p>
+                      ) : instructorMountainLabel ? (
+                        <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">{instructorMountainLabel}</p>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                          Not assigned to a mountain yet.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {isAdmin && (
                 <div>
@@ -374,6 +492,25 @@ export function UnifiedLessonModal({
                         </option>
                       ))}
                     </select>
+                  )}
+                  {selectedInstructorId && (
+                    <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">Instructor mountain</p>
+                          {isLoadingMountain ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Loading…</p>
+                          ) : instructorMountainLabel ? (
+                            <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">{instructorMountainLabel}</p>
+                          ) : (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                              Not assigned to a mountain yet.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -401,9 +538,7 @@ export function UnifiedLessonModal({
                     value={formData.type}
                     onChange={(e) => setFormData(prev => ({ 
                       ...prev, 
-                      type: e.target.value as 'private' | 'group' | 'workshop',
-                      maxStudents: e.target.value === 'private' ? 1 : prev.maxStudents,
-                      selectedStudents: e.target.value === 'private' ? prev.selectedStudents.slice(0, 1) : prev.selectedStudents
+                      type: e.target.value as 'private' | 'group' | 'workshop'
                     }))}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
@@ -413,22 +548,6 @@ export function UnifiedLessonModal({
                   </select>
                 </div>
               </div>
-
-              {formData.type === 'group' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Maximum Students
-                  </label>
-                  <input
-                    type="number"
-                    min="2"
-                    max="8"
-                    value={formData.maxStudents}
-                    onChange={(e) => setFormData(prev => ({ ...prev, maxStudents: parseInt(e.target.value) }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              )}
             </div>
 
             {/* Student Selection - Only show for create mode */}
@@ -439,9 +558,7 @@ export function UnifiedLessonModal({
                   onStudentSelect={handleStudentSelect}
                   onStudentRemove={handleStudentRemove}
                   selectedStudents={formData.selectedStudents}
-                  maxStudents={formData.maxStudents}
                   placeholder="Search students by name or email..."
-                  disabled={formData.type === 'private' && formData.selectedStudents.length >= 1}
                 />
               </div>
             )}
@@ -471,9 +588,9 @@ export function UnifiedLessonModal({
               </div>
             </div>
 
-            {/* Skill Level and Focus */}
+            {/* Skill Level */}
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Skill Level & Focus</h3>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Skill Level</h3>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -495,51 +612,10 @@ export function UnifiedLessonModal({
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Skills to Focus On
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {skillOptions.map(skill => (
-                    <button
-                      key={skill}
-                      type="button"
-                      onClick={() => handleSkillToggle(skill)}
-                      className={`p-2 text-sm border rounded-lg transition-colors ${
-                        formData.skillsFocus.includes(skill)
-                          ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-900/20 dark:text-blue-200'
-                          : 'border-gray-300 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500 dark:text-gray-200'
-                      }`}
-                    >
-                      {skill}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
 
-            {/* Description and Notes */}
+            {/* Notes */}
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Description
-                </label>
-                {mode === 'book' ? (
-                  <div className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg text-gray-700 dark:text-gray-200">
-                    {formData.description || 'Description will be generated automatically.'}
-                  </div>
-                ) : (
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Describe what this lesson will cover..."
-                    required
-                  />
-                )}
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Additional Notes

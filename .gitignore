@@ -23,6 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 
+# Firebase Admin SDK (local only — never commit)
+firebase-service-account.json
+*-firebase-adminsdk-*.json
+
 # Environment variables
 .env
 .env.local

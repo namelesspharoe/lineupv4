@@ -18,9 +18,9 @@ export async function getInstructors(): Promise<User[]> {
   );
   
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
+  return snapshot.docs.map((d) => ({
+    ...d.data(),
+    id: d.id
   } as User));
 }
 
@@ -31,18 +31,18 @@ export async function getStudents(): Promise<User[]> {
   );
   
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
+  return snapshot.docs.map((d) => ({
+    ...d.data(),
+    id: d.id
   } as User));
 }
 
 export async function getAllUsers(): Promise<User[]> {
   const q = query(collection(db, 'users'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
+  return snapshot.docs.map((d) => ({
+    ...d.data(),
+    id: d.id
   } as User));
 }
 
@@ -55,8 +55,8 @@ export async function getUserById(userId: string): Promise<User | null> {
   }
 
   return {
-    id: docSnap.id,
-    ...docSnap.data()
+    ...docSnap.data(),
+    id: docSnap.id
   } as User;
 }
 

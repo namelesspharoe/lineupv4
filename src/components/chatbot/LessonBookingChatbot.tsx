@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, Minimize2, Maximize2, Sparkles, BookOpen, Search, Calendar } from 'lucide-react';
+import { X, Send, Minimize2, Maximize2, Sparkles, BookOpen, Search, Calendar, MessageCircle, TrendingUp, Award, Users, BarChart3 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { aiAgentService, AIAgentResponse } from '../../services/aiAgent';
+import { aiAgentService } from '../../services/aiAgent';
 import { useNavigate } from 'react-router-dom';
 
 interface ChatMessage {
@@ -104,10 +104,7 @@ export function LessonBookingChatbot() {
 
       setMessages(prev => [...prev, aiMessage]);
 
-      // Handle action data (e.g., navigate to instructor profile)
-      if (response.actionData?.topMatch) {
-        // Could navigate to instructor profile or booking page
-      }
+      // actionData (response.data) is stored on the message for suggestion-click navigation
     } catch (error) {
       console.error('Error processing message:', error);
       const errorMessage: ChatMessage = {
@@ -122,8 +119,7 @@ export function LessonBookingChatbot() {
     }
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
-    // Handle navigation suggestions
+  const handleSuggestionClick = (suggestion: string, actionData?: any) => {
     if (suggestion === 'Sign Up') {
       navigate('/signup');
       setIsOpen(false);
@@ -134,13 +130,62 @@ export function LessonBookingChatbot() {
       setIsOpen(false);
       return;
     }
+    // Map suggestion labels to routes; use actionData for profile/booking context
+    const instructorId = actionData?.topMatch?.instructor?.id ?? actionData?.match?.instructor?.id ?? actionData?.user?.id ?? actionData?.profileUserId;
+    if (instructorId && (suggestion.includes('profile') || (suggestion.includes('View ') && suggestion.includes("'s profile")))) {
+      navigate(`/profile/${instructorId}`);
+      setIsOpen(false);
+      return;
+    }
+    if (instructorId && (suggestion.toLowerCase().includes('book') && suggestion.toLowerCase().includes('match'))) {
+      navigate('/book-lesson', { state: { instructorId } });
+      setIsOpen(false);
+      return;
+    }
+    const routeMap: Record<string, string> = {
+      'Open Messages': '/messages',
+      'My Progress': '/progress',
+      'Open Progress': '/progress',
+      'My achievements': '/achievements',
+      'Open Achievements': '/achievements',
+      'My schedule': '/schedule',
+      'Open Schedule': '/schedule',
+      'Open Resources': '/resources',
+      'Resources': '/resources',
+      'My profile': '/profile',
+      'Open profile': '/profile',
+      'Open Timecard': '/dashboard/instructor/timecard',
+      'Timecard': '/dashboard/instructor/timecard',
+      'Open Students': '/students',
+      'My students': '/students',
+      'Open Users': '/users',
+      'Users': '/users',
+      'Open Stats': '/stats',
+      'Stats': '/stats',
+      'Settings': '/settings',
+      'Book a lesson': '/book-lesson',
+      'Book another lesson': '/book-lesson',
+      'Find an instructor': '/book-lesson',
+      'Show available instructors': '/book-lesson',
+      'View all my lessons': '/lessons',
+      'My lessons': '/lessons',
+      'Show my lessons': '/lessons',
+      'Show my lesson history': '/lessons',
+      'My availability': '/dashboard/instructor/calendar',
+    };
+    const path = routeMap[suggestion];
+    if (path) {
+      navigate(path);
+      setIsOpen(false);
+      return;
+    }
     handleSend(suggestion);
   };
 
   const handleQuickAction = (action: string) => {
     if (!user) {
-      // For non-authenticated users, prompt to sign up
-      if (action === 'book-lesson' || action === 'find-instructor' || action === 'my-lessons') {
+      const navActions = ['book-lesson', 'find-instructor', 'my-lessons', 'messages', 'progress', 'achievements', 'schedule', 'resources', 'profile', 'timecard', 'students', 'users', 'stats'];
+      if (navActions.includes(action)) {
         const signupMessage: ChatMessage = {
           id: `ai-signup-${Date.now()}`,
           sender: 'ai',
@@ -152,23 +197,29 @@ export function LessonBookingChatbot() {
         return;
       }
     }
-    
-    switch (action) {
-      case 'book-lesson':
-        navigate('/book-lesson');
-        setIsOpen(false);
-        break;
-      case 'find-instructor':
-        navigate('/book-lesson');
-        setIsOpen(false);
-        break;
-      case 'my-lessons':
-        navigate('/lessons');
-        setIsOpen(false);
-        break;
-      default:
-        handleSend(action);
+
+    const routeByAction: Record<string, string> = {
+      'book-lesson': '/book-lesson',
+      'find-instructor': '/book-lesson',
+      'my-lessons': '/lessons',
+      'messages': '/messages',
+      'progress': '/progress',
+      'achievements': '/achievements',
+      'schedule': '/schedule',
+      'resources': '/resources',
+      'profile': '/profile',
+      'timecard': '/dashboard/instructor/timecard',
+      'students': '/students',
+      'users': '/users',
+      'stats': '/stats',
+    };
+    const path = routeByAction[action];
+    if (path) {
+      navigate(path);
+      setIsOpen(false);
+      return;
     }
+    handleSend(action);
   };
 
   const formatTime = (date: Date) => {
@@ -238,30 +289,107 @@ export function LessonBookingChatbot() {
 
             {!isMinimized && (
               <>
-                {/* Quick Actions */}
+                {/* Quick Actions - role-aware */}
                 <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                   <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                    <button
-                      onClick={() => handleQuickAction('book-lesson')}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
-                    >
-                      <BookOpen className="w-3.5 h-3.5" />
-                      Book Lesson
-                    </button>
-                    <button
-                      onClick={() => handleQuickAction('find-instructor')}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
-                    >
-                      <Search className="w-3.5 h-3.5" />
-                      Find Instructor
-                    </button>
-                    <button
-                      onClick={() => handleQuickAction('my-lessons')}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
-                    >
-                      <Calendar className="w-3.5 h-3.5" />
-                      My Lessons
-                    </button>
+                    {(!user || user.role === 'student') && (
+                      <>
+                        <button
+                          onClick={() => handleQuickAction('book-lesson')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          Book Lesson
+                        </button>
+                        <button
+                          onClick={() => handleQuickAction('find-instructor')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+                        >
+                          <Search className="w-3.5 h-3.5" />
+                          Find Instructor
+                        </button>
+                        <button
+                          onClick={() => handleQuickAction('my-lessons')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                        >
+                          <Calendar className="w-3.5 h-3.5" />
+                          My Lessons
+                        </button>
+                        <button
+                          onClick={() => handleQuickAction('progress')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
+                        >
+                          <TrendingUp className="w-3.5 h-3.5" />
+                          Progress
+                        </button>
+                        <button
+                          onClick={() => handleQuickAction('achievements')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition-colors"
+                        >
+                          <Award className="w-3.5 h-3.5" />
+                          Achievements
+                        </button>
+                      </>
+                    )}
+                    {user?.role === 'instructor' && (
+                      <>
+                        <button
+                          onClick={() => handleQuickAction('my-lessons')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                        >
+                          <Calendar className="w-3.5 h-3.5" />
+                          My Lessons
+                        </button>
+                        <button
+                          onClick={() => handleQuickAction('schedule')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                        >
+                          <Calendar className="w-3.5 h-3.5" />
+                          Schedule
+                        </button>
+                        <button
+                          onClick={() => handleQuickAction('timecard')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors"
+                        >
+                          <BarChart3 className="w-3.5 h-3.5" />
+                          Timecard
+                        </button>
+                        <button
+                          onClick={() => handleQuickAction('students')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          Students
+                        </button>
+                      </>
+                    )}
+                    {user?.role === 'admin' && (
+                      <>
+                        <button
+                          onClick={() => handleQuickAction('users')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-slate-200 dark:hover:bg-slate-900/50 transition-colors"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          Users
+                        </button>
+                        <button
+                          onClick={() => handleQuickAction('stats')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors"
+                        >
+                          <BarChart3 className="w-3.5 h-3.5" />
+                          Stats
+                        </button>
+                      </>
+                    )}
+                    {user && (
+                      <button
+                        onClick={() => handleQuickAction('messages')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        Messages
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -295,7 +423,7 @@ export function LessonBookingChatbot() {
                             {message.suggestions.map((suggestion, index) => (
                               <button
                                 key={index}
-                                onClick={() => handleSuggestionClick(suggestion)}
+                                onClick={() => handleSuggestionClick(suggestion, message.actionData)}
                                 className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
                               >
                                 {suggestion}
@@ -307,7 +435,7 @@ export function LessonBookingChatbot() {
                       {message.sender === 'user' && (
                         <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center flex-shrink-0">
                           <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                            {user.name.charAt(0).toUpperCase()}
+                            {user?.name?.charAt(0).toUpperCase() ?? '?'}
                           </span>
                         </div>
                       )}

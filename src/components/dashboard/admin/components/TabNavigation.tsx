@@ -1,7 +1,7 @@
 import React from 'react';
-import { TrendingUp, Users, BookOpen, Clock } from 'lucide-react';
+import { TrendingUp, Users, BookOpen, Clock, Mountain } from 'lucide-react';
 
-type TabType = 'overview' | 'users' | 'lessons' | 'timeEntries';
+type TabType = 'overview' | 'users' | 'lessons' | 'timeEntries' | 'mountains';
 
 interface TabNavigationProps {
   activeTab: TabType;
@@ -13,6 +13,7 @@ export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
     { id: 'overview' as const, label: 'Overview', icon: TrendingUp },
     { id: 'users' as const, label: 'Users', icon: Users },
     { id: 'lessons' as const, label: 'Lessons', icon: BookOpen },
+    { id: 'mountains' as const, label: 'Mountains', icon: Mountain },
     { id: 'timeEntries' as const, label: 'Time Entries', icon: Clock }
   ];
 

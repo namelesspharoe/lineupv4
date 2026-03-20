@@ -1,15 +1,7 @@
 import admin from 'firebase-admin';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { loadServiceAccountJson } from './resolve-service-account.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Initialize Firebase Admin SDK
-const serviceAccount = JSON.parse(
-  fs.readFileSync(join(__dirname, '../firebase-service-account.json'), 'utf8')
-);
+const serviceAccount = loadServiceAccountJson();
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),

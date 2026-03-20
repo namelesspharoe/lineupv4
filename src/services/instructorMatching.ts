@@ -3,6 +3,7 @@ import { db } from '../lib/firebase';
 import { User, Lesson, LessonFeedback, StudentProgress } from '../types';
 import { getLessonsByStudent, getStudentFeedback } from './lessons';
 import { instructorStatsService, InstructorStats } from './instructorStats';
+import { getMountains, instructorMatchesMountainSelection } from './mountains';
 
 export interface InstructorMatch {
   instructor: User;
@@ -150,12 +151,39 @@ export const instructorMatchingService = {
         ...doc.data()
       })) as User[];
 
-      // Filter by resort if specified
+      // Filter by resort if specified (same rules as BookLesson browse: mountainId, homeMountain,
+      // preferredLocations, mountains.instructorIds — not only preferredLocations)
       let filteredInstructors = instructors;
       if (options?.resort) {
-        filteredInstructors = instructors.filter(instructor =>
-          instructor.preferredLocations?.includes(options.resort!)
+        const resortName = options.resort.trim();
+        let mountainsList: Awaited<ReturnType<typeof getMountains>> = [];
+        try {
+          mountainsList = await getMountains();
+        } catch {
+          mountainsList = [];
+        }
+        const mountainDoc = mountainsList.find(
+          (m) => m.name.toLowerCase() === resortName.toLowerCase()
         );
+        filteredInstructors = instructors.filter((instructor) => {
+          if (mountainDoc) {
+            return instructorMatchesMountainSelection(
+              instructor,
+              mountainDoc.id,
+              mountainDoc.name,
+              mountainsList
+            );
+          }
+          const n = resortName.toLowerCase();
+          return (
+            instructor.homeMountain?.trim().toLowerCase() === n ||
+            (instructor.preferredLocations?.some(
+              (loc) => loc.trim().toLowerCase() === n
+            ) ??
+              false) ||
+            instructor.mountainId === resortName
+          );
+        });
       }
 
       // Calculate match scores for each instructor

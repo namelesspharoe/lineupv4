@@ -14,6 +14,7 @@ import { TabNavigation } from './components/TabNavigation';
 import { UserTable } from './components/UserTable';
 import { LessonTable } from './components/LessonTable';
 import { StudentProfileWrapper } from './components/StudentProfileWrapper';
+import { MountainManagement } from './components/MountainManagement';
 
 interface AdminDashboardProps {
   user: User;
@@ -27,6 +28,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     stats,
     users,
     lessons,
+    mountains,
     isLoading,
     error,
     isRefreshing,
@@ -38,11 +40,15 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     handleDeleteUser,
     handleDeleteLesson,
     handleUpdateUserRole,
-    handleUpdateLessonStatus
+    handleUpdateLessonStatus,
+    handleCreateMountain,
+    handleUpdateMountainSnow,
+    handleAssignInstructorToMountain,
+    handleUnassignInstructorFromMountain
   } = useAdminActions();
 
   // UI State
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'lessons' | 'timeEntries'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'lessons' | 'mountains' | 'timeEntries'>('overview');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<any>(null);
   const [showCreateUser, setShowCreateUser] = useState(false);
@@ -215,6 +221,18 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
             />
           </div>
         </div>
+      )}
+
+      {activeTab === 'mountains' && (
+        <MountainManagement
+          mountains={mountains}
+          users={users}
+          onCreateMountain={handleCreateMountain}
+          onUpdateMountainSnow={handleUpdateMountainSnow}
+          onAssignInstructorToMountain={handleAssignInstructorToMountain}
+          onUnassignInstructorFromMountain={handleUnassignInstructorFromMountain}
+          onRefresh={loadDashboardData}
+        />
       )}
 
       {activeTab === 'timeEntries' && (

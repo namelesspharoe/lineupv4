@@ -113,6 +113,40 @@ export async function getInstructorDailyLessons(
   } as Lesson));
 }
 
+/**
+ * Lessons for the instructor "active" panel: every `in_progress` session (any date) plus
+ * today's `available` / `scheduled` / `booked` rows. Without this, `in_progress` on a future
+ * calendar day never matches `date === today` and the Active tab looks empty.
+ */
+export async function getInstructorActiveLessons(instructorId: string): Promise<Lesson[]> {
+  const todayKey = format(new Date(), 'yyyy-MM-dd');
+
+  const inProgressQ = query(
+    collection(db, 'lessons'),
+    where('instructorId', '==', instructorId),
+    where('status', '==', 'in_progress')
+  );
+
+  const todayQ = query(
+    collection(db, 'lessons'),
+    where('instructorId', '==', instructorId),
+    where('date', '==', todayKey),
+    where('status', 'in', ['available', 'scheduled', 'in_progress', 'booked'])
+  );
+
+  const [inProgressSnap, todaySnap] = await Promise.all([getDocs(inProgressQ), getDocs(todayQ)]);
+
+  const byId = new Map<string, Lesson>();
+  for (const d of inProgressSnap.docs) {
+    byId.set(d.id, { id: d.id, ...d.data() } as Lesson);
+  }
+  for (const d of todaySnap.docs) {
+    byId.set(d.id, { id: d.id, ...d.data() } as Lesson);
+  }
+
+  return Array.from(byId.values());
+}
+
 // Simplified lesson creation function
 export async function createLesson(lessonData: Omit<Lesson, 'id'>): Promise<string> {
   console.log('createLesson called with:', lessonData);
@@ -281,6 +315,26 @@ export async function addLessonFeedback(
   }
 }
 
+export async function updateLessonFeedback(
+  feedbackId: string,
+  updates: Partial<Omit<LessonFeedback, 'id' | 'createdAt'>>
+): Promise<void> {
+  try {
+    const feedbackRef = doc(db, 'lessonFeedback', feedbackId);
+    const cleanUpdates = JSON.parse(JSON.stringify(updates));
+    await updateDoc(feedbackRef, {
+      ...cleanUpdates,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error updating lesson feedback:', error);
+    if (error instanceof Error) {
+      throw new Error(`Failed to update feedback: ${error.message}`);
+    }
+    throw new Error('Failed to update feedback');
+  }
+}
+
 // New function to update student progress based on feedback
 async function updateStudentProgressFromFeedback(feedback: Omit<LessonFeedback, 'id' | 'createdAt' | 'updatedAt'>): Promise<void> {
   try {
@@ -367,14 +421,16 @@ async function updateStudentProgressFromFeedback(feedback: Omit<LessonFeedback, 
       };
     }
     
-    // Update the specific sport's progress
+    // Update the specific sport's progress (guard against missing progressUpdate on old/malformed feedback)
+    const skillsImproved = feedback.progressUpdate?.skillsImproved ?? [];
+    const newSkillsLearned = feedback.progressUpdate?.newSkillsLearned ?? [];
     currentProgress.skillProgress[sport] = {
       level: newLevel,
       progress: skillProgress,
       skills: [
         ...(currentProgress.skillProgress[sport]?.skills || []),
-        ...feedback.progressUpdate.skillsImproved,
-        ...feedback.progressUpdate.newSkillsLearned
+        ...skillsImproved,
+        ...newSkillsLearned
       ].filter((skill, index, arr) => arr.indexOf(skill) === index), // Remove duplicates
       lastUpdated: new Date().toISOString()
     };
@@ -409,6 +465,9 @@ async function updateStudentProgressFromFeedback(feedback: Omit<LessonFeedback, 
     
     await batch.commit();
     console.log('Student progress updated successfully');
+
+    // Keep user.level in sync so profile/nav and any consumer of user.level stay current
+    await updateDoc(doc(db, 'users', feedback.studentId), { level: currentProgress.level });
   } catch (error) {
     console.error('Error updating student progress from feedback:', error);
     throw error;

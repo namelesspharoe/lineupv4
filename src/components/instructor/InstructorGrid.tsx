@@ -16,7 +16,12 @@ interface Instructor {
   location: string;
   rating: number;
   reviewCount: number;
-  price: number;
+  /** Student-facing mountain rate label (Book Lesson). Preferred over legacy `price`. */
+  priceLabel?: string;
+  /** Legacy numeric rate (e.g. Find Instructor). Ignored when `priceLabel` is set. */
+  price?: number;
+  /** Mountain-based rate for booking modal prefill (no instructor hourly). */
+  studentLessonRate?: number | null;
   specialties: string[];
   experience: number;
   languages: string[];
@@ -48,10 +53,15 @@ export function InstructorGrid({ instructors }: InstructorGridProps) {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0" />
               
-              {/* Price Badge */}
-              <div className="absolute bottom-4 right-4 px-3 py-1.5 bg-white/95 backdrop-blur-sm rounded-full text-sm font-semibold text-gray-900 shadow-lg flex items-center gap-1.5">
-                <DollarSign className="w-4 h-4 text-blue-600" />
-                {instructor.price}/hr
+              {/* Price badge: mountain / student-facing label, or legacy $/hr */}
+              <div className="absolute bottom-4 right-4 px-3 py-1.5 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm rounded-full text-sm font-semibold text-gray-900 dark:text-white shadow-lg flex items-center gap-1.5 max-w-[min(100%,14rem)]">
+                <DollarSign className="w-4 h-4 text-blue-600 shrink-0" />
+                <span className="truncate">
+                  {instructor.priceLabel ??
+                    (instructor.price != null && instructor.price > 0
+                      ? `$${instructor.price}/hr`
+                      : 'Resort pricing')}
+                </span>
               </div>
               
               {/* Stats Badge */}

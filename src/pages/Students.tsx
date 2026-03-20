@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useDataLoader } from '../hooks/useDataLoader';
 import { getLessonsByInstructor } from '../services/lessons';
 import { getUserById } from '../services/users';
-import { getLessonDate } from '../utils/lessonDate';
+import { getLessonDate, isLessonUpcoming } from '../utils/lessonDate';
 
 interface StudentSummary {
   student: User;
@@ -79,8 +79,11 @@ async function loadInstructorStudents(instructorId: string): Promise<StudentSumm
       }));
 
       const upcomingLessons = withDates
-        .filter(({ lesson, date }) =>
-          !isNaN(date.getTime()) && ['scheduled', 'in_progress'].includes(lesson.status)
+        .filter(
+          ({ lesson, date }) =>
+            isLessonUpcoming(lesson) &&
+            !isNaN(date.getTime()) &&
+            ['scheduled', 'in_progress'].includes(lesson.status)
         )
         .sort((a, b) => a.date.getTime() - b.date.getTime())
         .map(({ lesson }) => lesson);

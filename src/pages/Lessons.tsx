@@ -6,7 +6,7 @@ import { useDataLoader } from '../hooks/useDataLoader';
 import { Lesson, User } from '../types';
 import { getLessonsByStudent, getLessonsByInstructor, getAllLessons } from '../services/lessons';
 import { getUserById } from '../services/users';
-import { getLessonDate } from '../utils/lessonDate';
+import { getLessonDate, isLessonUpcoming } from '../utils/lessonDate';
 import { LessonDetailsModal } from '../components/dashboard/student/components/LessonDetailsModal';
 import { InstructorProfileModal } from '../components/instructor/InstructorProfileModal';
 import { buildInstructorProfile } from '../utils/instructorProfile';
@@ -122,11 +122,7 @@ export function Lessons() {
   const participants = data?.participants ?? {};
 
   const stats = useMemo(() => {
-    const now = Date.now();
-    const upcoming = lessons.filter((lesson) => {
-      const date = getLessonDate(lesson).getTime();
-      return !isNaN(date) && date >= now && lesson.status !== 'cancelled';
-    }).length;
+    const upcoming = lessons.filter((lesson) => isLessonUpcoming(lesson)).length;
     const completed = lessons.filter((lesson) => lesson.status === 'completed').length;
     const cancelled = lessons.filter((lesson) => lesson.status === 'cancelled').length;
 
@@ -139,18 +135,11 @@ export function Lessons() {
   }, [lessons]);
 
   const filteredLessons = useMemo(() => {
-    const now = Date.now();
-
     return lessons
       .filter((lesson) => {
-        const date = getLessonDate(lesson).getTime();
-        if (isNaN(date)) {
-          return filter === 'all' || lesson.status === filter;
-        }
-
         switch (filter) {
           case 'upcoming':
-            return date >= now && lesson.status !== 'cancelled';
+            return isLessonUpcoming(lesson);
           case 'completed':
             return lesson.status === 'completed';
           case 'cancelled':

@@ -105,7 +105,7 @@ export function ClockInOutButton({
     return (
       <button
         disabled
-        className="px-4 py-2 bg-gray-100 text-gray-400 rounded-lg flex items-center gap-2"
+        className="px-4 py-2 w-fit bg-gray-100 text-gray-400 rounded-lg flex items-center gap-2"
       >
         <Clock className="w-5 h-5 animate-spin" />
         Loading...
@@ -127,7 +127,7 @@ export function ClockInOutButton({
       <div className="flex items-center gap-2">
         <button
           onClick={handleClockOut}
-          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+          className="px-4 py-2 w-fit bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
         >
           <Square className="w-5 h-5" />
           Clock Out
@@ -159,7 +159,7 @@ export function ClockInOutButton({
   return (
     <button
       onClick={handleClockIn}
-      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+      className="px-4 py-2 w-fit bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
     >
       <Play className="w-5 h-5" />
       Clock In

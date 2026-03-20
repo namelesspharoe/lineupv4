@@ -49,7 +49,10 @@ interface Instructor {
   location: string;
   rating: number;
   reviewCount: number;
-  price: number;
+  /** Legacy; prefer studentLessonRate for student booking (mountain rate). */
+  price?: number;
+  priceLabel?: string;
+  studentLessonRate?: number | null;
   specialties: string[];
   experience: number;
   languages: string[];
@@ -311,7 +314,7 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
             specialties: instructor.specialties || [],
             languages: instructor.languages || [],
             experience: instructor.experience || 0,
-            price: instructor.price || 0
+            price: instructor.studentLessonRate ?? instructor.price ?? 0
           }
         }
       });
@@ -796,11 +799,16 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
         instructor={{
           id: instructor.id,
           name: instructor.name,
-          price: instructor.price || 0,
+          price: instructor.studentLessonRate ?? instructor.price ?? 0,
           role: 'instructor',
           email: '',
           avatar: instructor.image,
-          specialties: instructor.specialties || []
+          specialties: instructor.specialties || [],
+          // Card often only has location string; modal also loads full user from Firestore
+          homeMountain:
+            instructor.location && instructor.location !== 'Mountain not specified'
+              ? instructor.location
+              : undefined
         }}
       />
 
@@ -828,7 +836,7 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
                     role: 'instructor',
                     email: '',
                     avatar: instructor.image,
-                    price: instructor.price || 0,
+                    price: instructor.studentLessonRate ?? instructor.price ?? 0,
                     specialties: instructor.specialties || []
                   }}
                 />

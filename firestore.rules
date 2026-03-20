@@ -53,6 +53,11 @@ service cloud.firestore {
     match /lessons/{lessonId} {
       allow read, write: if true;
     }
+
+    // Mountains collection
+    match /mountains/{mountainId} {
+      allow read, write: if true;
+    }
     
     // Allow authenticated users to read/write achievements
     match /achievements/{achievementId} {

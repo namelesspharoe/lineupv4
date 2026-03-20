@@ -58,6 +58,13 @@ async function clearFirebase() {
       await deleteDoc(doc.ref);
     }
     console.log(`✅ Cleared ${kidProfilesSnapshot.docs.length} kid profiles`);
+
+    // Clear mountains
+    const mountainsSnapshot = await getDocs(collection(db, 'mountains'));
+    for (const doc of mountainsSnapshot.docs) {
+      await deleteDoc(doc.ref);
+    }
+    console.log(`✅ Cleared ${mountainsSnapshot.docs.length} mountains`);
     
     // Clear test users from Firestore
     const usersSnapshot = await getDocs(collection(db, 'users'));

@@ -25,6 +25,8 @@ interface FilterPanelProps {
   onClear?: () => void;
 }
 
+const PRICE_SLIDER_MAX = 500;
+
 export function FilterPanel({ filters, setFilters, onClear }: FilterPanelProps) {
   // Helper function to toggle filter values in arrays
   // If value exists in array, remove it; if it doesn't exist, add it
@@ -39,13 +41,13 @@ export function FilterPanel({ filters, setFilters, onClear }: FilterPanelProps) 
 
   // Count active filters
   const activeFilterCount = Object.values(filters).reduce((acc, arr) => acc + arr.length, 0) + 
-    (filters.price[0] > 0 || filters.price[1] < 200 ? 1 : 0);
+    (filters.price[0] > 0 || filters.price[1] < PRICE_SLIDER_MAX ? 1 : 0);
 
   const clearAllFilters = () => {
     setFilters({
       discipline: [],
       level: [],
-      price: [0, 200],
+      price: [0, PRICE_SLIDER_MAX],
       availability: [],
       languages: [],
       gender: [],
@@ -158,7 +160,7 @@ export function FilterPanel({ filters, setFilters, onClear }: FilterPanelProps) 
           </h4>
           <Slider
             min={0}
-            max={200}
+            max={PRICE_SLIDER_MAX}
             value={filters.price}
             onChange={(value) => setFilters(prev => ({ ...prev, price: value }))}
           />

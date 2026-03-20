@@ -143,7 +143,7 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
       {/* Mobile Side Menu */}
       <div
         id="mobile-menu"
-        className={`lg:hidden fixed top-14 left-0 w-80 h-[calc(100vh-3.5rem)] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-50 transition-transform duration-300 transform ${
+        className={`lg:hidden fixed top-14 left-0 w-80 h-[calc(100vh-3.5rem)] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-50 transition-transform duration-300 transform flex flex-col ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -261,34 +261,9 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto">
-          <div className="p-4 sm:p-6 lg:p-8 pb-20 lg:pb-8">{children}</div>
+          <div className="p-4 sm:p-6 lg:p-8 pb-8">{children}</div>
         </main>
       </div>
-      
-      {/* Mobile Bottom Navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-t border-gray-200/50 dark:border-gray-700/50 z-40">
-        <div className="flex items-center justify-around h-full px-2">
-          {mobileNavItems.map((item) => {
-            const isActive = location.pathname === item.href || 
-              (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
-            
-            return (
-              <Link
-                key={item.href}
-                to={item.href}
-                className={`flex flex-col items-center justify-center w-full h-full rounded-lg transition-colors ${
-                  isActive
-                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                <item.icon className="w-5 h-5 mb-1" />
-                <span className="text-xs font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
       
       {/* Footer */}
       <Footer />

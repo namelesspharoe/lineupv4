@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { User, Lesson, LessonFeedback, StudentReview } from '../../../types';
+import { User, Lesson, LessonFeedback, StudentReview, StudentProgress } from '../../../types';
 import { Calendar, MapPin, Clock, ChevronRight, Star, ThermometerSnowflake, Wind, Sun, MessageSquare, User2, Search, X, Target, Users, GraduationCap, Award, TrendingUp, Trophy, Edit, Trash2, AlertCircle, CheckCircle, Play, Pause, BookOpen, Plus, Heart, Share2, MoreHorizontal } from 'lucide-react';
 import { resortData } from '../../../data/resortData';
 import { getLessonsByStudent, updateLesson, addStudentReview } from '../../../services/lessons';
+import { isLessonUpcoming } from '../../../utils/lessonDate';
 import { getUserById } from '../../../services/users';
+import { progressService } from '../../../services/progress';
 
 import { StudentReviewForm } from '../../lessons/StudentReviewForm';
 import { achievementService } from '../../../services/achievements';
@@ -267,6 +269,7 @@ function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDetailsMo
 
 export function StudentDashboard({ user }: StudentDashboardProps) {
   const [lessons, setLessons] = useState<(Lesson & { instructor?: User })[]>([]);
+  const [progress, setProgress] = useState<StudentProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<(Lesson & { instructor?: User }) | null>(null);
@@ -274,8 +277,18 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [selectedInstructor, setSelectedInstructor] = useState<User | null>(null);
 
+  const loadProgress = async () => {
+    try {
+      const progressData = await progressService.getStudentProgress(user.id);
+      setProgress(progressData);
+    } catch (err) {
+      console.error('Error loading progress:', err);
+    }
+  };
+
   useEffect(() => {
     loadLessons();
+    loadProgress();
     checkAchievements();
     
     // Listen for instructor profile modal events
@@ -330,17 +343,28 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
     }
   };
 
-  const upcomingLessons = lessons.filter(lesson => {
-    const now = new Date();
-    const lessonDate = new Date(lesson.date);
-    return lessonDate >= now && lesson.status !== 'cancelled';
-  }).slice(0, 3);
+  const allUpcoming = lessons.filter((lesson) => isLessonUpcoming(lesson));
+  const allPast = lessons.filter((lesson) => !isLessonUpcoming(lesson));
+  const upcomingLessons = allUpcoming.slice(0, 3);
+  const pastLessons = allPast.slice(0, 3);
+  const completedCount = progress?.completedLessons ?? allPast.length;
+  const upcomingCount = allUpcoming.length;
 
-  const pastLessons = lessons.filter(lesson => {
-    const now = new Date();
-    const lessonDate = new Date(lesson.date);
-    return lessonDate < now || lesson.status === 'completed';
-  }).slice(0, 3);
+  // Level progress: use primary sport progress (0-100) from studentProgress, else completed/total lessons ratio
+  const progressPercent = (() => {
+    if (progress?.skillProgress?.skiing != null && typeof progress.skillProgress.skiing.progress === 'number') {
+      return Math.round(progress.skillProgress.skiing.progress);
+    }
+    if (progress?.skillProgress?.snowboarding != null && typeof progress.skillProgress.snowboarding.progress === 'number') {
+      return Math.round(progress.skillProgress.snowboarding.progress);
+    }
+    if (progress?.totalLessons != null && progress.totalLessons > 0 && progress?.completedLessons != null) {
+      return Math.min(100, Math.round((progress.completedLessons / progress.totalLessons) * 100));
+    }
+    return 0;
+  })();
+
+  const displayLevel = progress?.level ?? user?.level ?? 'first_time';
 
   return (
     <div className="space-y-6">
@@ -352,7 +376,7 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
               <TrendingUp className="w-5 h-5 text-white" />
             </div>
             <p className="text-xs text-center mt-2">Progress</p>
-            <p className="text-xs font-semibold text-center">75%</p>
+            <p className="text-xs font-semibold text-center">{progressPercent}%</p>
           </div>
           <div className="story-circle flex-shrink-0">
             <div className="story-circle-inner bg-gradient-to-br from-green-500 to-green-600">
@@ -366,7 +390,7 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
               <BookOpen className="w-5 h-5 text-white" />
             </div>
             <p className="text-xs text-center mt-2">Lessons</p>
-            <p className="text-xs font-semibold text-center">{upcomingLessons.length}</p>
+            <p className="text-xs font-semibold text-center">{upcomingCount}</p>
           </div>
           <div className="story-circle flex-shrink-0">
             <div className="story-circle-inner bg-gradient-to-br from-yellow-500 to-yellow-600">
@@ -458,7 +482,7 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900 dark:text-white">My Progress</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{getLevelDescription(user.level || 'first_time')}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{getLevelDescription(displayLevel)}</p>
                 </div>
               </div>
               <Link
@@ -472,14 +496,14 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
           
           <div className="p-4">
             <div className="space-y-4">
-              {/* Progress Bar */}
+              {/* Progress Bar - from studentProgress skillProgress or completed/total lessons */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-900 dark:text-white">Level Progress</span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">75%</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{progressPercent}%</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                  <div className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full" style={{ width: '75%' }}></div>
+                  <div className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full" style={{ width: `${progressPercent}%` }}></div>
                 </div>
               </div>
 
@@ -490,7 +514,7 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
                     <CheckCircle className="w-4 h-4 text-green-500" />
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Completed</span>
                   </div>
-                  <p className="text-lg font-bold text-gray-900 dark:text-white">{pastLessons.length}</p>
+                  <p className="text-lg font-bold text-gray-900 dark:text-white">{completedCount}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Lessons</p>
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
@@ -498,7 +522,7 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
                     <Calendar className="w-4 h-4 text-blue-500" />
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Upcoming</span>
                   </div>
-                  <p className="text-lg font-bold text-gray-900 dark:text-white">{upcomingLessons.length}</p>
+                  <p className="text-lg font-bold text-gray-900 dark:text-white">{upcomingCount}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Lessons</p>
                 </div>
               </div>
@@ -687,7 +711,10 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
         <LessonDetailsModal
           lesson={selectedLesson}
           onClose={() => setSelectedLesson(null)}
-          onLessonUpdate={loadLessons}
+          onLessonUpdate={() => {
+            loadLessons();
+            loadProgress();
+          }}
         />
       )}
 

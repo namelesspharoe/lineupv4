@@ -1,18 +1,38 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ChevronRight, Award } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Mountain } from '../types';
+import { getMountains } from '../services/mountains';
+
+const FALLBACK_MOUNTAINS = [
+  'Aspen',
+  'Vail',
+  'Breckenridge',
+  'Park City',
+  'Deer Valley',
+  'Jackson Hole',
+  'Big Sky',
+  'Telluride',
+  'Whistler',
+  'Sun Valley'
+];
 
 interface FormData {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
   confirmPassword: string;
   avatar: string;
   bio: string;
   phone: string;
-  address: string;
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
   homeMountain: string;
+  mountainId: string;
   certifications: string[];
   languages: string[];
   yearsOfExperience: number;
@@ -40,17 +60,23 @@ export function InstructorSignup() {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [availableMountains, setAvailableMountains] = useState<Mountain[]>([]);
   
   const [formData, setFormData] = useState<FormData>({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
     bio: '',
     phone: '',
-    address: '',
+    street: '',
+    city: '',
+    state: '',
+    zipCode: '',
     homeMountain: '',
+    mountainId: '',
     certifications: [],
     languages: [],
     yearsOfExperience: 0,
@@ -68,6 +94,59 @@ export function InstructorSignup() {
     preferredTimes: []
   });
 
+  const mountainOptions = (availableMountains.length > 0
+    ? availableMountains.map((mountain) => ({ id: mountain.id, name: mountain.name }))
+    : FALLBACK_MOUNTAINS.map((mountain) => ({ id: mountain, name: mountain })));
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadMountains = async () => {
+      try {
+        const mountains = await getMountains();
+        if (isMounted) {
+          setAvailableMountains(mountains);
+        }
+      } catch (error) {
+        console.error('Failed to load mountains:', error);
+        if (isMounted) {
+          setAvailableMountains([]);
+        }
+      }
+    };
+
+    loadMountains();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const CERTIFICATION_SPECIALTY_MAP: Record<string, string[]> = {
+    'Freestyle Certification': ['Freestyle', 'Terrain Park'],
+    'Avalanche Safety': ['Backcountry'],
+    'Wilderness First Responder': ['Backcountry']
+  };
+
+  const deriveSpecialtiesFromCertifications = (certs: string[], currentSpecialties: string[]) => {
+    const specialtiesSet = new Set(currentSpecialties);
+    certs.forEach(cert => {
+      const mapped = CERTIFICATION_SPECIALTY_MAP[cert];
+      if (mapped) {
+        mapped.forEach(s => specialtiesSet.add(s));
+      }
+    });
+    return Array.from(specialtiesSet);
+  };
+
+  const buildFullAddress = (data: FormData) => {
+    const parts = [
+      data.street,
+      [data.city, data.state].filter(Boolean).join(', '),
+      data.zipCode
+    ].filter(Boolean);
+    return parts.join(', ');
+  };
 
 
 
@@ -75,35 +154,29 @@ export function InstructorSignup() {
     const newErrors: FormErrors = {};
 
     if (currentStep === 1) {
-      if (!formData.name) newErrors.name = 'Name is required';
+      if (!formData.firstName) newErrors.firstName = 'First name is required';
+      if (!formData.lastName) newErrors.lastName = 'Last name is required';
       if (!formData.email) newErrors.email = 'Email is required';
       else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Invalid email format';
       if (!formData.password) newErrors.password = 'Password is required';
       else if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
       if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
+      if (!formData.street) newErrors.street = 'Street address is required';
+      if (!formData.city) newErrors.city = 'City is required';
+      if (!formData.state) newErrors.state = 'State is required';
+      if (!formData.zipCode) newErrors.zipCode = 'ZIP code is required';
     }
 
     if (currentStep === 2) {
-      if (!formData.yearsOfExperience) newErrors.yearsOfExperience = 'Years of experience is required';
-      if (!formData.hourlyRate) newErrors.hourlyRate = 'Hourly rate is required';
-      if (!formData.price) newErrors.price = 'Base lesson price is required';
       if (!formData.homeMountain) newErrors.homeMountain = 'Home mountain is required';
-      if (!formData.level) newErrors.level = 'Skill level is required';
-      if (!formData.gender) newErrors.gender = 'Gender is required';
       if (formData.certifications.length === 0) newErrors.certifications = 'At least one certification is required';
       if (formData.languages.length === 0) newErrors.languages = 'At least one language is required';
     }
 
     if (currentStep === 3) {
-      if (formData.specialties.length === 0) newErrors.specialties = 'At least one specialty is required';
-      if (formData.ageGroups.length === 0) newErrors.ageGroups = 'Please select at least one age group';
-      if (formData.lessonTypes.length === 0) newErrors.lessonTypes = 'Please select at least one lesson type';
-      if (!formData.teachingStyle) newErrors.teachingStyle = 'Teaching style is required';
-    }
-
-    if (currentStep === 4) {
       if (!formData.bio) newErrors.bio = 'Bio is required';
-      if (formData.preferredLocations.length === 0) newErrors.preferredLocations = 'Please select at least one preferred location';
+      // Note: preferredLocations is collected later in the flow,
+      // so we don't block submission on it here.
     }
 
     setErrors(newErrors);
@@ -131,13 +204,13 @@ export function InstructorSignup() {
 
       // Prepare user data with all fields
       const userData: any = {
-        name: formData.name,
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email,
         role: 'instructor',
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', // Default avatar
         bio: formData.bio,
         phone: formData.phone,
-        address: formData.address,
+        address: buildFullAddress(formData),
         homeMountain: formData.homeMountain,
         certifications: formData.certifications,
         languages: formData.languages,
@@ -149,6 +222,7 @@ export function InstructorSignup() {
         specialties: formData.specialties,
         level: formData.level,
         gender: formData.gender,
+        mountainId: formData.mountainId,
         // Store additional preferences for matching (as custom field)
         instructorPreferences: {
           teachingStyle: formData.teachingStyle,
@@ -181,8 +255,8 @@ export function InstructorSignup() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:py-16 lg:px-8">
+      <div className="w-full max-w-lg sm:max-w-xl lg:max-w-2xl space-y-8 bg-white p-8 lg:p-10 rounded-2xl shadow-xl">
         <div className="text-center">
           <div className="mx-auto h-12 w-12 bg-blue-100 rounded-xl flex items-center justify-center">
             <Award className="h-8 w-8 text-blue-600" />
@@ -192,7 +266,7 @@ export function InstructorSignup() {
         </div>
 
         <div className="flex justify-center space-x-2">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3].map((s) => (
             <div
               key={s}
               className={`h-2 w-16 rounded-full ${
@@ -211,18 +285,33 @@ export function InstructorSignup() {
 
           {step === 1 && (
             <div className="space-y-4">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                  Full Name
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                />
-                {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
+                    First Name
+                  </label>
+                  <input
+                    id="firstName"
+                    type="text"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {errors.firstName && <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>}
+                </div>
+                <div>
+                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
+                    Last Name
+                  </label>
+                  <input
+                    id="lastName"
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {errors.lastName && <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>}
+                </div>
               </div>
 
               <div>
@@ -283,18 +372,57 @@ export function InstructorSignup() {
               </div>
 
               <div>
-                <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700">
                   Address
                 </label>
-                <textarea
-                  id="address"
-                  rows={3}
-                  value={formData.address}
-                  onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter your full address..."
-                />
-                {errors.address && <p className="mt-1 text-sm text-red-600">{errors.address}</p>}
+                <div className="mt-1 space-y-3">
+                  <div>
+                    <input
+                      id="street"
+                      type="text"
+                      value={formData.street}
+                      onChange={(e) => setFormData(prev => ({ ...prev, street: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Street address"
+                    />
+                    {errors.street && <p className="mt-1 text-sm text-red-600">{errors.street}</p>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <input
+                        id="city"
+                        type="text"
+                        value={formData.city}
+                        onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="City"
+                      />
+                      {errors.city && <p className="mt-1 text-sm text-red-600">{errors.city}</p>}
+                    </div>
+                    <div>
+                      <input
+                        id="state"
+                        type="text"
+                        value={formData.state}
+                        onChange={(e) => setFormData(prev => ({ ...prev, state: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="State"
+                      />
+                      {errors.state && <p className="mt-1 text-sm text-red-600">{errors.state}</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <input
+                      id="zipCode"
+                      type="text"
+                      value={formData.zipCode}
+                      onChange={(e) => setFormData(prev => ({ ...prev, zipCode: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="ZIP code"
+                    />
+                    {errors.zipCode && <p className="mt-1 text-sm text-red-600">{errors.zipCode}</p>}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -307,109 +435,33 @@ export function InstructorSignup() {
               </div>
 
               <div>
-                <label htmlFor="level" className="block text-sm font-medium text-gray-700">
-                  Your Skill Level <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="level"
-                  value={formData.level}
-                  onChange={(e) => setFormData(prev => ({ ...prev, level: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Select your skill level</option>
-                  <option value="first_time">First Time</option>
-                  <option value="developing_turns">Developing Turns</option>
-                  <option value="linking_turns">Linking Turns</option>
-                  <option value="confident_turns">Confident Turns</option>
-                  <option value="consistent_blue">Consistent Blue Runs</option>
-                  <option value="advanced">Advanced</option>
-                  <option value="expert">Expert</option>
-                </select>
-                {errors.level && <p className="mt-1 text-sm text-red-600">{errors.level}</p>}
-              </div>
-
-              <div>
-                <label htmlFor="yearsOfExperience" className="block text-sm font-medium text-gray-700">
-                  Years of Teaching Experience <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="yearsOfExperience"
-                  type="number"
-                  min="0"
-                  max="50"
-                  value={formData.yearsOfExperience}
-                  onChange={(e) => setFormData(prev => ({ ...prev, yearsOfExperience: parseInt(e.target.value) || 0 }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., 5"
-                />
-                {errors.yearsOfExperience && <p className="mt-1 text-sm text-red-600">{errors.yearsOfExperience}</p>}
-              </div>
-
-              <div>
-                <label htmlFor="gender" className="block text-sm font-medium text-gray-700">
-                  Gender <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="gender"
-                  value={formData.gender}
-                  onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Select gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="non-binary">Non-binary</option>
-                  <option value="prefer-not-to-say">Prefer not to say</option>
-                </select>
-                {errors.gender && <p className="mt-1 text-sm text-red-600">{errors.gender}</p>}
-              </div>
-
-              <div>
-                <label htmlFor="hourlyRate" className="block text-sm font-medium text-gray-700">
-                  Hourly Rate ($) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="hourlyRate"
-                  type="number"
-                  min="0"
-                  value={formData.hourlyRate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, hourlyRate: parseInt(e.target.value) || 0 }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., 75"
-                />
-                {errors.hourlyRate && <p className="mt-1 text-sm text-red-600">{errors.hourlyRate}</p>}
-              </div>
-
-              <div>
-                <label htmlFor="price" className="block text-sm font-medium text-gray-700">
-                  Base Lesson Price ($) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="price"
-                  type="number"
-                  min="0"
-                  value={formData.price}
-                  onChange={(e) => setFormData(prev => ({ ...prev, price: parseInt(e.target.value) || 0 }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., 150"
-                />
-                <p className="mt-1 text-xs text-gray-500">Standard price for a typical lesson</p>
-                {errors.price && <p className="mt-1 text-sm text-red-600">{errors.price}</p>}
-              </div>
-
-              <div>
                 <label htmlFor="homeMountain" className="block text-sm font-medium text-gray-700">
                   Home Mountain <span className="text-red-500">*</span>
                 </label>
-                <input
+                <select
                   id="homeMountain"
-                  type="text"
-                  value={formData.homeMountain}
-                  onChange={(e) => setFormData(prev => ({ ...prev, homeMountain: e.target.value }))}
+                  value={formData.mountainId || formData.homeMountain}
+                  onChange={(e) => {
+                    const selectedMountain = mountainOptions.find((mountain) => mountain.id === e.target.value);
+                    setFormData(prev => ({
+                      ...prev,
+                      mountainId: selectedMountain?.id || '',
+                      homeMountain: selectedMountain?.name || e.target.value
+                    }));
+                  }}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., Vail, Aspen, Breckenridge"
-                />
+                >
+                  <option value="">Select your home mountain</option>
+                  {mountainOptions.map((mountain) => (
+                    <option key={mountain.id} value={mountain.id}>
+                      {mountain.name}
+                    </option>
+                  ))}
+                </select>
                 {errors.homeMountain && <p className="mt-1 text-sm text-red-600">{errors.homeMountain}</p>}
+                <p className="mt-1 text-xs text-gray-500">
+                  Admins can reassign your mountain later if needed.
+                </p>
               </div>
 
               <div>
@@ -422,7 +474,8 @@ export function InstructorSignup() {
                     'AASI Level 1', 'AASI Level 2', 'AASI Level 3',
                     'CSIA Level 1', 'CSIA Level 2', 'CSIA Level 3',
                     'BASI Level 1', 'BASI Level 2', 'BASI Level 3',
-                    'First Aid', 'CPR', 'Avalanche Safety', 'Wilderness First Responder'
+                    'First Aid', 'CPR', 'Avalanche Safety', 'Wilderness First Responder',
+                    'Freestyle Certification'
                   ].map((cert) => (
                     <label key={cert} className="flex items-center">
                       <input
@@ -432,7 +485,11 @@ export function InstructorSignup() {
                           const newCerts = e.target.checked
                             ? [...formData.certifications, cert]
                             : formData.certifications.filter(c => c !== cert);
-                          setFormData(prev => ({ ...prev, certifications: newCerts }));
+                          setFormData(prev => ({
+                            ...prev,
+                            certifications: newCerts,
+                            specialties: deriveSpecialtiesFromCertifications(newCerts, prev.specialties)
+                          }));
                         }}
                         className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                       />
@@ -471,165 +528,6 @@ export function InstructorSignup() {
           )}
 
           {step === 3 && (
-            <div className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded-lg mb-4">
-                <h3 className="text-sm font-semibold text-blue-900 mb-1">Teaching Preferences</h3>
-                <p className="text-xs text-blue-700">Help us match you with students who fit your teaching style</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Specialties <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    'Alpine Skiing', 'Snowboarding', 'Cross-Country Skiing', 
-                    'Freestyle', 'Racing', 'Backcountry', 'Moguls',
-                    'Youth Instruction', 'Adult Instruction', 'Senior Instruction',
-                    'Adaptive Skiing', 'Terrain Park', 'Powder Skiing',
-                    'Carving', 'Off-Piste', 'Freeride'
-                  ].map((specialty) => (
-                    <label key={specialty} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.specialties.includes(specialty)}
-                        onChange={(e) => {
-                          const newSpecialties = e.target.checked
-                            ? [...formData.specialties, specialty]
-                            : formData.specialties.filter(s => s !== specialty);
-                          setFormData(prev => ({ ...prev, specialties: newSpecialties }));
-                        }}
-                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">{specialty}</span>
-                    </label>
-                  ))}
-                </div>
-                {errors.specialties && <p className="mt-1 text-sm text-red-600">{errors.specialties}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Age Groups You Teach <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Kids (3-7)', 'Children (8-12)', 'Teens (13-17)', 'Adults (18-64)', 'Seniors (65+)'].map((ageGroup) => (
-                    <label key={ageGroup} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.ageGroups.includes(ageGroup)}
-                        onChange={(e) => {
-                          const newAgeGroups = e.target.checked
-                            ? [...formData.ageGroups, ageGroup]
-                            : formData.ageGroups.filter(a => a !== ageGroup);
-                          setFormData(prev => ({ ...prev, ageGroups: newAgeGroups }));
-                        }}
-                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">{ageGroup}</span>
-                    </label>
-                  ))}
-                </div>
-                {errors.ageGroups && <p className="mt-1 text-sm text-red-600">{errors.ageGroups}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Lesson Types You Offer <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Private Lessons', 'Group Lessons', 'Workshops', 'Multi-Day Programs'].map((lessonType) => (
-                    <label key={lessonType} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.lessonTypes.includes(lessonType)}
-                        onChange={(e) => {
-                          const newLessonTypes = e.target.checked
-                            ? [...formData.lessonTypes, lessonType]
-                            : formData.lessonTypes.filter(l => l !== lessonType);
-                          setFormData(prev => ({ ...prev, lessonTypes: newLessonTypes }));
-                        }}
-                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">{lessonType}</span>
-                    </label>
-                  ))}
-                </div>
-                {errors.lessonTypes && <p className="mt-1 text-sm text-red-600">{errors.lessonTypes}</p>}
-              </div>
-
-              <div>
-                <label htmlFor="teachingStyle" className="block text-sm font-medium text-gray-700">
-                  Teaching Style <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="teachingStyle"
-                  value={formData.teachingStyle}
-                  onChange={(e) => setFormData(prev => ({ ...prev, teachingStyle: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Select your teaching style</option>
-                  <option value="patient">Patient & Encouraging</option>
-                  <option value="energetic">Energetic & Fun</option>
-                  <option value="technical">Technical & Detailed</option>
-                  <option value="challenging">Challenging & Motivational</option>
-                  <option value="balanced">Balanced Approach</option>
-                </select>
-                <p className="mt-1 text-xs text-gray-500">How would you describe your teaching approach?</p>
-                {errors.teachingStyle && <p className="mt-1 text-sm text-red-600">{errors.teachingStyle}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Preferred Teaching Days (Optional)
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
-                    <label key={day} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.preferredDays.includes(day)}
-                        onChange={(e) => {
-                          const newDays = e.target.checked
-                            ? [...formData.preferredDays, day]
-                            : formData.preferredDays.filter(d => d !== day);
-                          setFormData(prev => ({ ...prev, preferredDays: newDays }));
-                        }}
-                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                      />
-                      <span className="ml-1 text-xs text-gray-700">{day.slice(0, 3)}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Preferred Teaching Times (Optional)
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Morning (8am-12pm)', 'Afternoon (12pm-4pm)', 'Evening (4pm-8pm)', 'Full Day'].map((time) => (
-                    <label key={time} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.preferredTimes.includes(time)}
-                        onChange={(e) => {
-                          const newTimes = e.target.checked
-                            ? [...formData.preferredTimes, time]
-                            : formData.preferredTimes.filter(t => t !== time);
-                          setFormData(prev => ({ ...prev, preferredTimes: newTimes }));
-                        }}
-                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">{time}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
             <div className="space-y-4">
               <div className="bg-blue-50 p-4 rounded-lg mb-4">
                 <h3 className="text-sm font-semibold text-blue-900 mb-1">Profile & Location</h3>
@@ -683,30 +581,7 @@ export function InstructorSignup() {
                 {errors.qualifications && <p className="mt-1 text-sm text-red-600">{errors.qualifications}</p>}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Preferred Locations <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Aspen', 'Vail', 'Breckenridge', 'Park City', 'Deer Valley', 'Jackson Hole', 'Big Sky', 'Telluride', 'Whistler', 'Sun Valley'].map((location) => (
-                    <label key={location} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.preferredLocations.includes(location)}
-                        onChange={(e) => {
-                          const newLocations = e.target.checked
-                            ? [...formData.preferredLocations, location]
-                            : formData.preferredLocations.filter(l => l !== location);
-                          setFormData(prev => ({ ...prev, preferredLocations: newLocations }));
-                        }}
-                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">{location}</span>
-                    </label>
-                  ))}
-                </div>
-                {errors.preferredLocations && <p className="mt-1 text-sm text-red-600">{errors.preferredLocations}</p>}
-              </div>
+              
             </div>
           )}
 
@@ -721,7 +596,7 @@ export function InstructorSignup() {
               </button>
             )}
             <div className="ml-auto">
-              {step < 4 ? (
+            {step < 3 ? (
                 <button
                   type="button"
                   onClick={handleNext}

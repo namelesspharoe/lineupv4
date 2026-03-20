@@ -871,10 +871,13 @@ export const InstructorProfile: React.FC<InstructorProfileProps> = ({
                   <input
                     type="text"
                     value={editedProfile.homeMountain || ''}
-                    onChange={(e) => handleInputChange('homeMountain', e.target.value)}
+                    readOnly
                     className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="e.g., Vail, Aspen, Breckenridge"
+                    placeholder="Managed by admin"
                   />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Mountain assignments are managed by admins.
+                  </p>
                 </div>
               </div>
             ) : (

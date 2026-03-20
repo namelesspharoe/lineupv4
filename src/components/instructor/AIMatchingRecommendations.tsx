@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { Sparkles, TrendingUp, Star, MapPin, DollarSign, Award, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { instructorMatchingService, InstructorMatch } from '../../services/instructorMatching';
-import { InstructorGrid } from './InstructorGrid';
-import { User } from '../../types';
+import { getStudentFacingMountainLessonRate } from '../../services/mountains';
+import { User, Mountain } from '../../types';
 
 interface FilterState {
   discipline: string[];
@@ -16,16 +16,25 @@ interface FilterState {
 }
 
 interface AIMatchingRecommendationsProps {
+  /** Loaded mountains — student-facing rates come from here only (not instructor hourly). */
+  mountains: Mountain[];
   resort?: string | null;
   filters?: FilterState;
   searchQuery?: string;
   onInstructorSelect?: (instructor: User) => void;
 }
 
-export function AIMatchingRecommendations({ resort, filters, searchQuery, onInstructorSelect }: AIMatchingRecommendationsProps) {
+export function AIMatchingRecommendations({
+  mountains,
+  resort,
+  filters,
+  searchQuery,
+  onInstructorSelect
+}: AIMatchingRecommendationsProps) {
   const { user } = useAuth();
   const [matches, setMatches] = useState<InstructorMatch[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Start true for students so we don't render `matches.length === 0 → null` before the first fetch runs
+  const [isLoading, setIsLoading] = useState(() => user?.role === 'student');
   const [error, setError] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState<Record<string, boolean>>({});
 
@@ -44,10 +53,13 @@ export function AIMatchingRecommendations({ resort, filters, searchQuery, onInst
 
   useEffect(() => {
     if (user && user.role === 'student') {
-      loadRecommendations();
+      void loadRecommendations();
+    } else {
+      setIsLoading(false);
+      setMatches([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, resort, filterKey, searchQuery]);
+  }, [user, resort, filterKey, searchQuery, mountains]);
 
   const loadRecommendations = async () => {
     if (!user || user.role !== 'student') return;
@@ -90,9 +102,12 @@ export function AIMatchingRecommendations({ resort, filters, searchQuery, onInst
             }
           }
 
-          // Price filter
-          const instructorPrice = instructor.price || instructor.hourlyRate || 0;
-          if (instructorPrice < filters.price[0] || instructorPrice > filters.price[1]) {
+          // Price filter — mountain resort rates only
+          const resortRate = getStudentFacingMountainLessonRate(instructor, mountains);
+          if (
+            resortRate !== null &&
+            (resortRate < filters.price[0] || resortRate > filters.price[1])
+          ) {
             return false;
           }
 
@@ -192,7 +207,30 @@ export function AIMatchingRecommendations({ resort, filters, searchQuery, onInst
   }
 
   if (matches.length === 0) {
-    return null;
+    return (
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 p-6 md:p-8">
+        <div className="flex items-start gap-3">
+          <Sparkles className="w-6 h-6 text-violet-500 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+              No AI matches right now
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              Try clearing filters, widening the price range, choosing <strong>All locations</strong>, or
+              shortening your search — matches need at least one instructor that passes your current
+              filters and resort selection.
+            </p>
+            <button
+              type="button"
+              onClick={() => void loadRecommendations()}
+              className="mt-4 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Refresh recommendations
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -307,32 +345,33 @@ export function AIMatchingRecommendations({ resort, filters, searchQuery, onInst
                   
                   <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-3">
                     {match.stats && (
-                      <>
-                        <div className="flex items-center gap-1">
-                          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                          <span>{match.stats.averageRating.toFixed(1)}</span>
-                          <span>({match.stats.totalReviews})</span>
-                        </div>
-                        {match.instructor.yearsOfExperience && (
-                          <div className="flex items-center gap-1">
-                            <Award className="w-4 h-4" />
-                            <span>{match.instructor.yearsOfExperience} years</span>
-                          </div>
-                        )}
-                        {match.instructor.preferredLocations && match.instructor.preferredLocations.length > 0 && (
-                          <div className="flex items-center gap-1">
-                            <MapPin className="w-4 h-4" />
-                            <span>{match.instructor.preferredLocations[0]}</span>
-                          </div>
-                        )}
-                        {(match.instructor.price || match.instructor.hourlyRate) && (
-                          <div className="flex items-center gap-1">
-                            <DollarSign className="w-4 h-4" />
-                            <span>${match.instructor.price || match.instructor.hourlyRate}/hr</span>
-                          </div>
-                        )}
-                      </>
+                      <div className="flex items-center gap-1">
+                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                        <span>{match.stats.averageRating.toFixed(1)}</span>
+                        <span>({match.stats.totalReviews})</span>
+                      </div>
                     )}
+                    {match.instructor.yearsOfExperience ? (
+                      <div className="flex items-center gap-1">
+                        <Award className="w-4 h-4" />
+                        <span>{match.instructor.yearsOfExperience} years</span>
+                      </div>
+                    ) : null}
+                    {match.instructor.preferredLocations && match.instructor.preferredLocations.length > 0 ? (
+                      <div className="flex items-center gap-1">
+                        <MapPin className="w-4 h-4" />
+                        <span>{match.instructor.preferredLocations[0]}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex items-center gap-1">
+                      <DollarSign className="w-4 h-4" />
+                      <span>
+                        {(() => {
+                          const r = getStudentFacingMountainLessonRate(match.instructor, mountains);
+                          return r != null ? `From $${r}/hr` : 'Resort pricing';
+                        })()}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Match Reasons */}

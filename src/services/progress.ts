@@ -222,6 +222,11 @@ export const progressService = {
       }
       
       await batch.commit();
+
+      // Keep user.level in sync so profile/nav and any consumer of user.level stay current
+      if (newProgress.level) {
+        await updateDoc(doc(db, 'users', studentId), { level: newProgress.level });
+      }
     } catch (error) {
       console.error('Error updating progress after lesson:', error);
       throw error;

@@ -11,6 +11,7 @@ import {
   GraduationCap,
   BarChart2,
   Users,
+  MapPin,
   Calendar,
   Trophy,
   Flame,
@@ -18,13 +19,16 @@ import {
 } from 'lucide-react';
 import { progressService } from '../services/progress';
 import { achievementService } from '../services/achievements';
-import { Achievement, StudentProgress } from '../types';
+import { getLessonsByStudent } from '../services/lessons';
+import { getUserById } from '../services/users';
+import { Achievement, Lesson, LessonFeedback, StudentProgress, User } from '../types';
 
 export function Progress() {
   const { user } = useAuth();
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
   const [progress, setProgress] = useState<StudentProgress | null>(null);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [lessons, setLessons] = useState<(Lesson & { instructor?: User })[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,14 +43,32 @@ export function Progress() {
       setIsLoading(true);
       setError(null);
 
-      // Load progress and achievements in parallel
-      const [progressData, achievementsData] = await Promise.all([
+      // Load progress, achievements, and lesson history in parallel
+      const [progressData, achievementsData, lessonsData] = await Promise.all([
         progressService.getStudentProgress(user!.id),
-        achievementService.getStudentAchievements(user!.id)
+        achievementService.getStudentAchievements(user!.id),
+        getLessonsByStudent(user!.id)
       ]);
+
+      const lessonsWithInstructors = await Promise.all(
+        lessonsData.map(async (lesson) => {
+          try {
+            const instructor = lesson.instructorId ? await getUserById(lesson.instructorId) : null;
+            return { ...lesson, instructor: instructor || undefined };
+          } catch (lessonError) {
+            console.error('Error loading instructor for lesson:', lesson.id, lessonError);
+            return lesson;
+          }
+        })
+      );
 
       setProgress(progressData);
       setAchievements(achievementsData || []);
+      setLessons(
+        lessonsWithInstructors.sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        )
+      );
     } catch (err: any) {
       console.error('Error loading progress data:', err);
       setError(err.message || 'Failed to load progress data');
@@ -93,6 +115,13 @@ export function Progress() {
     }
   };
 
+  const getPerformanceColor = (rating: number) => {
+    if (rating >= 4.5) return 'text-green-600';
+    if (rating >= 3.5) return 'text-blue-600';
+    if (rating >= 2.5) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
   const getAchievementColor = (rarity: string) => {
     switch (rarity) {
       case 'legendary':
@@ -114,6 +143,42 @@ export function Progress() {
       snowboarding: 'Snowboarding'
     };
     return skillNames[skill] || skill;
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const formatSessionType = (sessionType: Lesson['sessionType']) => {
+    switch (sessionType) {
+      case 'morning':
+        return 'Morning';
+      case 'afternoon':
+        return 'Afternoon';
+      case 'full_day':
+        return 'Full Day';
+      default:
+        return sessionType;
+    }
+  };
+
+  const getLessonStatusColor = (status: Lesson['status']) => {
+    switch (status) {
+      case 'scheduled':
+        return 'bg-blue-50 text-blue-600';
+      case 'in_progress':
+        return 'bg-yellow-50 text-yellow-600';
+      case 'completed':
+        return 'bg-green-50 text-green-600';
+      case 'cancelled':
+        return 'bg-red-50 text-red-600';
+      default:
+        return 'bg-gray-50 text-gray-600';
+    }
   };
 
   const getSkillIcon = (skill: string) => {
@@ -312,6 +377,136 @@ export function Progress() {
                         <p className="text-xs text-gray-500 mt-2">
                           Last updated: {new Date(skillData.lastUpdated).toLocaleDateString()}
                         </p>
+                      </div>
+
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                          <h4 className="font-medium text-gray-900">All Lessons</h4>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <ChevronRight className="w-3 h-3 rotate-180" />
+                            <span>Swipe through the lesson stack</span>
+                            <ChevronRight className="w-3 h-3" />
+                          </div>
+                        </div>
+
+                        {lessons.length > 0 ? (
+                          <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-2 -mx-1 px-1">
+                            {lessons.map((lesson) => {
+                              const lessonFeedback =
+                                lesson.feedback?.find((feedback) => feedback.studentId === user?.id) ||
+                                lesson.feedback?.[0] ||
+                                null;
+                              const lessonLocation =
+                                lesson.instructor?.homeMountain ||
+                                lesson.instructor?.address ||
+                                lesson.instructor?.preferredLocations?.[0] ||
+                                'Mountain Resort';
+
+                              return (
+                                <article
+                                  key={lesson.id}
+                                  className="flex-none snap-center w-[85%] sm:w-[420px] rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"
+                                >
+                                  <div className="p-4 space-y-4">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div>
+                                        <h5 className="text-base font-semibold text-gray-900">
+                                          {lesson.title}
+                                        </h5>
+                                        <p className="text-sm text-gray-500">
+                                          {formatDate(lesson.date)} {lesson.startTime && lesson.endTime ? `• ${lesson.startTime} - ${lesson.endTime}` : ''}
+                                        </p>
+                                      </div>
+                                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getLessonStatusColor(lesson.status)}`}>
+                                        {lesson.status.replace('_', ' ')}
+                                      </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-2 text-sm text-gray-700 sm:grid-cols-2">
+                                      <div className="flex items-center gap-2">
+                                        <GraduationCap className="w-4 h-4 text-blue-500" />
+                                        <span>{lesson.instructor?.name || 'Instructor unavailable'}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <MapPin className="w-4 h-4 text-red-500" />
+                                        <span>{lessonLocation}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4 text-emerald-500" />
+                                        <span>{formatSessionType(lesson.sessionType)}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Users className="w-4 h-4 text-purple-500" />
+                                        <span>{lesson.type}</span>
+                                      </div>
+                                    </div>
+
+                                    {lesson.skillsFocus && lesson.skillsFocus.length > 0 && (
+                                      <div className="flex flex-wrap gap-2">
+                                        {lesson.skillsFocus.map((skill, index) => (
+                                          <span
+                                            key={index}
+                                            className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium"
+                                          >
+                                            {skill}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    <div className="rounded-lg bg-gray-50 p-3">
+                                      <div className="flex items-center justify-between gap-3 mb-2">
+                                        <p className="text-sm font-medium text-gray-900">Lesson recap</p>
+                                        {lessonFeedback && (
+                                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPerformanceColor(lessonFeedback.performance.overall)}`}>
+                                            {lessonFeedback.performance.overall}/5
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {lessonFeedback ? (
+                                        <div className="space-y-3 text-sm">
+                                          <p className="text-gray-700">
+                                            {lessonFeedback.instructorNotes || lessonFeedback.skillAssessment.recommendations || 'No recap was added for this lesson.'}
+                                          </p>
+
+                                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            <div className="rounded-lg bg-green-50 p-3">
+                                              <p className="text-xs font-semibold uppercase tracking-wide text-green-700 mb-1">
+                                                What went well
+                                              </p>
+                                              <p className="text-green-800">
+                                                {lessonFeedback.strengths.length > 0 ? lessonFeedback.strengths.join(', ') : 'No strengths recorded.'}
+                                              </p>
+                                            </div>
+                                            <div className="rounded-lg bg-yellow-50 p-3">
+                                              <p className="text-xs font-semibold uppercase tracking-wide text-yellow-700 mb-1">
+                                                Focus next
+                                              </p>
+                                              <p className="text-yellow-800">
+                                                {lessonFeedback.areasForImprovement.length > 0
+                                                  ? lessonFeedback.areasForImprovement.join(', ')
+                                                  : 'No focus areas recorded.'}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <p className="text-sm text-gray-500">
+                                          Feedback has not been added for this lesson yet.
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </article>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">
+                            No lessons found yet.
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

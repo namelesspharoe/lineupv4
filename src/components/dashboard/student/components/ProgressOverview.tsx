@@ -1,13 +1,15 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, GraduationCap, Plus, Search, MessageSquare } from 'lucide-react';
-import { User } from '../../../../types';
+import { User, StudentProgress } from '../../../../types';
 
 interface ProgressOverviewProps {
   user: User;
   progress: number;
   pastLessons: any[];
   upcomingLessons: any[];
+  /** When provided, level and progress % use studentProgress (single source of truth) instead of user.level */
+  progressData?: StudentProgress | null;
 }
 
 // Helper functions
@@ -34,7 +36,24 @@ const getNextLevel = (currentLevel: string) => {
   return levels[Math.min(currentIndex + 1, levels.length - 1)];
 };
 
-export function ProgressOverview({ user, progress, pastLessons, upcomingLessons }: ProgressOverviewProps) {
+function getProgressPercent(progressData: StudentProgress | null | undefined, fallback: number): number {
+  if (!progressData) return fallback;
+  if (typeof progressData.skillProgress?.skiing?.progress === 'number') {
+    return Math.round(progressData.skillProgress.skiing.progress);
+  }
+  if (typeof progressData.skillProgress?.snowboarding?.progress === 'number') {
+    return Math.round(progressData.skillProgress.snowboarding.progress);
+  }
+  if (progressData.totalLessons != null && progressData.totalLessons > 0 && progressData.completedLessons != null) {
+    return Math.min(100, Math.round((progressData.completedLessons / progressData.totalLessons) * 100));
+  }
+  return fallback;
+}
+
+export function ProgressOverview({ user, progress, pastLessons, upcomingLessons, progressData }: ProgressOverviewProps) {
+  const displayLevel = progressData?.level ?? user?.level ?? 'first_time';
+  const displayProgressPercent = getProgressPercent(progressData, progress);
+
   return (
     <div className="glass-card rounded-xl overflow-hidden">
       <div className="border-b border-white/10 px-6 py-4">
@@ -58,10 +77,10 @@ export function ProgressOverview({ user, progress, pastLessons, upcomingLessons 
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">
-                  {getLevelDescription(user.level || 'first_time')}
+                  {getLevelDescription(displayLevel)}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Next: {getLevelDescription(getNextLevel(user.level || 'first_time'))}
+                  Next: {getLevelDescription(getNextLevel(displayLevel))}
                 </p>
               </div>
             </div>
@@ -72,12 +91,12 @@ export function ProgressOverview({ user, progress, pastLessons, upcomingLessons 
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-700 dark:text-gray-300">Overall Progress</span>
-                    <span className="text-gray-600 dark:text-gray-400">{Math.round(progress)}%</span>
+                    <span className="text-gray-600 dark:text-gray-400">{Math.round(displayProgressPercent)}%</span>
                   </div>
                   <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-blue-600 rounded-full transition-all duration-500"
-                      style={{ width: `${progress}%` }}
+                      style={{ width: `${displayProgressPercent}%` }}
                     />
                   </div>
                 </div>
