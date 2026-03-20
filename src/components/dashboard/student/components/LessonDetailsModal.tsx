@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Calendar, Clock, Target, Users, MapPin, Star, MessageSquare, Edit, Trash2, Plus, Play, StickyNote } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { User, Lesson, LessonFeedback, StudentReview } from '../../../../types';
@@ -12,6 +12,7 @@ import { collection, query, where, getDocs, doc, getDoc, updateDoc } from 'fireb
 import { db } from '../../../../lib/firebase';
 import { StudentProfileModal } from '../../../student/StudentProfileModal';
 import { StudentSearch } from '../../../common/StudentSearch';
+import { ResponsiveModalPanel } from '../../../common/ResponsiveModalPanel';
 
 interface LessonDetailsModalProps {
   lesson: (Lesson & { instructor?: User }) | null;
@@ -256,26 +257,31 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
 
   return (
     <>
-      <div className="fixed inset-0 z-50 overflow-y-auto">
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-        
-        <div className="relative min-h-screen flex items-center justify-center p-4">
-          <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full border border-gray-100 dark:border-gray-800">
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-            >
-              <X className="w-6 h-6 text-gray-700 dark:text-gray-300" />
-            </button>
+      <ResponsiveModalPanel onClose={onClose} labelledBy="lesson-details-title">
+        <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            aria-label="Close"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
 
-            <div className="p-6">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/40 rounded-lg flex items-center justify-center">
-                  <Calendar className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+              <div className="mb-5 flex items-start gap-3 sm:mb-6 sm:gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/40 sm:h-12 sm:w-12">
+                  <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400 sm:h-6 sm:w-6" />
                 </div>
-                <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{lesson.title}</h2>
-                  <p className="text-gray-600 dark:text-gray-400">
+                <div className="min-w-0 flex-1">
+                  <h2
+                    id="lesson-details-title"
+                    className="break-words text-xl font-bold leading-tight text-gray-900 dark:text-white sm:text-2xl"
+                  >
+                    {lesson.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 sm:text-base">
                     {new Date(lesson.date).toLocaleDateString(undefined, {
                       weekday: 'long',
                       year: 'numeric',
@@ -744,14 +750,14 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
               )}
 
               {/* Action Buttons */}
-              <div className="border-t border-gray-100 dark:border-gray-800 pt-6 mt-6">
-                <div className="flex flex-wrap gap-3">
+              <div className="mt-6 border-t border-gray-100 pt-6 dark:border-gray-800">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
                   {canBeginLesson && (
                     <button
                       type="button"
                       onClick={handleBeginLesson}
                       disabled={isBeginningLesson}
-                      className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-white transition-colors hover:bg-amber-700 disabled:opacity-50 sm:w-auto sm:py-2"
                     >
                       <Play className="w-4 h-4" />
                       {isBeginningLesson ? 'Starting…' : 'Begin lesson'}
@@ -759,11 +765,12 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                   )}
                   {canCancel && (
                     <button
+                      type="button"
                       onClick={() => {
                         // Handle cancel
                         onClose();
                       }}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-white transition-colors hover:bg-red-700 sm:w-auto sm:py-2"
                     >
                       <Trash2 className="w-4 h-4" />
                       Cancel Lesson
@@ -772,11 +779,12 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                   
                   {canLeaveFeedback && (
                     <button
+                      type="button"
                       onClick={() => {
                         setFeedbackStudentId(null);
                         setShowReviewForm(true);
                       }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-white transition-colors hover:bg-blue-700 sm:w-auto sm:py-2"
                     >
                       <Edit className="w-4 h-4" />
                       Leave Feedback
@@ -785,9 +793,10 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
 
                   {canCompleteLesson && (
                     <button
+                      type="button"
                       onClick={handleCompleteLesson}
                       disabled={isCompleting}
-                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-white transition-colors hover:bg-emerald-700 disabled:opacity-50 sm:w-auto sm:py-2"
                     >
                       {isCompleting ? 'Completing...' : 'Complete Lesson'}
                     </button>
@@ -795,8 +804,9 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
 
                   {user?.role === 'student' && (
                     <button
+                      type="button"
                       onClick={handleMessageInstructor}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-600 px-4 py-2.5 text-white transition-colors hover:bg-gray-700 sm:w-auto sm:py-2"
                     >
                       <MessageSquare className="w-4 h-4" />
                       Message Instructor
@@ -804,10 +814,8 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                   )}
                 </div>
               </div>
-            </div>
-          </div>
         </div>
-      </div>
+      </ResponsiveModalPanel>
 
       {/* Instructor feedback */}
       {showReviewForm && (
