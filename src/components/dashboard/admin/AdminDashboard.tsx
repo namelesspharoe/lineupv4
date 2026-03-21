@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { User } from '../../../types';
+import React, { useMemo, useState } from 'react';
+import { User, TimeEntry, type Lesson } from '../../../types';
 import { RefreshCw, AlertCircle, Plus } from 'lucide-react';
 import { EditUserModal } from './EditUserModal';
 import { EditLessonModal } from '../instructor/EditLessonModal';
@@ -15,6 +15,9 @@ import { UserTable } from './components/UserTable';
 import { LessonTable } from './components/LessonTable';
 import { StudentProfileWrapper } from './components/StudentProfileWrapper';
 import { MountainManagement } from './components/MountainManagement';
+import { AdminOverviewDayCards } from './components/AdminOverviewDayCards';
+import { EditTimeEntryModal } from './EditTimeEntryModal';
+import { AdminOverviewLessonDetailModal } from './AdminOverviewLessonDetailModal';
 
 interface AdminDashboardProps {
   user: User;
@@ -28,6 +31,8 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     stats,
     users,
     lessons,
+    hydratedLessons,
+    timeEntries,
     mountains,
     isLoading,
     error,
@@ -36,12 +41,20 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     handleRefresh
   } = useAdminData();
 
+  const lessonsForOverview = useMemo(() => {
+    const byId = new Map<string, Lesson>();
+    for (const l of lessons) byId.set(l.id, l);
+    for (const l of hydratedLessons) byId.set(l.id, l);
+    return [...byId.values()];
+  }, [lessons, hydratedLessons]);
+
   const {
     handleDeleteUser,
     handleDeleteLesson,
     handleUpdateUserRole,
     handleUpdateLessonStatus,
     handleCreateMountain,
+    handleUpdateMountainMeta,
     handleUpdateMountainSnow,
     handleAssignInstructorToMountain,
     handleUnassignInstructorFromMountain
@@ -56,6 +69,8 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
   const [showAvailabilityForm, setShowAvailabilityForm] = useState(false);
   const [selectedInstructorId, setSelectedInstructorId] = useState<string | null>(null);
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<User | null>(null);
+  const [selectedTimeEntry, setSelectedTimeEntry] = useState<(TimeEntry & { instructor?: User }) | null>(null);
+  const [overviewLessonDetail, setOverviewLessonDetail] = useState<Lesson | null>(null);
 
   // Event handlers
   const handleEditUser = (user: User) => {
@@ -133,56 +148,38 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
       {/* Tab Content */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Users Management */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="border-b border-gray-100 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">User Management</h2>
-                <button
-                  onClick={() => setShowCreateUser(true)}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  Create User
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <UserTable
-                users={users}
-                onEditUser={handleEditUser}
-                onManageAvailability={handleManageAvailability}
-                onViewProfile={handleViewProfile}
-                onDeleteUser={handleDeleteUserWithRefresh}
-                onUpdateUserRole={handleUpdateUserRoleWithRefresh}
-              />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Manage users and full lesson tables from the <strong>Users</strong> and <strong>Lessons</strong> tabs.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCreateUser(true)}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Create user
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreateLesson(true)}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Create lesson
+              </button>
             </div>
           </div>
-
-          {/* Lessons Management */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="border-b border-gray-100 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">Lesson Management</h2>
-                <button
-                  onClick={() => setShowCreateLesson(true)}
-                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  Create Lesson
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <LessonTable
-                lessons={lessons}
-                users={users}
-                onEditLesson={handleEditLesson}
-                onUpdateLessonStatus={handleUpdateLessonStatusWithRefresh}
-                onDeleteLesson={handleDeleteLessonWithRefresh}
-              />
-            </div>
-          </div>
+          <AdminOverviewDayCards
+            lessons={lessonsForOverview}
+            timeEntries={timeEntries}
+            users={users}
+            mountains={mountains}
+            onViewLessonDetail={setOverviewLessonDetail}
+            onEditLesson={handleEditLesson}
+            onEditTimeEntry={setSelectedTimeEntry}
+          />
         </div>
       )}
 
@@ -228,6 +225,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
           mountains={mountains}
           users={users}
           onCreateMountain={handleCreateMountain}
+          onUpdateMountainMeta={handleUpdateMountainMeta}
           onUpdateMountainSnow={handleUpdateMountainSnow}
           onAssignInstructorToMountain={handleAssignInstructorToMountain}
           onUnassignInstructorFromMountain={handleUnassignInstructorFromMountain}
@@ -256,6 +254,30 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
           onClose={() => setSelectedLesson(null)}
           onUpdate={loadDashboardData}
           isAdmin={true}
+        />
+      )}
+
+      {selectedTimeEntry && (
+        <EditTimeEntryModal
+          isOpen={!!selectedTimeEntry}
+          timeEntry={selectedTimeEntry}
+          onClose={() => setSelectedTimeEntry(null)}
+          onUpdated={() => {
+            setSelectedTimeEntry(null);
+            void loadDashboardData();
+          }}
+        />
+      )}
+
+      {overviewLessonDetail && (
+        <AdminOverviewLessonDetailModal
+          isOpen
+          lesson={overviewLessonDetail}
+          users={users}
+          timeEntriesForLesson={timeEntries.filter((e) => e.lessonId === overviewLessonDetail.id)}
+          onClose={() => setOverviewLessonDetail(null)}
+          onEditLesson={handleEditLesson}
+          onEditTimeEntry={setSelectedTimeEntry}
         />
       )}
 

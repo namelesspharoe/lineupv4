@@ -20,6 +20,7 @@ import { db } from '../lib/firebase';
 import { Lesson, LessonFeedback, StudentReview } from '../types';
 import { format } from 'date-fns';
 import { progressService } from './progress';
+import { studentSkillLevelUserFields } from '../utils/studentSkillLevel';
 
 export async function getLessonsByStudent(studentId: string): Promise<Lesson[]> {
   const q = query(
@@ -147,6 +148,39 @@ export async function getInstructorActiveLessons(instructorId: string): Promise<
   return Array.from(byId.values());
 }
 
+/**
+ * Same rules as instructor active lessons, scoped to lessons where the student is enrolled:
+ * `in_progress` on any day, plus today's `available` / `scheduled` / `booked` / `in_progress`.
+ */
+export async function getStudentActiveLessons(studentId: string): Promise<Lesson[]> {
+  const todayKey = format(new Date(), 'yyyy-MM-dd');
+
+  const inProgressQ = query(
+    collection(db, 'lessons'),
+    where('studentIds', 'array-contains', studentId),
+    where('status', '==', 'in_progress')
+  );
+
+  const todayQ = query(
+    collection(db, 'lessons'),
+    where('studentIds', 'array-contains', studentId),
+    where('date', '==', todayKey),
+    where('status', 'in', ['available', 'scheduled', 'in_progress', 'booked'])
+  );
+
+  const [inProgressSnap, todaySnap] = await Promise.all([getDocs(inProgressQ), getDocs(todayQ)]);
+
+  const byId = new Map<string, Lesson>();
+  for (const d of inProgressSnap.docs) {
+    byId.set(d.id, { id: d.id, ...d.data() } as Lesson);
+  }
+  for (const d of todaySnap.docs) {
+    byId.set(d.id, { id: d.id, ...d.data() } as Lesson);
+  }
+
+  return Array.from(byId.values());
+}
+
 // Simplified lesson creation function
 export async function createLesson(lessonData: Omit<Lesson, 'id'>): Promise<string> {
   console.log('createLesson called with:', lessonData);
@@ -215,6 +249,7 @@ export async function createLesson(lessonData: Omit<Lesson, 'id'>): Promise<stri
   
   const lessonWithTimestamp = {
     ...lessonData,
+    sport: lessonData.sport ?? 'skiing',
     studentIds: lessonData.studentIds || [],
     skillsFocus: lessonData.skillsFocus || [],
     notes: lessonData.notes || '',
@@ -268,12 +303,21 @@ export async function addLessonFeedback(
     }
     
     // Clean up feedback data to remove undefined values
-    const cleanFeedback = JSON.parse(JSON.stringify(feedback));
-    
+    const cleanFeedback = JSON.parse(JSON.stringify(feedback)) as Omit<
+      LessonFeedback,
+      'id' | 'createdAt' | 'updatedAt'
+    >;
+
+    const lessonSnap = await getDoc(doc(db, 'lessons', lessonId));
+    const lessonRow = lessonSnap.exists() ? ({ id: lessonSnap.id, ...lessonSnap.data() } as Lesson) : null;
+    const resolvedSport =
+      cleanFeedback.sport ?? lessonRow?.sport ?? 'skiing';
+
     // Add feedback to separate collection for better querying
     const feedbackRef = collection(db, 'lessonFeedback');
     const feedbackWithTimestamp = {
       ...cleanFeedback,
+      sport: resolvedSport,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -291,8 +335,10 @@ export async function addLessonFeedback(
     });
     console.log('Lesson updated with feedback reference');
     
-    // Update student progress based on feedback data
-    await updateStudentProgressFromFeedback(feedback);
+    await updateStudentProgressFromFeedback({
+      ...cleanFeedback,
+      sport: resolvedSport
+    });
     console.log('Student progress updated');
     
     // Check for achievements after progress update
@@ -467,7 +513,10 @@ async function updateStudentProgressFromFeedback(feedback: Omit<LessonFeedback, 
     console.log('Student progress updated successfully');
 
     // Keep user.level in sync so profile/nav and any consumer of user.level stay current
-    await updateDoc(doc(db, 'users', feedback.studentId), { level: currentProgress.level });
+    await updateDoc(
+      doc(db, 'users', feedback.studentId),
+      studentSkillLevelUserFields(String(currentProgress.level))
+    );
   } catch (error) {
     console.error('Error updating student progress from feedback:', error);
     throw error;

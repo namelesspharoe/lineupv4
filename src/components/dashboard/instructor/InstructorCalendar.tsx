@@ -1,11 +1,15 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Calendar, Clock, DollarSign, BookOpen } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, Calendar, Clock, DollarSign, BookOpen, X, Plus } from 'lucide-react';
+import { ResponsiveModalPanel } from '../../common/ResponsiveModalPanel';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, addMonths, subMonths, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 
 import { getInstructorDailyLessons } from '../../../services/lessons';
 import { getInstructorAvailability } from '../../../services/availability';
 import { getTimeEntriesByInstructor } from '../../../services/timesheet';
 import { User, Lesson, Availability, TimeEntry } from '../../../types';
+import { payCategoryLabel, resolvePayCategory } from '../../../utils/instructorPayroll';
+import { useAuth } from '../../../context/AuthContext';
+import { CreateLessonModal } from './CreateLessonModal';
 
 interface InstructorCalendarProps {
   user: User;
@@ -29,6 +33,8 @@ interface DayDetailsModalProps {
   onClose: () => void;
   day: CalendarDay | null;
   user: User;
+  /** yyyy-MM-dd — opens create flow with that date pre-filled */
+  onScheduleLesson?: (dateKey: string) => void;
 }
 
 const timeSlots = [
@@ -37,7 +43,7 @@ const timeSlots = [
   { id: 'full_day', label: 'Full Day', start: '09:00', end: '17:00', color: 'bg-purple-100 border-purple-300' }
 ];
 
-function DayDetailsModal({ isOpen, onClose, day }: DayDetailsModalProps) {
+function DayDetailsModal({ isOpen, onClose, day, onScheduleLesson }: DayDetailsModalProps) {
   if (!isOpen || !day) return null;
 
   const formatTime = (timeString: string) => {
@@ -84,32 +90,28 @@ function DayDetailsModal({ isOpen, onClose, day }: DayDetailsModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 rounded-t-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {format(day.date, 'EEEE, MMMM d, yyyy')}
-                </h2>
-                <p className="text-sm text-gray-600">
-                  {day.lessons.length} lessons • {day.timeEntries.length} time entries
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
-          
-          <div className="p-6 space-y-6">
+    <ResponsiveModalPanel onClose={onClose} labelledBy="calendar-day-detail-title" maxWidthClass="sm:max-w-4xl">
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-6 sm:py-3">
+        <div className="min-w-0">
+          <h2 id="calendar-day-detail-title" className="text-xl font-bold text-gray-900 dark:text-white">
+            {format(day.date, 'EEEE, MMMM d, yyyy')}
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {day.lessons.length} lessons • {day.timeEntries.length} time entries
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-20">
+        <div className="space-y-6">
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -206,11 +208,10 @@ function DayDetailsModal({ isOpen, onClose, day }: DayDetailsModalProps) {
                           <p className="text-sm text-gray-600">
                             Duration: {formatDuration(entry.clockIn, entry.clockOut)}
                           </p>
-                          {entry.hourlyRate && (
-                            <p className="text-sm text-gray-600">
-                              Rate: ${entry.hourlyRate}/hour
-                            </p>
-                          )}
+                          <p className="text-sm text-gray-600">
+                            {payCategoryLabel(entry.payCategory ?? resolvePayCategory(entry.lessonId))}
+                            {entry.hourlyRate != null && ` · $${entry.hourlyRate}/hr`}
+                          </p>
                           {entry.breaks && entry.breaks.length > 0 && (
                             <p className="text-sm text-gray-600">
                               Breaks: {entry.breaks.length}
@@ -267,26 +268,58 @@ function DayDetailsModal({ isOpen, onClose, day }: DayDetailsModalProps) {
 
             {/* Empty State */}
             {day.lessons.length === 0 && day.timeEntries.length === 0 && day.availability.length === 0 && (
-              <div className="text-center py-8">
-                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Activity</h3>
-                <p className="text-gray-600">No lessons, time entries, or availability for this day.</p>
+              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/90 px-4 py-8 text-center dark:border-gray-600 dark:bg-gray-800/50 sm:px-8">
+                <Calendar className="mx-auto mb-4 h-12 w-12 text-gray-400 dark:text-gray-500" aria-hidden />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Nothing scheduled for this day
+                </h3>
+                <p className="mx-auto mt-2 max-w-lg text-sm text-gray-600 dark:text-gray-300">
+                  {format(day.date, 'EEEE, MMMM d, yyyy')} doesn&apos;t have any lessons, clocked time, or
+                  availability blocks tied to it yet. That usually means a clear day on the mountain or data
+                  that hasn&apos;t been added.
+                </p>
+                <div className="mx-auto mt-6 max-w-md rounded-lg bg-white/80 p-4 text-left text-sm text-gray-600 shadow-sm dark:bg-gray-900/60 dark:text-gray-300">
+                  <p className="mb-2 font-medium text-gray-900 dark:text-white">What you can do next</p>
+                  <ul className="list-inside list-disc space-y-2 marker:text-blue-500">
+                    <li>
+                      <span className="-ml-1">Add a lesson on this date so it shows up here and in your active list.</span>
+                    </li>
+                    <li>
+                      <span className="-ml-1">Clock in/out from an in-progress lesson to record hours and earnings.</span>
+                    </li>
+                    <li>
+                      <span className="-ml-1">Update availability from your dashboard so students can book open slots.</span>
+                    </li>
+                  </ul>
+                </div>
+                {onScheduleLesson && (
+                  <button
+                    type="button"
+                    onClick={() => onScheduleLesson(format(day.date, 'yyyy-MM-dd'))}
+                    className="mt-6 inline-flex min-h-[44px] w-full max-w-sm items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 sm:w-auto"
+                  >
+                    <Plus className="h-5 w-5 shrink-0" aria-hidden />
+                    Schedule lesson
+                  </button>
+                )}
               </div>
             )}
-          </div>
         </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }
 
 export function InstructorCalendar({ user }: InstructorCalendarProps) {
+  const { user: authUser } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDayDetails, setShowDayDetails] = useState(false);
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scheduleLessonOpen, setScheduleLessonOpen] = useState(false);
+  const [scheduleLessonDate, setScheduleLessonDate] = useState<string | null>(null);
 
   // Generate calendar days for current month with proper padding
   const generateCalendarDays = useMemo(() => {
@@ -397,6 +430,13 @@ export function InstructorCalendar({ user }: InstructorCalendarProps) {
     setShowDayDetails(true);
   };
 
+  const handleScheduleLessonFromDay = useCallback((dateKey: string) => {
+    setShowDayDetails(false);
+    setSelectedDay(null);
+    setScheduleLessonDate(dateKey);
+    setScheduleLessonOpen(true);
+  }, []);
+
   const handlePreviousMonth = () => {
     setCurrentMonth(subMonths(currentMonth, 1));
   };
@@ -443,6 +483,14 @@ export function InstructorCalendar({ user }: InstructorCalendarProps) {
     );
   };
 
+  const monthDaysForList = useMemo(
+    () => calendarDays.filter((d) => d.isCurrentMonth),
+    [calendarDays]
+  );
+
+  const hasDayActivity = (day: CalendarDay) =>
+    day.lessons.length > 0 || day.timeEntries.length > 0 || day.totalEarnings > 0;
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -462,33 +510,95 @@ export function InstructorCalendar({ user }: InstructorCalendarProps) {
   return (
     <div className="space-y-6">
       {/* Calendar Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Calendar</h2>
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">Calendar</h2>
+        <div className="flex items-center justify-between gap-2 sm:justify-end sm:gap-4">
           <button
+            type="button"
             onClick={handlePreviousMonth}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="rounded-lg p-2.5 text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label="Previous month"
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="h-5 w-5" />
           </button>
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="min-w-0 flex-1 text-center text-base font-semibold text-gray-900 dark:text-white sm:flex-none sm:text-lg">
             {format(currentMonth, 'MMMM yyyy')}
           </h3>
           <button
+            type="button"
             onClick={handleNextMonth}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="rounded-lg p-2.5 text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label="Next month"
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="h-5 w-5" />
           </button>
         </div>
       </div>
 
-      {/* Calendar Grid */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      {/* Mobile: chronological list of days in the visible month */}
+      <div className="md:hidden space-y-2">
+        {monthDaysForList.map((day) => {
+          const active = hasDayActivity(day);
+          return (
+            <button
+              key={format(day.date, 'yyyy-MM-dd')}
+              type="button"
+              onClick={() => handleDayClick(day)}
+              className={`
+                flex w-full min-h-[3.5rem] items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors
+                border-gray-200 bg-white active:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:active:bg-gray-800
+                ${day.isToday ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-100 dark:ring-offset-gray-950' : ''}
+              `}
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-gray-900 dark:text-white">
+                    {format(day.date, 'EEE, MMM d')}
+                  </span>
+                  {day.isToday && (
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                      Today
+                    </span>
+                  )}
+                </div>
+                {!active && (
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">No scheduled activity</p>
+                )}
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm">
+                {day.lessons.length > 0 && (
+                  <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                    <BookOpen className="h-4 w-4" aria-hidden />
+                    <span>{day.lessons.length}</span>
+                  </span>
+                )}
+                {day.timeEntries.length > 0 && (
+                  <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+                    <Clock className="h-4 w-4" aria-hidden />
+                    <span>{day.timeEntries.length}</span>
+                  </span>
+                )}
+                {day.totalEarnings > 0 && (
+                  <span className="inline-flex items-center gap-1 font-medium text-purple-600 dark:text-purple-400">
+                    <DollarSign className="h-4 w-4" aria-hidden />
+                    <span>${day.totalEarnings.toFixed(0)}</span>
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* md+: week grid */}
+      <div className="hidden md:block overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
         {/* Day Headers */}
-        <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
+        <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/80">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-            <div key={day} className="px-3 py-3 text-center text-sm font-medium text-gray-900">
+            <div
+              key={day}
+              className="px-3 py-3 text-center text-sm font-medium text-gray-900 dark:text-gray-100"
+            >
               {day}
             </div>
           ))}
@@ -499,12 +609,20 @@ export function InstructorCalendar({ user }: InstructorCalendarProps) {
           {calendarDays.map((day, index) => (
             <div
               key={index}
+              role="button"
+              tabIndex={0}
               onClick={() => handleDayClick(day)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleDayClick(day);
+                }
+              }}
               className={`
-                min-h-[120px] p-2 border-r border-b border-gray-200 cursor-pointer transition-colors
-                ${day.isCurrentMonth ? 'bg-white' : 'bg-gray-50'}
-                ${day.isToday ? 'ring-2 ring-blue-500' : ''}
-                hover:bg-gray-50
+                min-h-[120px] cursor-pointer border-b border-r border-gray-200 p-2 transition-colors dark:border-gray-700
+                ${day.isCurrentMonth ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-900/60'}
+                ${day.isToday ? 'ring-2 ring-inset ring-blue-500' : ''}
+                hover:bg-gray-50 dark:hover:bg-gray-800/80
               `}
             >
               {getDayContent(day)}
@@ -514,20 +632,20 @@ export function InstructorCalendar({ user }: InstructorCalendarProps) {
       </div>
 
       {/* Legend */}
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h4 className="font-medium text-gray-900 mb-3">Legend</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800/60">
+        <h4 className="mb-3 font-medium text-gray-900 dark:text-white">Legend</h4>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <div className="flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-blue-600" />
-            <span className="text-sm text-gray-600">Lessons</span>
+            <BookOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-sm text-gray-600 dark:text-gray-300">Lessons</span>
           </div>
           <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-green-600" />
-            <span className="text-sm text-gray-600">Time Entries</span>
+            <Clock className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <span className="text-sm text-gray-600 dark:text-gray-300">Time Entries</span>
           </div>
           <div className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-purple-600" />
-            <span className="text-sm text-gray-600">Earnings</span>
+            <DollarSign className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            <span className="text-sm text-gray-600 dark:text-gray-300">Earnings</span>
           </div>
         </div>
       </div>
@@ -538,7 +656,26 @@ export function InstructorCalendar({ user }: InstructorCalendarProps) {
         onClose={() => setShowDayDetails(false)}
         day={selectedDay}
         user={user}
+        onScheduleLesson={handleScheduleLessonFromDay}
       />
+
+      {scheduleLessonOpen && (
+        <CreateLessonModal
+          isOpen={scheduleLessonOpen}
+          initialDate={scheduleLessonDate || undefined}
+          isAdmin={authUser?.role === 'admin'}
+          prefillInstructor={authUser?.role === 'admin' ? user : undefined}
+          onClose={() => {
+            setScheduleLessonOpen(false);
+            setScheduleLessonDate(null);
+          }}
+          onCreated={() => {
+            void loadCalendarData();
+            setScheduleLessonOpen(false);
+            setScheduleLessonDate(null);
+          }}
+        />
+      )}
     </div>
   );
 }

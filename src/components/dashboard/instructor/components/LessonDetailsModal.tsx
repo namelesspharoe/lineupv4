@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Users, Calendar, Clock, Target, MapPin, X, MessageSquare, Trash2, Plus } from 'lucide-react';
 import type { User, Lesson } from '../../../../types';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../../../lib/firebase';
 import { completeLesson, startLesson } from '../../../../services/lessons';
+import { ResponsiveModalPanel } from '../../../common/ResponsiveModalPanel';
 
 interface LessonDetailsModalProps {
   lesson: Lesson | null;
@@ -98,187 +99,203 @@ export function LessonDetailsModal({ lesson, onClose, onAddStudent, onRemoveStud
   };
 
   return (
-    <div className="fixed inset-0 z-40 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+    <ResponsiveModalPanel onClose={onClose} labelledBy="instructor-lesson-details-title">
+      <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          aria-label="Close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-
-          <div className="p-6">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">{lesson.title}</h2>
-                <p className="text-gray-600">
-                  {new Date(lesson.date).toLocaleDateString(undefined, {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2 text-gray-600 mb-1">
-                  <Clock className="w-4 h-4" />
-                  <span>Session Type</span>
-                </div>
-                <p className="text-lg font-medium text-gray-900">{lesson.sessionType || 'morning'}</p>
-              </div>
-
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2 text-gray-600 mb-1">
-                  <Target className="w-4 h-4" />
-                  <span>Level</span>
-                </div>
-                <p className="text-lg font-medium text-gray-900">{getLevelDescription(lesson.skillLevel)}</p>
-              </div>
-
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2 text-gray-600 mb-1">
-                  <Users className="w-4 h-4" />
-                  <span>Type</span>
-                </div>
-                <p className="text-lg font-medium text-gray-900">{lesson.type}</p>
-              </div>
-
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2 text-gray-600 mb-1">
-                  <MapPin className="w-4 h-4" />
-                  <span>Location</span>
-                </div>
-                <p className="text-lg font-medium text-gray-900">Main Lodge</p>
-              </div>
-            </div>
-
-            <div className="border-t border-gray-100 pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Students</h3>
-                {lesson.type !== 'private' && students.length < lesson.maxStudents && (
-                  <button
-                    onClick={() => onAddStudent(lesson.id, lesson.studentIds, lesson.maxStudents)}
-                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Student
-                  </button>
-                )}
-              </div>
-
-              {isLoadingStudents ? (
-                <div className="text-center py-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                </div>
-              ) : students.length > 0 ? (
-                <div className="space-y-3">
-                  {students.map(student => (
-                    <div
-                      key={student.id}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                      onClick={() => setSelectedStudent(student)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={student.avatar}
-                          alt={student.name}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                        <div>
-                          <p className="font-medium text-gray-900">{student.name}</p>
-                          <p className="text-sm text-gray-600">Level: {student.level}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={`/messages?student=${student.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
-                        >
-                          <MessageSquare className="w-5 h-5" />
-                        </a>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRemoveStudent(lesson.id, student.id, student.name);
-                          }}
-                          className="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  <div className="text-sm text-gray-600 mt-2">
-                    {students.length} of {lesson.maxStudents} students
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center p-4 bg-gray-50 rounded-lg text-gray-500">
-                  No students assigned yet
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-gray-100 pt-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Skills Focus</h3>
-              <div className="flex flex-wrap gap-2">
-                {lesson.skillsFocus.map((skill, index) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm font-medium"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {lesson.notes && (
-              <div className="border-t border-gray-100 pt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Notes</h3>
-                <div className="p-4 bg-gray-50 rounded-lg whitespace-pre-wrap text-gray-700">
-                  {lesson.notes}
-                </div>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="border-t border-gray-100 pt-6 mt-6 flex justify-end gap-3">
-              {canStart && (
-                <button
-                  onClick={handleStartLesson}
-                  disabled={isStarting}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                >
-                  {isStarting ? 'Starting...' : 'Start Lesson'}
-                </button>
-              )}
-
-              {canComplete && (
-                <button
-                  onClick={handleCompleteLesson}
-                  disabled={isCompleting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {isCompleting ? 'Completing...' : 'Complete Lesson'}
-                </button>
-              )}
-            </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+        <div className="mb-5 flex items-start gap-3 sm:mb-6 sm:gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/40 sm:h-12 sm:w-12">
+            <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400 sm:h-6 sm:w-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2
+              id="instructor-lesson-details-title"
+              className="break-words text-xl font-bold leading-tight text-gray-900 dark:text-white sm:text-2xl"
+            >
+              {lesson.title}
+            </h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 sm:text-base">
+              {new Date(lesson.date).toLocaleDateString(undefined, {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
+            </p>
           </div>
         </div>
+
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+            <div className="mb-1 flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <Clock className="h-4 w-4" />
+              <span>Session Type</span>
+            </div>
+            <p className="text-lg font-medium text-gray-900 dark:text-gray-100">{lesson.sessionType || 'morning'}</p>
+          </div>
+
+          <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+            <div className="mb-1 flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <Target className="h-4 w-4" />
+              <span>Level</span>
+            </div>
+            <p className="text-lg font-medium text-gray-900 dark:text-gray-100">{getLevelDescription(lesson.skillLevel)}</p>
+          </div>
+
+          <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+            <div className="mb-1 flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <Users className="h-4 w-4" />
+              <span>Type</span>
+            </div>
+            <p className="text-lg font-medium text-gray-900 dark:text-gray-100">{lesson.type}</p>
+          </div>
+
+          <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+            <div className="mb-1 flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <MapPin className="h-4 w-4" />
+              <span>Location</span>
+            </div>
+            <p className="text-lg font-medium text-gray-900 dark:text-gray-100">Main Lodge</p>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 pt-6 dark:border-gray-800">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Students</h3>
+            {lesson.type !== 'private' && students.length < lesson.maxStudents && (
+              <button
+                type="button"
+                onClick={() => onAddStudent(lesson.id, lesson.studentIds, lesson.maxStudents)}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm text-white transition-colors hover:bg-blue-700 sm:w-auto sm:py-1.5"
+              >
+                <Plus className="h-4 w-4" />
+                Add Student
+              </button>
+            )}
+          </div>
+
+          {isLoadingStudents ? (
+            <div className="py-4 text-center">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
+            </div>
+          ) : students.length > 0 ? (
+            <div className="space-y-3">
+              {students.map(student => (
+                <div
+                  key={student.id}
+                  role="button"
+                  tabIndex={0}
+                  className="flex cursor-pointer items-center justify-between rounded-lg bg-gray-50 p-4 transition-colors hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700/80"
+                  onClick={() => setSelectedStudent(student)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedStudent(student);
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={student.avatar}
+                      alt={student.name}
+                      className="h-10 w-10 rounded-full object-cover"
+                    />
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">{student.name}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Level: {student.level}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`/messages?student=${student.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-gray-200"
+                    >
+                      <MessageSquare className="h-5 w-5" />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveStudent(lesson.id, student.id, student.name);
+                      }}
+                      className="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-950/50"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                {students.length} of {lesson.maxStudents} students
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg bg-gray-50 p-4 text-center text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+              No students assigned yet
+            </div>
+          )}
+        </div>
+
+        {(lesson.skillsFocus?.length ?? 0) > 0 && (
+          <div className="mt-6 border-t border-gray-100 pt-6 dark:border-gray-800">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Skills Focus</h3>
+            <div className="flex flex-wrap gap-2">
+              {(lesson.skillsFocus ?? []).map((skill, index) => (
+                <span
+                  key={index}
+                  className="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-600 dark:bg-blue-950/50 dark:text-blue-300"
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {lesson.notes && (
+          <div className="mt-6 border-t border-gray-100 pt-6 dark:border-gray-800">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Notes</h3>
+            <div className="whitespace-pre-wrap rounded-lg bg-gray-50 p-4 text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+              {lesson.notes}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-col gap-2 border-t border-gray-100 pt-6 dark:border-gray-800 sm:flex-row sm:justify-end sm:gap-3">
+          {canStart && (
+            <button
+              type="button"
+              onClick={handleStartLesson}
+              disabled={isStarting}
+              className="w-full rounded-lg bg-green-600 px-4 py-2.5 text-white transition-colors hover:bg-green-700 disabled:opacity-50 sm:w-auto sm:py-2"
+            >
+              {isStarting ? 'Starting...' : 'Start Lesson'}
+            </button>
+          )}
+
+          {canComplete && (
+            <button
+              type="button"
+              onClick={handleCompleteLesson}
+              disabled={isCompleting}
+              className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-white transition-colors hover:bg-blue-700 disabled:opacity-50 sm:w-auto sm:py-2"
+            >
+              {isCompleting ? 'Completing...' : 'Complete Lesson'}
+            </button>
+          )}
+        </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }
 

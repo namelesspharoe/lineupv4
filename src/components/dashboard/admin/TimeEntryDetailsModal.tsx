@@ -1,7 +1,8 @@
-import React from 'react';
 import { X, Clock, User, DollarSign, MapPin, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { ResponsiveModalPanel } from '../../common/ResponsiveModalPanel';
 import { format, parseISO } from 'date-fns';
 import { TimeEntry, User as UserType } from '../../../types';
+import { payCategoryLabel, resolvePayCategory } from '../../../utils/instructorPayroll';
 
 interface TimeEntryDetailsModalProps {
   isOpen: boolean;
@@ -96,30 +97,27 @@ export function TimeEntryDetailsModal({ isOpen, onClose, timeEntry }: TimeEntryD
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-          {/* Header */}
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 rounded-t-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Time Entry Details</h2>
-                <p className="text-sm text-gray-600">
-                  {timeEntry.instructor?.name || 'Unknown Instructor'} • {format(parseISO(timeEntry.clockIn), 'MMM d, yyyy')}
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+    <ResponsiveModalPanel onClose={onClose} labelledBy="time-entry-details-title" maxWidthClass="sm:max-w-4xl">
+      <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          aria-label="Close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-          <div className="p-6 space-y-6">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+        <h2 id="time-entry-details-title" className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
+          Time Entry Details
+        </h2>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          {timeEntry.instructor?.name || 'Unknown Instructor'} • {format(parseISO(timeEntry.clockIn), 'MMM d, yyyy')}
+        </p>
+
+        <div className="mt-6 space-y-6">
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -204,14 +202,19 @@ export function TimeEntryDetailsModal({ isOpen, onClose, timeEntry }: TimeEntryD
                 <DollarSign className="w-5 h-5" />
                 Financial Information
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Pay type</h4>
+                  <p className="text-lg font-medium text-gray-900">
+                    {payCategoryLabel(timeEntry.payCategory ?? resolvePayCategory(timeEntry.lessonId))}
+                  </p>
+                </div>
                 <div>
                   <h4 className="font-medium text-gray-900 mb-2">Hourly Rate</h4>
                   <p className="text-2xl font-bold text-gray-900">
                     ${timeEntry.hourlyRate?.toFixed(2) || '0.00'}/hour
                   </p>
                 </div>
-                
                 <div>
                   <h4 className="font-medium text-gray-900 mb-2">Total Earnings</h4>
                   <p className="text-2xl font-bold text-gray-900">
@@ -326,9 +329,8 @@ export function TimeEntryDetailsModal({ isOpen, onClose, timeEntry }: TimeEntryD
                 </div>
               </div>
             </div>
-          </div>
         </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }

@@ -1,5 +1,5 @@
-import { useMemo, useState, useCallback, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Calendar, Users, CheckCircle, AlertCircle, Clock, Search, Filter, RefreshCw, Plus, BarChart2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useDataLoader } from '../hooks/useDataLoader';
@@ -60,10 +60,18 @@ function sanitizeAvatar(src?: string | null) {
 
 export function Lessons() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [filter, setFilter] = useState<LessonFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLesson, setSelectedLesson] = useState<(Lesson & { instructor?: User }) | null>(null);
   const [selectedInstructor, setSelectedInstructor] = useState<User | null>(null);
+
+  useEffect(() => {
+    const raw = searchParams.get('filter');
+    if (raw === 'upcoming' || raw === 'completed' || raw === 'cancelled' || raw === 'all') {
+      setFilter(raw);
+    }
+  }, [searchParams]);
 
   const loadLessons = useCallback(async (): Promise<LessonsPayload> => {
     if (!user) {
@@ -208,26 +216,26 @@ export function Lessons() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         <StatCard
           title="Total Lessons"
           value={stats.total}
-          icon={<BarChart2 className="h-5 w-5 text-blue-600" />}
+          icon={<BarChart2 className="text-blue-600" />}
         />
         <StatCard
           title="Upcoming"
           value={stats.upcoming}
-          icon={<Calendar className="h-5 w-5 text-emerald-600" />}
+          icon={<Calendar className="text-emerald-600" />}
         />
         <StatCard
           title="Completed"
           value={stats.completed}
-          icon={<CheckCircle className="h-5 w-5 text-indigo-600" />}
+          icon={<CheckCircle className="text-indigo-600" />}
         />
         <StatCard
           title="Cancelled"
           value={stats.cancelled}
-          icon={<AlertCircle className="h-5 w-5 text-red-600" />}
+          icon={<AlertCircle className="text-red-600" />}
         />
       </div>
 
@@ -452,13 +460,19 @@ interface StatCardProps {
 
 function StatCard({ title, value, icon }: StatCardProps) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white">{value}</p>
+    <div className="min-w-0 rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:rounded-2xl sm:p-4">
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:text-xs">
+            {title}
+          </p>
+          <p className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900 dark:text-white sm:mt-1 sm:text-2xl">
+            {value}
+          </p>
         </div>
-        <div className="rounded-xl bg-gray-100 p-3 dark:bg-gray-800">{icon}</div>
+        <div className="shrink-0 rounded-lg bg-gray-100 p-2 dark:bg-gray-800 sm:rounded-xl sm:p-3 [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-6 sm:[&_svg]:w-6">
+          {icon}
+        </div>
       </div>
     </div>
   );

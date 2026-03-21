@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Search, UserPlus, AlertCircle, Users, UserX } from 'lucide-react';
 import { Lesson, User } from '../../../types';
 import { updateLesson } from '../../../services/lessons';
+import { resolveLessonPriceFromMountain } from '../../../services/mountains';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
+import { ResponsiveModalPanel } from '../../common/ResponsiveModalPanel';
 
 interface EditLessonModalProps {
   lesson: Lesson;
@@ -25,6 +27,7 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate, isAdmin = f
   const [formData, setFormData] = useState({
     title: lesson.title || '',
     type: lesson.type || 'private',
+    sport: lesson.sport ?? 'skiing',
     maxStudents: lesson.maxStudents || 1,
     skillLevel: lesson.skillLevel || 'first_time',
     price: lesson.price || 0,
@@ -49,12 +52,16 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate, isAdmin = f
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [isResolvingPrice, setIsResolvingPrice] = useState(false);
 
-  // Update form data when lesson prop changes
+  // Update form data when lesson prop changes; fill price from mountain when stored price is 0
   useEffect(() => {
+    let cancelled = false;
+
     setFormData({
       title: lesson.title || '',
       type: lesson.type || 'private',
+      sport: lesson.sport ?? 'skiing',
       maxStudents: lesson.maxStudents || 1,
       skillLevel: lesson.skillLevel || 'first_time',
       price: lesson.price || 0,
@@ -69,6 +76,29 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate, isAdmin = f
     });
     setFormErrors({});
     setError(null);
+
+    const needMountainPrice = (lesson.price ?? 0) <= 0;
+    if (!needMountainPrice) {
+      setIsResolvingPrice(false);
+      return;
+    }
+
+    setIsResolvingPrice(true);
+    void (async () => {
+      try {
+        const resolved = await resolveLessonPriceFromMountain(lesson);
+        if (cancelled || resolved == null || resolved <= 0) return;
+        setFormData((prev) => ({ ...prev, price: resolved }));
+      } catch {
+        /* keep 0 */
+      } finally {
+        if (!cancelled) setIsResolvingPrice(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [lesson]);
 
   // Debounce search query
@@ -293,29 +323,38 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate, isAdmin = f
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
-      
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-          <button
-            onClick={handleClose}
-            className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors z-10"
-          >
-            <X className="w-6 h-6" />
-          </button>
+    <ResponsiveModalPanel
+      onClose={handleClose}
+      labelledBy="edit-lesson-title"
+      maxWidthClass="sm:max-w-4xl"
+    >
+      <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+        <button
+          type="button"
+          onClick={handleClose}
+          className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          aria-label="Close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-          <div className="p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Edit Lesson</h2>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+        <h2
+          id="edit-lesson-title"
+          className="mb-4 text-xl font-bold text-gray-900 dark:text-white sm:mb-6 sm:text-2xl"
+        >
+          Edit Lesson
+        </h2>
 
-            {error && (
-              <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg border border-red-200 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
+        {error && (
+          <div className="mb-6 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-red-600 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -399,6 +438,21 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate, isAdmin = f
                     <option value="group">Group</option>
                     <option value="workshop">Workshop</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Discipline
+                  </label>
+                  <select
+                    value={formData.sport}
+                    onChange={(e) => handleInputChange('sport', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="skiing">Skiing</option>
+                    <option value="snowboarding">Snowboarding</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">Used when saving instructor feedback and student progress.</p>
                 </div>
 
                 {formData.type !== 'private' && (
@@ -488,10 +542,19 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate, isAdmin = f
                     step="0.01"
                     value={formData.price}
                     onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    disabled={isResolvingPrice}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 ${
                       formErrors.price ? 'border-red-300' : 'border-gray-300'
                     }`}
                   />
+                  {isResolvingPrice && (
+                    <p className="mt-1 text-xs text-gray-500">Loading resort rate from mountain…</p>
+                  )}
+                  {!isResolvingPrice && (lesson.price ?? 0) <= 0 && formData.price > 0 && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Filled from the instructor&apos;s mountain (private / group rate by lesson type).
+                    </p>
+                  )}
                   {formErrors.price && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.price}</p>
                   )}
@@ -700,23 +763,23 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate, isAdmin = f
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <div className="flex flex-col gap-2 border-t border-gray-200 pt-4 dark:border-gray-800 sm:flex-row sm:justify-end sm:gap-3">
                 <button
                   type="button"
                   onClick={handleClose}
                   disabled={isSubmitting}
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                  className="w-full rounded-lg px-4 py-2.5 text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800 sm:w-auto sm:py-2"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 text-white transition-colors hover:bg-blue-700 disabled:opacity-50 sm:w-auto sm:py-2"
                 >
                   {isSubmitting ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                       Saving...
                     </>
                   ) : (
@@ -725,9 +788,7 @@ export function EditLessonModal({ lesson, isOpen, onClose, onUpdate, isAdmin = f
                 </button>
               </div>
             </form>
-          </div>
-        </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }

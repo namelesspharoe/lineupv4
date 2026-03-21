@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, GraduationCap, Plus, Search, MessageSquare } from 'lucide-react';
 import { User, StudentProgress } from '../../../../types';
+import { getStudentSkillLevel } from '../../../../utils/studentSkillLevel';
 
 interface ProgressOverviewProps {
   user: User;
@@ -51,7 +52,7 @@ function getProgressPercent(progressData: StudentProgress | null | undefined, fa
 }
 
 export function ProgressOverview({ user, progress, pastLessons, upcomingLessons, progressData }: ProgressOverviewProps) {
-  const displayLevel = progressData?.level ?? user?.level ?? 'first_time';
+  const displayLevel = progressData?.level ?? getStudentSkillLevel(user);
   const displayProgressPercent = getProgressPercent(progressData, progress);
 
   return (

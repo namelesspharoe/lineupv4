@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Play, Square, Pause, Play as Resume, AlertCircle } from 'lucide-react';
 import { clockIn, clockOut, getActiveTimeEntry, startBreak, endBreak } from '../../services/timesheet';
+import { NON_LESSON_TIME_ENTRY_ID } from '../../constants/timeEntry';
 import { TimeEntry, User } from '../../types';
 
 interface ClockInOutButtonProps {
@@ -13,7 +14,7 @@ interface ClockInOutButtonProps {
 
 export function ClockInOutButton({
   instructorId,
-  lessonId = 'general',
+  lessonId = NON_LESSON_TIME_ENTRY_ID,
   instructor,
   onClockIn,
   onClockOut
@@ -48,8 +49,7 @@ export function ClockInOutButton({
   const handleClockIn = async () => {
     try {
       setError(null);
-      const hourlyRate = instructor?.hourlyRate || instructor?.price || 50;
-      await clockIn(lessonId, instructorId, 'manual', hourlyRate);
+      await clockIn(lessonId, instructorId, 'manual', undefined, instructor);
       setActiveEntry(await getActiveTimeEntry(instructorId));
       onClockIn?.();
     } catch (err: unknown) {

@@ -151,21 +151,14 @@ export function AIMatchingRecommendations({
         });
       }
 
-      // Take top 6 matches
-      setMatches(filtered.slice(0, 6));
+      // Take top 3 matches
+      setMatches(filtered.slice(0, 3));
     } catch (err: any) {
       console.error('Error loading AI recommendations:', err);
       setError(err.message || 'Failed to load recommendations');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const getMatchColor = (score: number): string => {
-    if (score >= 85) return 'text-green-600 dark:text-green-400';
-    if (score >= 70) return 'text-blue-600 dark:text-blue-400';
-    if (score >= 55) return 'text-yellow-600 dark:text-yellow-400';
-    return 'text-gray-600 dark:text-gray-400';
   };
 
   const getMatchBadgeColor = (score: number): string => {
@@ -181,10 +174,10 @@ export function AIMatchingRecommendations({
 
   if (isLoading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 md:p-8">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+      <div className="rounded-2xl border border-slate-200/90 dark:border-slate-700 bg-gradient-to-br from-slate-50 to-violet-50/50 dark:from-slate-900 dark:to-violet-950/20 shadow-sm p-6 md:p-8">
+        <div className="flex items-center gap-3">
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-violet-600 border-t-transparent" />
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
             Finding your perfect match...
           </h3>
         </div>
@@ -234,116 +227,82 @@ export function AIMatchingRecommendations({
   }
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl border border-blue-200 dark:border-gray-700 shadow-lg p-6 md:p-8 mb-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-blue-600 rounded-xl">
-          <Sparkles className="w-6 h-6 text-white" />
-        </div>
-        <div className="flex-1">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-            AI-Powered Recommendations
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Matched based on your skill level, preferences, and learning goals
-          </p>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-blue-200 dark:border-gray-700">
-          <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-          <span className="text-sm font-semibold text-gray-900 dark:text-white">
-            {matches.length} matches
-          </span>
-        </div>
-      </div>
-
-      {/* Top Matches Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {matches.slice(0, 3).map((match, index) => (
-          <div
-            key={match.instructor.id}
-            className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow cursor-pointer group"
-            onClick={() => onInstructorSelect?.(match.instructor)}
-          >
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-2">
-                {index === 0 && (
-                  <Award className="w-5 h-5 text-yellow-500" />
-                )}
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  #{index + 1} Match
-                </span>
-              </div>
-              <div className={`px-2 py-1 rounded-lg text-xs font-bold ${getMatchBadgeColor(match.matchScore)}`}>
-                {Math.round(match.matchScore)}%
-              </div>
-            </div>
-            <h4 className="font-semibold text-gray-900 dark:text-white mb-1">
-              {match.instructor.name}
-            </h4>
-            {match.stats && (
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                <span>{match.stats.averageRating.toFixed(1)}</span>
-                <span className="text-gray-400">•</span>
-                <span>{match.stats.totalReviews} reviews</span>
-              </div>
-            )}
-            {match.reasons.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
-                  {match.reasons[0]}
-                </p>
-              </div>
-            )}
+    <div
+      className="rounded-2xl border border-slate-200/90 dark:border-slate-700 bg-gradient-to-br from-slate-50 to-violet-50/50 dark:from-slate-900 dark:to-violet-950/25 shadow-md p-5 sm:p-6 md:p-8 mb-6"
+      role="region"
+      aria-label="AI instructor recommendations"
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-6">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="p-2.5 rounded-xl bg-violet-600 shadow-sm shrink-0">
+            <Sparkles className="w-6 h-6 text-white" aria-hidden />
           </div>
-        ))}
-      </div>
-
-      {/* Detailed Recommendations */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-            All Recommendations
-          </h4>
+          <div className="min-w-0">
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+              AI-powered matches
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed">
+              Ranked from your skill level, preferences, and learning goals.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-start sm:shrink-0">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200/90 dark:border-slate-600 bg-white/80 dark:bg-slate-800/90 px-3 py-1.5">
+            <TrendingUp className="w-4 h-4 text-violet-600 dark:text-violet-400 shrink-0" aria-hidden />
+            <span className="text-sm font-semibold text-slate-900 dark:text-white tabular-nums">
+              {matches.length} {matches.length === 1 ? 'match' : 'matches'}
+            </span>
+          </div>
           <button
+            type="button"
             onClick={loadRecommendations}
-            className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+            className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
           >
             Refresh
           </button>
         </div>
+      </div>
 
-        {matches.map((match) => (
-          <div
-            key={match.instructor.id}
-            className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md transition-all"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-start gap-4 flex-1">
-                <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex-shrink-0">
-                  {match.instructor.avatar ? (
-                    <img
-                      src={match.instructor.avatar}
-                      alt={match.instructor.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      {match.instructor.name.charAt(0)}
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h5 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {match.instructor.name}
-                    </h5>
-                    <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${getMatchBadgeColor(match.matchScore)}`}>
-                      {Math.round(match.matchScore)}% Match
+      <ul className="space-y-3 list-none p-0 m-0">
+        {matches.map((match, index) => (
+          <li key={match.instructor.id}>
+            <div className="rounded-xl border border-slate-200/90 dark:border-slate-700 bg-white/90 dark:bg-slate-800/80 p-4 sm:p-5 hover:shadow-md hover:border-violet-200/80 dark:hover:border-violet-800/50 transition-all">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+                  <div className="relative shrink-0">
+                    <span
+                      className="absolute -top-1 -left-1 flex h-6 min-w-[1.5rem] items-center justify-center rounded-md bg-slate-900 text-[10px] font-bold text-white dark:bg-violet-600 tabular-nums shadow-sm"
+                      aria-label={`Rank ${index + 1}`}
+                    >
+                      #{index + 1}
+                    </span>
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden ring-2 ring-white dark:ring-slate-800">
+                      {match.instructor.avatar ? (
+                        <img
+                          src={match.instructor.avatar}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 text-lg font-medium">
+                          {match.instructor.name.charAt(0)}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-3">
+                  <div className="flex-1 min-w-0 pt-0.5">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+                      <h5 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">
+                        {match.instructor.name}
+                      </h5>
+                      <div
+                        className={`inline-flex px-2.5 py-0.5 rounded-md text-xs font-bold ${getMatchBadgeColor(match.matchScore)}`}
+                      >
+                        {Math.round(match.matchScore)}% match
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-400 mb-3">
                     {match.stats && (
                       <div className="flex items-center gap-1">
                         <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
@@ -382,16 +341,16 @@ export function AIMatchingRecommendations({
                           ...prev,
                           [match.instructor.id]: !prev[match.instructor.id]
                         }))}
-                        className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                        className="text-sm text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 font-medium"
                       >
                         {showDetails[match.instructor.id] ? 'Hide' : 'Show'} why this is a good match
                       </button>
                       {showDetails[match.instructor.id] && (
                         <div className="mt-2 space-y-2">
-                          {match.reasons.map((reason, index) => (
+                          {match.reasons.map((reason, reasonIdx) => (
                             <div
-                              key={index}
-                              className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300"
+                              key={reasonIdx}
+                              className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300"
                             >
                               <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
                               <span>{reason}</span>
@@ -402,17 +361,19 @@ export function AIMatchingRecommendations({
                     </div>
                   )}
                 </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onInstructorSelect?.(match.instructor)}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-colors shrink-0 self-stretch sm:self-start text-center"
+                >
+                  Book lesson
+                </button>
               </div>
-              <button
-                onClick={() => onInstructorSelect?.(match.instructor)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex-shrink-0 whitespace-nowrap"
-              >
-                Book Lesson
-              </button>
             </div>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }

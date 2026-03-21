@@ -7,6 +7,12 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      zIndex: {
+        'nav-backdrop': '40',
+        'nav-drawer': '50',
+        'dialog': '60',
+        'dialog-nested': '70',
+      },
       colors: {
         frost: {
           50: '#F0F7FF',

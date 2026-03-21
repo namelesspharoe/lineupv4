@@ -10,6 +10,7 @@ import { getLessonsByInstructor } from '../../../services/lessons';
 import { getLessonDate, isLessonOnInstructorActivePanel, isLessonUpcoming } from '../../../utils/lessonDate';
 import { LessonDetailsModal } from '../student/components/LessonDetailsModal';
 import { ActiveLessons } from '../../lessons/ActiveLessons';
+import { ResponsiveModalPanel } from '../../common/ResponsiveModalPanel';
 
 interface InstructorDashboardLayoutProps {
   user: User;
@@ -129,6 +130,7 @@ export function InstructorDashboardLayout({ user }: InstructorDashboardLayoutPro
             </div>
             <ClockInOutButton
               instructorId={user.id}
+              instructor={user}
               onClockIn={() => {}}
               onClockOut={() => {}}
             />
@@ -352,25 +354,28 @@ export function InstructorDashboardLayout({ user }: InstructorDashboardLayoutPro
       )}
 
       {showCalendar && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Calendar</h2>
-              <button
-                onClick={() => setShowCalendar(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <span className="sr-only">Close</span>
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-4 sm:p-6 overflow-auto max-h-[calc(90vh-120px)]">
+        <ResponsiveModalPanel onClose={() => setShowCalendar(false)} labelledBy="instructor-dash-calendar-title" maxWidthClass="sm:max-w-4xl">
+          <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+            <button
+              type="button"
+              onClick={() => setShowCalendar(false)}
+              className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              aria-label="Close calendar"
+            >
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <h2 id="instructor-dash-calendar-title" className="sr-only">
+              Calendar
+            </h2>
+            <div className="min-h-0 flex-1 overflow-auto px-4 pb-4 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
               <InstructorCalendar user={user} />
             </div>
           </div>
-        </div>
+        </ResponsiveModalPanel>
       )}
 
       {selectedLesson && (

@@ -3,6 +3,7 @@ import { Clock, Play, Square, Pause, DollarSign, AlertCircle, CheckCircle, XCirc
 import { useAuth } from '../../context/AuthContext';
 import { TimeEntry, User } from '../../types';
 import { getActiveTimeEntry, getTimeEntries } from '../../services/timesheet';
+import { payCategoryLabel, resolvePayCategory } from '../../utils/instructorPayroll';
 import { ClockInOutButton } from './ClockInOutButton';
 import { TimesheetAnalytics } from './TimesheetAnalytics';
 
@@ -285,6 +286,9 @@ export function TimeCard({ instructor }: TimeCardProps) {
                   Duration
                 </th>
                 <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Pay type
+                </th>
+                <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Earnings
                 </th>
                 <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -336,7 +340,7 @@ export function TimeCard({ instructor }: TimeCardProps) {
               })}
               {timeEntries.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-gray-500">
+                  <td colSpan={7} className="py-8 text-center text-gray-500">
                     No time entries found for this period
                   </td>
                 </tr>

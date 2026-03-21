@@ -143,7 +143,7 @@ function InstructorScheduleView() {
         </p>
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
+      <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6 dark:border-gray-800 dark:bg-gray-900">
         <InstructorCalendarWrapper />
       </div>
     </div>

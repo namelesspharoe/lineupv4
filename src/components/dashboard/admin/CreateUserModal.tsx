@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X, Camera } from 'lucide-react';
 import { createUser } from '../../../services/users';
+import { User } from '../../../types';
+import { studentSkillLevelUserFields } from '../../../utils/studentSkillLevel';
+import { ResponsiveModalPanel } from '../../common/ResponsiveModalPanel';
 
 interface CreateUserModalProps {
   isOpen: boolean;
@@ -28,6 +31,8 @@ export function CreateUserModal({ isOpen, onClose, onCreated }: CreateUserModalP
     languages: [] as string[],
     yearsOfExperience: 0,
     hourlyRate: 0,
+    payBaseRate: 0,
+    payTeachRate: 0,
     qualifications: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,8 +56,8 @@ export function CreateUserModal({ isOpen, onClose, onCreated }: CreateUserModalP
       if (formData.yearsOfExperience < 0) {
         errors.yearsOfExperience = 'Years of experience cannot be negative';
       }
-      if (formData.hourlyRate < 0) {
-        errors.hourlyRate = 'Hourly rate cannot be negative';
+      if (formData.payBaseRate < 0 || formData.payTeachRate < 0) {
+        errors.hourlyRate = 'Pay rates cannot be negative';
       }
     }
 
@@ -73,7 +78,7 @@ export function CreateUserModal({ isOpen, onClose, onCreated }: CreateUserModalP
       setError(null);
 
       // Prepare user data with proper defaults
-      const userData = {
+      const userData: Record<string, unknown> = {
         ...formData,
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -81,12 +86,23 @@ export function CreateUserModal({ isOpen, onClose, onCreated }: CreateUserModalP
         specialties: formData.specialties || [],
         languages: formData.languages || [],
         yearsOfExperience: formData.yearsOfExperience || 0,
-        hourlyRate: formData.hourlyRate || 0,
+        hourlyRate: formData.role === 'instructor' ? formData.payTeachRate || 0 : formData.hourlyRate || 0,
         qualifications: formData.qualifications.trim(),
         createdAt: new Date().toISOString()
       };
 
-      await createUser(userData);
+      if (formData.role === 'instructor') {
+        userData.instructorPay = {
+          baseRatePerHour: formData.payBaseRate || 0,
+          teachRatePerHour: formData.payTeachRate || 0
+        };
+      }
+
+      if (formData.role === 'student') {
+        Object.assign(userData, studentSkillLevelUserFields(String(formData.level)));
+      }
+
+      await createUser(userData as Omit<User, 'id'>);
       onCreated();
       onClose();
       
@@ -102,6 +118,8 @@ export function CreateUserModal({ isOpen, onClose, onCreated }: CreateUserModalP
         languages: [],
         yearsOfExperience: 0,
         hourlyRate: 0,
+        payBaseRate: 0,
+        payTeachRate: 0,
         qualifications: ''
       });
       setFormErrors({});
@@ -124,27 +142,30 @@ export function CreateUserModal({ isOpen, onClose, onCreated }: CreateUserModalP
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-6 h-6" />
-          </button>
+    <ResponsiveModalPanel onClose={onClose} labelledBy="create-user-title" maxWidthClass="sm:max-w-4xl">
+      <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          aria-label="Close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Create New User</h2>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+        <h2 id="create-user-title" className="mb-4 text-2xl font-bold text-gray-900 dark:text-white sm:mb-6">
+          Create New User
+        </h2>
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
-              {error}
-            </div>
-          )}
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-red-600 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+            {error}
+          </div>
+        )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -237,18 +258,36 @@ export function CreateUserModal({ isOpen, onClose, onCreated }: CreateUserModalP
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Hourly Rate ($)
+                      Resort / non-lesson rate ($/hr)
                     </label>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
-                      value={formData.hourlyRate}
-                      onChange={(e) => handleInputChange('hourlyRate', parseFloat(e.target.value) || 0)}
+                      value={formData.payBaseRate}
+                      onChange={(e) => handleInputChange('payBaseRate', parseFloat(e.target.value) || 0)}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                         formErrors.hourlyRate ? 'border-red-300' : 'border-gray-300'
                       }`}
                     />
+                    <p className="mt-1 text-xs text-gray-500">Used when clocking in without a lesson (e.g. header / resort work).</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Lesson (teaching) rate ($/hr)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.payTeachRate}
+                      onChange={(e) => handleInputChange('payTeachRate', parseFloat(e.target.value) || 0)}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                        formErrors.hourlyRate ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Used when clocking in from a lesson row.</p>
                     {formErrors.hourlyRate && (
                       <p className="mt-1 text-sm text-red-600">{formErrors.hourlyRate}</p>
                     )}
@@ -351,23 +390,23 @@ export function CreateUserModal({ isOpen, onClose, onCreated }: CreateUserModalP
               )}
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <div className="flex flex-col gap-2 border-t border-gray-200 pt-4 dark:border-gray-800 sm:flex-row sm:justify-end sm:gap-3">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                className="w-full rounded-lg px-4 py-2.5 text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800 sm:w-auto sm:py-2"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 text-white transition-colors hover:bg-blue-700 disabled:opacity-50 sm:w-auto sm:py-2"
               >
                 {isSubmitting ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                     Creating...
                   </>
                 ) : (
@@ -376,8 +415,7 @@ export function CreateUserModal({ isOpen, onClose, onCreated }: CreateUserModalP
               </button>
             </div>
           </form>
-        </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }

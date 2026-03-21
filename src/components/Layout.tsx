@@ -135,7 +135,7 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden dark:bg-black/60"
+          className="fixed inset-0 z-nav-backdrop bg-black/50 lg:hidden dark:bg-black/60"
           onClick={() => setIsMobileMenuOpen(false)}
           aria-hidden
         />
@@ -144,7 +144,7 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
       {/* Mobile Side Menu */}
       <div
         id="mobile-menu"
-        className={`fixed bottom-0 left-0 top-14 z-50 flex w-[min(100vw-2.5rem,20rem)] flex-col border-r border-gray-200 bg-white shadow-xl transition-transform duration-200 ease-out dark:border-gray-800 dark:bg-gray-950 sm:w-80 lg:hidden ${
+        className={`fixed bottom-0 left-0 top-14 z-nav-drawer flex w-[min(100vw-2.5rem,20rem)] flex-col border-r border-gray-200 bg-white shadow-xl transition-transform duration-200 ease-out motion-reduce:transition-none dark:border-gray-800 dark:bg-gray-950 sm:w-80 lg:hidden ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

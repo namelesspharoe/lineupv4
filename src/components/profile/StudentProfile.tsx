@@ -24,6 +24,7 @@ import {
 import { doc, updateDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { AvatarUpload } from '../common/AvatarUpload';
+import { getStudentSkillLevel, studentSkillLevelUserFields } from '../../utils/studentSkillLevel';
 
 interface StudentProfileProps {
   student: User;
@@ -70,6 +71,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
   useEffect(() => {
     setEditedProfile(student);
   }, [student]);
+
+  const displayStudentLevel = getStudentSkillLevel(student);
 
   const loadStudentStats = async () => {
     try {
@@ -149,7 +152,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
         totalLessons,
         completedLessons,
         averageRating: Math.round(averageRating * 10) / 10,
-        currentLevel: progress?.level || 'first_time',
+        currentLevel: progress?.level ?? getStudentSkillLevel(student),
         totalAchievements: achievements.length,
         lessonsThisMonth,
         favoriteInstructors,
@@ -173,13 +176,18 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
       if (editedProfile.bio !== undefined) updateData.bio = editedProfile.bio;
       if (editedProfile.phone !== undefined) updateData.phone = editedProfile.phone;
       if (editedProfile.address !== undefined) updateData.address = editedProfile.address;
-      if (editedProfile.level !== undefined) updateData.level = editedProfile.level;
+      if (editedProfile.level !== undefined) {
+        Object.assign(updateData, studentSkillLevelUserFields(String(editedProfile.level)));
+      }
       if (editedProfile.avatar !== undefined) updateData.avatar = editedProfile.avatar;
       
       await updateDoc(userRef, updateData);
 
-      // Update the local student state to reflect changes immediately
-      const updatedStudent = { ...student, ...editedProfile };
+      const levelPatch =
+        editedProfile.level !== undefined
+          ? studentSkillLevelUserFields(String(editedProfile.level))
+          : {};
+      const updatedStudent = { ...student, ...editedProfile, ...levelPatch };
       onUpdate?.(updatedStudent);
       setIsEditing(false);
     } catch (error) {
@@ -278,8 +286,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                 {student.name}
               </h1>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getLevelColor(student.level || 'first_time')}`}>
-                {getLevelDisplayName(student.level || 'first_time')}
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getLevelColor(displayStudentLevel)}`}>
+                {getLevelDisplayName(displayStudentLevel)}
               </span>
             </div>
             <p className="text-gray-600 dark:text-gray-300">
@@ -385,7 +393,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
             <span className="text-sm text-gray-600 dark:text-gray-300">Current Level</span>
           </div>
           <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
-            {getLevelDisplayName(student.level || 'first_time')}
+            {getLevelDisplayName(displayStudentLevel)}
           </p>
         </div>
         
@@ -517,7 +525,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
             </h3>
             {isEditing ? (
               <select
-                value={editedProfile.level || 'first_time'}
+                value={getStudentSkillLevel(editedProfile)}
                 onChange={(e) => handleInputChange('level', e.target.value)}
                 className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
@@ -529,8 +537,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
               </select>
             ) : (
               <div className="flex items-center space-x-3">
-                <span className={`px-3 py-2 rounded-full text-sm font-medium ${getLevelColor(student.level || 'first_time')}`}>
-                  {getLevelDisplayName(student.level || 'first_time')}
+                <span className={`px-3 py-2 rounded-full text-sm font-medium ${getLevelColor(displayStudentLevel)}`}>
+                  {getLevelDisplayName(displayStudentLevel)}
                 </span>
                 <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div 
@@ -538,7 +546,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                     style={{ 
                       width: `${(() => {
                         const levels = ['first_time', 'developing_turns', 'linking_turns', 'confident_turns', 'consistent_blue'];
-                        const currentIndex = levels.indexOf(student.level || 'first_time');
+                        const currentIndex = levels.indexOf(displayStudentLevel);
                         return ((currentIndex + 1) / levels.length) * 100;
                       })()}%` 
                     }}

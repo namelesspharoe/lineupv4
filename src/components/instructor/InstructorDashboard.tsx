@@ -76,6 +76,7 @@ export function InstructorDashboard({ user }: { user: User }) {
         <div className="mt-6 flex justify-end">
           <ClockInOutButton
             instructorId={user.id}
+            instructor={user}
             onClockIn={() => {
               const loadTimeEntries = async () => {
                 const startDate = new Date();

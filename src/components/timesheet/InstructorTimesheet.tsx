@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TimeEntry } from '../../types';
 import { getTimeEntries } from '../../services/timesheet';
+import { payCategoryLabel, resolvePayCategory } from '../../utils/instructorPayroll';
 import { TimesheetAnalytics } from './TimesheetAnalytics';
 
 interface InstructorTimesheetProps {
@@ -144,7 +145,10 @@ export function InstructorTimesheet({ instructorId }: InstructorTimesheetProps) 
                         {totalBreakTime > 0 ? `${totalBreakTime} mins` : '-'}
                       </td>
                       <td className="py-3 px-4">
-                        {entry.hourlyRate ? `$${entry.hourlyRate}/hr` : '-'}
+                        <div className="text-xs text-gray-500">
+                          {payCategoryLabel(entry.payCategory ?? resolvePayCategory(entry.lessonId))}
+                        </div>
+                        <div>{entry.hourlyRate != null ? `$${entry.hourlyRate}/hr` : '—'}</div>
                       </td>
                       <td className="py-3 px-4">
                         {entry.totalEarnings ? `$${entry.totalEarnings.toFixed(2)}` : '-'}

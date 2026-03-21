@@ -42,6 +42,7 @@ import { useAuth } from '../../context/AuthContext';
 import { collection, query, getDocs, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Lesson, StudentReview, User as UserType, StudentProgress, Achievement } from '../../types';
+import { ResponsiveModalPanel } from '../common/ResponsiveModalPanel';
 
 interface Student {
   id: string;
@@ -353,11 +354,9 @@ export function StudentProfileModal({ student, onClose }: StudentProfileModalPro
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full overflow-hidden">
+    <>
+      <ResponsiveModalPanel onClose={onClose} labelledBy="student-profile-modal-title" maxWidthClass="sm:max-w-4xl">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
           {/* Header Image */}
           <div className="relative h-64">
             <img
@@ -386,7 +385,9 @@ export function StudentProfileModal({ student, onClose }: StudentProfileModalPro
               <div className="flex-1">
                 <div className="flex items-start justify-between mb-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{student.name}</h2>
+                    <h2 id="student-profile-modal-title" className="mb-2 text-2xl font-bold text-gray-900">
+                      {student.name}
+                    </h2>
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1">
                         <GraduationCap className="w-4 h-4 text-gray-500" />
@@ -682,30 +683,36 @@ export function StudentProfileModal({ student, onClose }: StudentProfileModalPro
               </div>
             </div>
           </div>
-                 </div>
-       </div>
+        </div>
+      </ResponsiveModalPanel>
 
-       {/* Lesson Details Modal */}
-       {selectedLesson && (
-         <div className="fixed inset-0 z-50 overflow-y-auto">
-           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedLesson(null)} />
-           
-           <div className="relative min-h-screen flex items-center justify-center p-4">
-             <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full">
-               <button
-                 onClick={() => setSelectedLesson(null)}
-                 className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
-               >
-                 <X className="w-6 h-6" />
-               </button>
+      {selectedLesson && (
+        <ResponsiveModalPanel
+          onClose={() => setSelectedLesson(null)}
+          labelledBy="student-profile-lesson-detail-title"
+          maxWidthClass="sm:max-w-2xl"
+          nested
+        >
+          <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+            <button
+              type="button"
+              onClick={() => setSelectedLesson(null)}
+              className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              aria-label="Close"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
 
-               <div className="p-6">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
                  <div className="flex items-center gap-4 mb-6">
                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                      <Calendar className="w-6 h-6 text-blue-600" />
                    </div>
                    <div className="flex-1">
-                     <h2 className="text-2xl font-bold text-gray-900">{selectedLesson.title}</h2>
+                     <h2 id="student-profile-lesson-detail-title" className="text-2xl font-bold text-gray-900">
+                       {selectedLesson.title}
+                     </h2>
                      <p className="text-gray-600">
                        {new Date(selectedLesson.date).toLocaleDateString(undefined, {
                          weekday: 'long',
@@ -988,14 +995,12 @@ export function StudentProfileModal({ student, onClose }: StudentProfileModalPro
                       </div>
                     </div>
                   )}
-               </div>
-             </div>
-           </div>
-         </div>
-       )}
-     </div>
-   );
- }
+          </div>
+        </ResponsiveModalPanel>
+      )}
+    </>
+  );
+}
 
 // Helper function to get next level
 function getNextLevel(currentLevel: string): string {

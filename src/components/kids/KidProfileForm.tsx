@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { KidProfile } from '../../types';
 import { createKidProfile, updateKidProfile } from '../../services/kids';
 import { X } from 'lucide-react';
+import { ResponsiveModalPanel } from '../common/ResponsiveModalPanel';
 
 interface KidProfileFormProps {
   parentId: string;
@@ -30,7 +31,7 @@ export function KidProfileForm({ parentId, existingProfile, onClose, onSave }: K
     }
   );
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
 
@@ -55,45 +56,49 @@ export function KidProfileForm({ parentId, existingProfile, onClose, onSave }: K
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-6 h-6" />
-          </button>
+    <ResponsiveModalPanel onClose={onClose} labelledBy="kid-profile-form-title">
+      <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          aria-label="Close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">
-            {existingProfile ? 'Edit Kid Profile' : 'Add Kid Profile'}
-          </h2>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+        <h2
+          id="kid-profile-form-title"
+          className="mb-4 text-xl font-bold text-gray-900 dark:text-white sm:mb-6 sm:text-2xl"
+        >
+          {existingProfile ? 'Edit Kid Profile' : 'Add Kid Profile'}
+        </h2>
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg">
-              {error}
-            </div>
-          )}
+        {error && (
+          <div className="mb-6 rounded-lg bg-red-50 p-4 text-red-600 dark:bg-red-900/30 dark:text-red-300">
+            {error}
+          </div>
+        )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Name
                 </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Age
                 </label>
                 <input
@@ -102,52 +107,52 @@ export function KidProfileForm({ parentId, existingProfile, onClose, onSave }: K
                   max="18"
                   value={formData.age}
                   onChange={(e) => setFormData(prev => ({ ...prev, age: parseInt(e.target.value) }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Helmet Color
                 </label>
                 <input
                   type="color"
                   value={formData.helmet_color}
                   onChange={(e) => setFormData(prev => ({ ...prev, helmet_color: e.target.value }))}
-                  className="w-full h-10 px-1 py-1 border border-gray-300 rounded-lg"
+                  className="h-10 w-full rounded-lg border border-gray-300 px-1 py-1 dark:border-gray-600"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Jacket Color
                 </label>
                 <input
                   type="color"
                   value={formData.jacket_color}
                   onChange={(e) => setFormData(prev => ({ ...prev, jacket_color: e.target.value }))}
-                  className="w-full h-10 px-1 py-1 border border-gray-300 rounded-lg"
+                  className="h-10 w-full rounded-lg border border-gray-300 px-1 py-1 dark:border-gray-600"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Pants Color
                 </label>
                 <input
                   type="color"
                   value={formData.pants_color}
                   onChange={(e) => setFormData(prev => ({ ...prev, pants_color: e.target.value }))}
-                  className="w-full h-10 px-1 py-1 border border-gray-300 rounded-lg"
+                  className="h-10 w-full rounded-lg border border-gray-300 px-1 py-1 dark:border-gray-600"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Skill Level
                 </label>
                 <select
@@ -156,7 +161,7 @@ export function KidProfileForm({ parentId, existingProfile, onClose, onSave }: K
                     ...prev, 
                     level: e.target.value as KidProfile['level']
                   }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                 >
                   <option value="first_time">First Time</option>
                   <option value="developing_turns">Developing Turns</option>
@@ -167,20 +172,20 @@ export function KidProfileForm({ parentId, existingProfile, onClose, onSave }: K
               </div>
 
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Allergies
                 </label>
                 <textarea
                   value={formData.allergies}
                   onChange={(e) => setFormData(prev => ({ ...prev, allergies: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                   rows={3}
                   placeholder="List any allergies or medical conditions..."
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Emergency Contact Name
                 </label>
                 <input
@@ -190,13 +195,13 @@ export function KidProfileForm({ parentId, existingProfile, onClose, onSave }: K
                     ...prev, 
                     emergency_contact_name: e.target.value 
                   }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Emergency Contact Phone
                 </label>
                 <input
@@ -206,13 +211,13 @@ export function KidProfileForm({ parentId, existingProfile, onClose, onSave }: K
                     ...prev, 
                     emergency_contact_phone: e.target.value 
                   }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Emergency Contact Relationship
                 </label>
                 <input
@@ -222,31 +227,30 @@ export function KidProfileForm({ parentId, existingProfile, onClose, onSave }: K
                     ...prev, 
                     emergency_contact_relationship: e.target.value 
                   }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                   required
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="w-full rounded-lg px-4 py-2.5 text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 sm:w-auto sm:py-2"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="w-full rounded-lg bg-blue-600 px-6 py-2.5 text-white transition-colors hover:bg-blue-700 disabled:opacity-50 sm:w-auto sm:py-2"
               >
-                {isSubmitting ? 'Saving...' : (existingProfile ? 'Save Changes' : 'Add Profile')}
+                {isSubmitting ? 'Saving...' : existingProfile ? 'Save Changes' : 'Add Profile'}
               </button>
             </div>
           </form>
-        </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { User, Conversation, GroupSettings } from '../../types';
+import { ResponsiveModalPanel } from '../common/ResponsiveModalPanel';
 import { 
   getGroupMembers, 
   addGroupMember, 
@@ -164,27 +165,28 @@ export function GroupSettingsModal({
   if (!isOpen || !conversation.isGroup) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <Settings className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
-            <div>
-              <h2 className="text-lg md:text-xl font-semibold text-gray-900">Group Settings</h2>
-              <p className="text-sm text-gray-500">{conversation.groupName}</p>
-            </div>
+    <ResponsiveModalPanel onClose={onClose} labelledBy="group-settings-title" maxWidthClass="sm:max-w-2xl">
+      <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:p-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <Settings className="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400 sm:h-6 sm:w-6" />
+          <div className="min-w-0">
+            <h2 id="group-settings-title" className="text-lg font-semibold text-gray-900 dark:text-white md:text-xl">
+              Group Settings
+            </h2>
+            <p className="truncate text-sm text-gray-500 dark:text-gray-400">{conversation.groupName}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="w-5 h-5 md:w-6 md:h-6" />
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300"
+        >
+          <X className="h-5 w-5 md:h-6 md:w-6" />
+        </button>
+      </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 dark:bg-gray-900 md:p-6 sm:pt-24">
           <div className="space-y-6">
             {/* Group Settings */}
             <div>
@@ -360,32 +362,31 @@ export function GroupSettingsModal({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 md:p-6 border-t border-gray-200">
-          {error && (
-            <p className="text-red-600 text-sm mb-3">{error}</p>
-          )}
-          <div className="flex gap-3">
+        <div className="shrink-0 border-t border-gray-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:border-gray-800 dark:bg-gray-900 md:p-6 sm:pb-6">
+          {error && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
             <button
+              type="button"
               onClick={onClose}
-              className="flex-1 py-2 px-4 text-gray-600 hover:text-gray-800 transition-colors text-sm md:text-base"
+              className="w-full py-2.5 px-4 text-sm text-gray-600 transition-colors hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 md:text-base sm:flex-1 sm:py-2"
             >
               Cancel
             </button>
             {isAdmin && (
               <button
+                type="button"
                 onClick={handleSaveSettings}
                 disabled={isSaving}
-                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base flex items-center justify-center gap-2"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-2.5 px-4 text-sm text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-base sm:flex-1 sm:py-2"
               >
                 {isSaving ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     Saving...
                   </>
                 ) : (
                   <>
-                    <Save className="w-4 h-4" />
+                    <Save className="h-4 w-4" />
                     Save Settings
                   </>
                 )}
@@ -394,6 +395,6 @@ export function GroupSettingsModal({
           </div>
         </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Calendar, Clock, Users, Target, DollarSign, Info, Check, AlertCircle } from 'lucide-react';
+import { ResponsiveModalPanel } from '../common/ResponsiveModalPanel';
 import { createLesson } from '../../services/lessons';
 import { getAvailabilityByInstructorId } from '../../services/availability';
 import { useAuth } from '../../context/AuthContext';
@@ -20,6 +21,7 @@ interface BookingForm {
   type: 'private' | 'group';
   date: string;
   sessionType: 'morning' | 'afternoon' | 'full_day';
+  sport: 'skiing' | 'snowboarding';
   participants: number;
   skillLevel: 'first_time' | 'developing_turns' | 'linking_turns' | 'confident_turns' | 'consistent_blue';
   focus: string[];
@@ -51,6 +53,7 @@ export function BookLessonModal({ isOpen, onClose, instructor }: BookLessonModal
     type: 'private',
     date: '',
     sessionType: 'morning',
+    sport: 'skiing',
     participants: 1,
     skillLevel: 'first_time',
     focus: [],
@@ -185,6 +188,7 @@ export function BookLessonModal({ isOpen, onClose, instructor }: BookLessonModal
         instructorId: instructor.id,
         studentIds: [user.id],
         date: formData.date,
+        sport: formData.sport,
         sessionType: formData.sessionType,
         startTime: timeRange.startTime,
         endTime: timeRange.endTime,
@@ -214,37 +218,43 @@ export function BookLessonModal({ isOpen, onClose, instructor }: BookLessonModal
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
+    <ResponsiveModalPanel onClose={onClose} labelledBy="book-lesson-title" maxWidthClass="sm:max-w-2xl">
+      <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          aria-label="Close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-          {success ? (
-            <div className="p-8 text-center">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+        {success ? (
+            <div className="p-6 text-center sm:p-8">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check className="w-8 h-8 text-green-600" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">Booking Confirmed!</h3>
+              <h3 id="book-lesson-title" className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">
+                Booking Confirmed!
+              </h3>
               <p className="text-gray-600 mb-6">
                 Your lesson has been successfully booked with {instructor.name}.
               </p>
               <button
+                type="button"
                 onClick={onClose}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="rounded-lg bg-blue-600 px-6 py-2 text-white transition-colors hover:bg-blue-700"
               >
                 Done
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Book a Lesson</h2>
+            <form onSubmit={handleSubmit} className="p-2 sm:p-6 sm:pt-0">
+              <h2 id="book-lesson-title" className="mb-6 text-2xl font-bold text-gray-900 dark:text-white">
+                Book a Lesson
+              </h2>
 
               {error && (
                 <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg flex items-center gap-2">
@@ -289,6 +299,33 @@ export function BookLessonModal({ isOpen, onClose, instructor }: BookLessonModal
                               : 'Learn with others at similar skill level'
                             }
                           </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Discipline</label>
+                    <p className="mb-2 text-xs text-gray-500">Ski and snowboard progress are tracked separately.</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {(
+                        [
+                          { id: 'skiing' as const, label: 'Skiing', icon: '⛷️' },
+                          { id: 'snowboarding' as const, label: 'Snowboarding', icon: '🏂' }
+                        ] as const
+                      ).map(opt => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, sport: opt.id }))}
+                          className={`rounded-lg border-2 p-3 text-left ${
+                            formData.sport === opt.id
+                              ? 'border-blue-600 bg-blue-50 text-blue-900'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <span className="text-xl">{opt.icon}</span>
+                          <div className="mt-1 text-sm font-medium">{opt.label}</div>
                         </button>
                       ))}
                     </div>
@@ -473,8 +510,7 @@ export function BookLessonModal({ isOpen, onClose, instructor }: BookLessonModal
               )}
             </form>
           )}
-        </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }

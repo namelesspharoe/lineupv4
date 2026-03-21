@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Snowflake, Menu, X } from 'lucide-react';
 import { LoginForm } from './LoginForm';
+import { ResponsiveModalPanel } from './common/ResponsiveModalPanel';
 
 export function PublicHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -102,20 +103,25 @@ export function PublicHeader() {
       </header>
 
       {showLogin && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setShowLogin(false)} />
-          <div className="relative min-h-screen flex items-center justify-center p-4">
-            <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-8">
-              <button
-                onClick={() => setShowLogin(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-6 w-6" />
-              </button>
-              <LoginForm />
-            </div>
+        <ResponsiveModalPanel
+          onClose={() => setShowLogin(false)}
+          ariaLabel="Sign in"
+          maxWidthClass="sm:max-w-md"
+        >
+          <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+            <button
+              type="button"
+              onClick={() => setShowLogin(false)}
+              className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              aria-label="Close"
+            >
+              <X className="h-6 w-6" />
+            </button>
           </div>
-        </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-6 sm:px-8 sm:pb-8 sm:pt-16">
+            <LoginForm />
+          </div>
+        </ResponsiveModalPanel>
       )}
     </>
   );

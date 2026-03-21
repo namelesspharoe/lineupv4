@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Search, UserPlus, AlertCircle } from 'lucide-react';
+import { ResponsiveModalPanel } from '../../common/ResponsiveModalPanel';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { User } from '../../../types';
@@ -108,28 +109,31 @@ export function AddStudentModal({ isOpen, onClose, lessonId, currentStudentIds, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
-      
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-          <button
-            onClick={handleClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-6 h-6" />
-          </button>
+    <ResponsiveModalPanel onClose={handleClose} labelledBy="add-student-title" maxWidthClass="sm:max-w-md">
+      <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+        <button
+          type="button"
+          onClick={handleClose}
+          className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          aria-label="Close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Add Student to Lesson</h2>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+        <h2 id="add-student-title" className="mb-4 text-2xl font-bold text-gray-900 dark:text-white sm:mb-6">
+          Add Student to Lesson
+        </h2>
 
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 text-red-600 rounded-lg border border-red-200 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+        {error && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-red-600 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
-          <div className="relative mb-6">
+        <div className="relative mb-6">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
@@ -204,15 +208,14 @@ export function AddStudentModal({ isOpen, onClose, lessonId, currentStudentIds, 
             )}
           </div>
 
-          {currentStudentIds.length > 0 && (
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-blue-800">
-                <strong>{currentStudentIds.length}</strong> of <strong>{maxStudents}</strong> students currently enrolled
-              </p>
-            </div>
-          )}
-        </div>
+        {currentStudentIds.length > 0 && (
+          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/40">
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              <strong>{currentStudentIds.length}</strong> of <strong>{maxStudents}</strong> students currently enrolled
+            </p>
+          </div>
+        )}
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }

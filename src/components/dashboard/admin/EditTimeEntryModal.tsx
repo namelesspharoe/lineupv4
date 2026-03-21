@@ -1,9 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { X, Save, AlertTriangle } from 'lucide-react';
+import { ResponsiveModalPanel } from '../../common/ResponsiveModalPanel';
 import { format, parseISO } from 'date-fns';
 import { updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { TimeEntry, User as UserType } from '../../../types';
+import { NON_LESSON_TIME_ENTRY_ID } from '../../../constants/timeEntry';
+import {
+  computeBillableHours,
+  computeEarningsFromHours,
+  payCategoryLabel,
+  resolveHourlyRateForEntry,
+  resolvePayCategory
+} from '../../../utils/instructorPayroll';
 
 interface EditTimeEntryModalProps {
   isOpen: boolean;
@@ -18,6 +27,7 @@ export function EditTimeEntryModal({ isOpen, onClose, timeEntry, onUpdated }: Ed
   const [formData, setFormData] = useState({
     clockIn: '',
     clockOut: '',
+    lessonId: timeEntry.lessonId || NON_LESSON_TIME_ENTRY_ID,
     hourlyRate: timeEntry.hourlyRate || 0,
     notes: timeEntry.notes || '',
     status: timeEntry.status,
@@ -41,7 +51,7 @@ export function EditTimeEntryModal({ isOpen, onClose, timeEntry, onUpdated }: Ed
     }
   }, [timeEntry]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     
     if (!timeEntry) return;
@@ -59,12 +69,23 @@ export function EditTimeEntryModal({ isOpen, onClose, timeEntry, onUpdated }: Ed
         throw new Error('Clock out time must be after clock in time');
       }
 
+      const normalizedLessonId =
+        formData.lessonId.trim() === '' ? NON_LESSON_TIME_ENTRY_ID : formData.lessonId.trim();
+      const payCategory = resolvePayCategory(normalizedLessonId);
+      const appliedRate =
+        timeEntry.instructor != null
+          ? resolveHourlyRateForEntry(normalizedLessonId, timeEntry.instructor)
+          : formData.hourlyRate;
+
       // Prepare update data
       const updateData: Record<string, unknown> = {
         updatedAt: new Date().toISOString(),
         notes: formData.notes,
         status: formData.status,
-        hourlyRate: formData.hourlyRate
+        lessonId: normalizedLessonId,
+        payCategory,
+        appliedRatePerHour: appliedRate,
+        hourlyRate: appliedRate
       };
 
       // Update clock in/out times if changed
@@ -88,18 +109,16 @@ export function EditTimeEntryModal({ isOpen, onClose, timeEntry, onUpdated }: Ed
         };
       }
 
-      // Recalculate total earnings if times or hourly rate changed
-      if (updateData.clockIn || updateData.clockOut || updateData.hourlyRate) {
-        const clockIn = updateData.clockIn || timeEntry.clockIn;
-        const clockOut = updateData.clockOut || timeEntry.clockOut;
-        const hourlyRate = updateData.hourlyRate || timeEntry.hourlyRate;
+      // Recalculate total earnings (billable hours minus breaks) when times or rate/lesson changed
+      const clockInIso = (updateData.clockIn as string | undefined) || timeEntry.clockIn;
+      const clockOutIso =
+        updateData.clockOut !== undefined
+          ? (updateData.clockOut as string | null | undefined) || undefined
+          : timeEntry.clockOut;
 
-        if (clockOut && hourlyRate) {
-          const startTime = new Date(clockIn);
-          const endTime = new Date(clockOut);
-          const hoursWorked = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-          updateData.totalEarnings = hoursWorked * hourlyRate;
-        }
+      if (clockOutIso && appliedRate != null) {
+        const billable = computeBillableHours(clockInIso, clockOutIso, timeEntry.breaks);
+        updateData.totalEarnings = computeEarningsFromHours(billable, appliedRate);
       }
 
       // Update the document
@@ -156,30 +175,27 @@ export function EditTimeEntryModal({ isOpen, onClose, timeEntry, onUpdated }: Ed
   if (!isOpen || !timeEntry) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-          {/* Header */}
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 rounded-t-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Edit Time Entry</h2>
-                <p className="text-sm text-gray-600">
-                  {timeEntry.instructor?.name || 'Unknown Instructor'} • {format(parseISO(timeEntry.clockIn), 'MMM d, yyyy')}
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+    <ResponsiveModalPanel onClose={onClose} labelledBy="edit-time-entry-title" maxWidthClass="sm:max-w-2xl">
+      <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          aria-label="Close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+        <h2 id="edit-time-entry-title" className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
+          Edit Time Entry
+        </h2>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          {timeEntry.instructor?.name || 'Unknown Instructor'} • {format(parseISO(timeEntry.clockIn), 'MMM d, yyyy')}
+        </p>
+
+        <form onSubmit={handleSubmit} className="mt-6 space-y-6">
             {/* Error Message */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -214,6 +230,12 @@ export function EditTimeEntryModal({ isOpen, onClose, timeEntry, onUpdated }: Ed
                     {timeEntry.totalEarnings ? `$${timeEntry.totalEarnings.toFixed(2)}` : 'Not calculated'}
                   </div>
                 </div>
+                <div className="col-span-2">
+                  <span className="text-gray-600">Pay type:</span>
+                  <div className="font-medium">
+                    {payCategoryLabel(timeEntry.payCategory ?? resolvePayCategory(timeEntry.lessonId))}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -245,18 +267,51 @@ export function EditTimeEntryModal({ isOpen, onClose, timeEntry, onUpdated }: Ed
                 <p className="text-xs text-gray-500 mt-1">Leave empty if still active</p>
               </div>
 
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Lesson ID (Firestore doc id)
+                </label>
+                <input
+                  type="text"
+                  value={formData.lessonId}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFormData((prev) => {
+                      const raw = v.trim();
+                      const id = raw === '' ? NON_LESSON_TIME_ENTRY_ID : raw;
+                      const next: typeof prev = { ...prev, lessonId: v };
+                      if (timeEntry.instructor) {
+                        next.hourlyRate = resolveHourlyRateForEntry(id, timeEntry.instructor);
+                      }
+                      return next;
+                    });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                  placeholder={NON_LESSON_TIME_ENTRY_ID}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Use <span className="font-mono">{NON_LESSON_TIME_ENTRY_ID}</span> or leave empty for resort / non-lesson time. Paste a lesson document id to link this entry to that lesson.
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Hourly Rate ($)
+                  {timeEntry.instructor ? 'Hourly rate (from profile)' : 'Hourly rate ($)'}
                 </label>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
                   value={formData.hourlyRate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, hourlyRate: parseFloat(e.target.value) || 0 }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, hourlyRate: parseFloat(e.target.value) || 0 }))
+                  }
+                  readOnly={!!timeEntry.instructor}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent read-only:bg-gray-50 read-only:cursor-not-allowed"
                 />
+                {timeEntry.instructor && (
+                  <p className="text-xs text-gray-500 mt-1">Updates when you change the lesson id (teach vs resort rates).</p>
+                )}
               </div>
 
               <div>
@@ -304,11 +359,11 @@ export function EditTimeEntryModal({ isOpen, onClose, timeEntry, onUpdated }: Ed
             )}
 
             {/* Action Buttons */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <div className="flex flex-col gap-2 border-t border-gray-200 pt-4 dark:border-gray-800 sm:flex-row sm:justify-end sm:gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 sm:w-auto sm:py-2"
                 disabled={isLoading}
               >
                 Cancel
@@ -316,15 +371,14 @@ export function EditTimeEntryModal({ isOpen, onClose, timeEntry, onUpdated }: Ed
               <button
                 type="submit"
                 disabled={isLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-white transition-colors hover:bg-blue-700 disabled:opacity-50 sm:w-auto sm:py-2"
               >
-                <Save className="w-4 h-4" />
+                <Save className="h-4 w-4" />
                 {isLoading ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </form>
-        </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }

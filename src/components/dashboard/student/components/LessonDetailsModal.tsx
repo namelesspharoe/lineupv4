@@ -13,6 +13,9 @@ import { db } from '../../../../lib/firebase';
 import { StudentProfileModal } from '../../../student/StudentProfileModal';
 import { StudentSearch } from '../../../common/StudentSearch';
 import { ResponsiveModalPanel } from '../../../common/ResponsiveModalPanel';
+import { StudentReviewForm } from '../../../lessons/StudentReviewForm';
+import { CancelLessonModal } from './CancelLessonModal';
+import { formatSkillLabel, getSkillDescription } from '../../../../utils/skillDescriptions';
 
 interface LessonDetailsModalProps {
   lesson: (Lesson & { instructor?: User }) | null;
@@ -22,6 +25,8 @@ interface LessonDetailsModalProps {
 
 export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDetailsModalProps) {
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const [showStudentReviewForm, setShowStudentReviewForm] = useState(false);
+  const [showCancelLessonModal, setShowCancelLessonModal] = useState(false);
   const [feedbackStudentId, setFeedbackStudentId] = useState<string | null>(null);
   const [selectedInstructor, setSelectedInstructor] = useState<User | null>(null);
   const [students, setStudents] = useState<User[]>([]);
@@ -33,8 +38,20 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
   const [feedbackDetails, setFeedbackDetails] = useState<LessonFeedback[] | null>(null);
   const [studentIdsWithFeedback, setStudentIdsWithFeedback] = useState<Set<string>>(new Set());
   const [feedbackToEdit, setFeedbackToEdit] = useState<LessonFeedback | null>(null);
+  const [skillTipModal, setSkillTipModal] = useState<{ title: string; body: string } | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  const openSkillDescription = (raw: string) => {
+    setSkillTipModal({
+      title: formatSkillLabel(raw),
+      body: getSkillDescription(raw)
+    });
+  };
+
+  useEffect(() => {
+    setSkillTipModal(null);
+  }, [lesson?.id]);
 
   const handleMessageInstructor = () => {
     if (!lesson?.instructor) return;
@@ -169,6 +186,20 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
     user?.role === 'instructor' &&
     (lesson.status === 'in_progress' || lesson.status === 'completed') &&
     studentCount > 0;
+  const studentIdForReview = user?.role === 'student' && user?.id ? user.id : null;
+  const enrolledAsStudent = Boolean(
+    studentIdForReview && (lesson.studentIds ?? []).includes(studentIdForReview)
+  );
+  const alreadyLeftStudentReview = Boolean(
+    studentIdForReview &&
+      (lesson.studentReviews ?? []).some((r) => r.studentId === studentIdForReview)
+  );
+  const canLeaveStudentReview = Boolean(
+    studentIdForReview &&
+      enrolledAsStudent &&
+      lesson.status === 'completed' &&
+      !alreadyLeftStudentReview
+  );
   const hasFeedback = lesson.feedback && lesson.feedback.length > 0;
 
   // Students only see their own feedback; instructors see all
@@ -289,43 +320,52 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                       day: 'numeric'
                     })}
                   </p>
+                  <p className="mt-1 text-sm font-medium text-gray-800 dark:text-gray-200">
+                    {lesson.sport === 'snowboarding' ? 'Snowboard' : 'Ski'}
+                  </p>
                 </div>
               </div>
 
-              {/* Lesson Details Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 mb-1">
-                    <Clock className="w-4 h-4" />
+              {/* Lesson Details Grid — 2×2 on all breakpoints; compact on small screens */}
+              <div className="mb-6 grid grid-cols-2 gap-2 sm:gap-3 md:gap-4">
+                <div className="rounded-lg bg-gray-50 p-2 dark:bg-gray-800 sm:p-3 md:p-4">
+                  <div className="mb-0.5 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 sm:mb-1 sm:gap-2 sm:text-sm">
+                    <Clock className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
                     <span>Time</span>
                   </div>
-                  <p className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                  <p className="break-words text-sm font-medium leading-snug text-gray-900 dark:text-gray-100 sm:text-base md:text-lg">
                     {lesson.startTime && lesson.endTime ? `${lesson.startTime} - ${lesson.endTime}` : 'Time not specified'}
                   </p>
                 </div>
 
-                <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 mb-1">
-                    <Target className="w-4 h-4" />
-                    <span>Skill Level</span>
+                <div className="rounded-lg bg-gray-50 p-2 dark:bg-gray-800 sm:p-3 md:p-4">
+                  <div className="mb-0.5 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 sm:mb-1 sm:gap-2 sm:text-sm">
+                    <Target className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                    <span className="leading-tight">Skill level</span>
                   </div>
-                  <p className="text-lg font-medium text-gray-900 dark:text-gray-100">{lesson.skillLevel}</p>
+                  <p className="break-words text-sm font-medium leading-snug text-gray-900 dark:text-gray-100 sm:text-base md:text-lg">
+                    {lesson.skillLevel?.replace(/_/g, ' ') ?? '—'}
+                  </p>
                 </div>
 
-                <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 mb-1">
-                    <Users className="w-4 h-4" />
+                <div className="rounded-lg bg-gray-50 p-2 dark:bg-gray-800 sm:p-3 md:p-4">
+                  <div className="mb-0.5 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 sm:mb-1 sm:gap-2 sm:text-sm">
+                    <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
                     <span>Type</span>
                   </div>
-                  <p className="text-lg font-medium text-gray-900 dark:text-gray-100">{lesson.type}</p>
+                  <p className="break-words text-sm font-medium capitalize leading-snug text-gray-900 dark:text-gray-100 sm:text-base md:text-lg">
+                    {lesson.type}
+                  </p>
                 </div>
 
-                <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 mb-1">
-                    <MapPin className="w-4 h-4" />
+                <div className="rounded-lg bg-gray-50 p-2 dark:bg-gray-800 sm:p-3 md:p-4">
+                  <div className="mb-0.5 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 sm:mb-1 sm:gap-2 sm:text-sm">
+                    <MapPin className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
                     <span>Location</span>
                   </div>
-                  <p className="text-lg font-medium text-gray-900 dark:text-gray-100">Main Lodge</p>
+                  <p className="break-words text-sm font-medium leading-snug text-gray-900 dark:text-gray-100 sm:text-base md:text-lg">
+                    Main Lodge
+                  </p>
                 </div>
               </div>
 
@@ -571,6 +611,14 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                           </button>
                         )}
                       </div>
+                      {(Boolean(feedback.strengths?.length) ||
+                        Boolean(feedback.areasForImprovement?.length) ||
+                        Boolean(feedback.progressUpdate?.skillsImproved?.length) ||
+                        Boolean(feedback.progressUpdate?.newSkillsLearned?.length)) && (
+                        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                          Tap any skill below for a short description.
+                        </p>
+                      )}
                       {perf && (
                       <div className="mb-6">
                         <h4 className="font-medium text-gray-900 dark:text-white mb-3">Performance Assessment</h4>
@@ -638,9 +686,17 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                         {feedback.strengths && feedback.strengths.length > 0 && (
                           <div>
                             <span className="text-sm text-gray-600 dark:text-gray-400 block mb-2">Strengths:</span>
-                            <ul className="list-disc list-inside space-y-1">
+                            <ul className="list-none space-y-1 pl-0">
                               {feedback.strengths.map((strength, strengthIndex) => (
-                                <li key={strengthIndex} className="text-green-700 dark:text-green-200 bg-green-50 dark:bg-green-900/20 p-2 rounded border border-green-100 dark:border-green-800/60">{strength}</li>
+                                <li key={strengthIndex}>
+                                  <button
+                                    type="button"
+                                    onClick={() => openSkillDescription(strength)}
+                                    className="w-full rounded border border-green-100 bg-green-50 p-2 text-left text-green-700 transition hover:ring-2 hover:ring-green-400/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-green-800/60 dark:bg-green-900/20 dark:text-green-200 dark:hover:ring-green-600/35"
+                                  >
+                                    {strength}
+                                  </button>
+                                </li>
                               ))}
                             </ul>
                           </div>
@@ -649,9 +705,17 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                         {feedback.areasForImprovement && feedback.areasForImprovement.length > 0 && (
                           <div>
                             <span className="text-sm text-gray-600 dark:text-gray-400 block mb-2">Areas for Improvement:</span>
-                            <ul className="list-disc list-inside space-y-1">
+                            <ul className="list-none space-y-1 pl-0">
                               {feedback.areasForImprovement.map((area, areaIndex) => (
-                                <li key={areaIndex} className="text-orange-700 dark:text-orange-200 bg-orange-50 dark:bg-orange-900/20 p-2 rounded border border-orange-100 dark:border-orange-800/60">{area}</li>
+                                <li key={areaIndex}>
+                                  <button
+                                    type="button"
+                                    onClick={() => openSkillDescription(area)}
+                                    className="w-full rounded border border-orange-100 bg-orange-50 p-2 text-left text-orange-700 transition hover:ring-2 hover:ring-orange-400/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-orange-800/60 dark:bg-orange-900/20 dark:text-orange-200 dark:hover:ring-orange-600/35"
+                                  >
+                                    {area}
+                                  </button>
+                                </li>
                               ))}
                             </ul>
                           </div>
@@ -679,9 +743,17 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                             {feedback.progressUpdate.skillsImproved && feedback.progressUpdate.skillsImproved.length > 0 && (
                               <div>
                                 <span className="text-sm text-gray-600 dark:text-gray-400 block mb-2">Skills Improved:</span>
-                                <ul className="list-disc list-inside space-y-1">
+                                <ul className="list-none space-y-1 pl-0">
                                   {feedback.progressUpdate.skillsImproved.map((skill, skillIndex) => (
-                                    <li key={skillIndex} className="text-blue-700 dark:text-blue-200 bg-blue-50 dark:bg-blue-900/20 p-2 rounded border border-blue-100 dark:border-blue-800/60">{skill}</li>
+                                    <li key={skillIndex}>
+                                      <button
+                                        type="button"
+                                        onClick={() => openSkillDescription(skill)}
+                                        className="w-full rounded border border-blue-100 bg-blue-50 p-2 text-left text-blue-700 transition hover:ring-2 hover:ring-blue-400/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-800/60 dark:bg-blue-900/20 dark:text-blue-200 dark:hover:ring-blue-600/35"
+                                      >
+                                        {skill}
+                                      </button>
+                                    </li>
                                   ))}
                                 </ul>
                               </div>
@@ -690,9 +762,17 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                             {feedback.progressUpdate.newSkillsLearned && feedback.progressUpdate.newSkillsLearned.length > 0 && (
                               <div>
                                 <span className="text-sm text-gray-600 dark:text-gray-400 block mb-2">New Skills Learned:</span>
-                                <ul className="list-disc list-inside space-y-1">
+                                <ul className="list-none space-y-1 pl-0">
                                   {feedback.progressUpdate.newSkillsLearned.map((skill, skillIndex) => (
-                                    <li key={skillIndex} className="text-purple-700 dark:text-purple-200 bg-purple-50 dark:bg-purple-900/20 p-2 rounded border border-purple-100 dark:border-purple-800/60">{skill}</li>
+                                    <li key={skillIndex}>
+                                      <button
+                                        type="button"
+                                        onClick={() => openSkillDescription(skill)}
+                                        className="w-full rounded border border-purple-100 bg-purple-50 p-2 text-left text-purple-700 transition hover:ring-2 hover:ring-purple-400/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-purple-800/60 dark:bg-purple-900/20 dark:text-purple-200 dark:hover:ring-purple-600/35"
+                                      >
+                                        {skill}
+                                      </button>
+                                    </li>
                                   ))}
                                 </ul>
                               </div>
@@ -766,10 +846,7 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                   {canCancel && (
                     <button
                       type="button"
-                      onClick={() => {
-                        // Handle cancel
-                        onClose();
-                      }}
+                      onClick={() => setShowCancelLessonModal(true)}
                       className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-white transition-colors hover:bg-red-700 sm:w-auto sm:py-2"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -803,19 +880,94 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                   )}
 
                   {user?.role === 'student' && (
-                    <button
-                      type="button"
-                      onClick={handleMessageInstructor}
-                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-600 px-4 py-2.5 text-white transition-colors hover:bg-gray-700 sm:w-auto sm:py-2"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                      Message Instructor
-                    </button>
+                    <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+                      <button
+                        type="button"
+                        onClick={handleMessageInstructor}
+                        className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-600 px-4 py-2.5 text-white transition-colors hover:bg-gray-700 sm:w-auto sm:py-2"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        Message Instructor
+                      </button>
+                      {canLeaveStudentReview && (
+                        <button
+                          type="button"
+                          onClick={() => setShowStudentReviewForm(true)}
+                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-white transition-colors hover:bg-green-700 sm:w-auto sm:py-2"
+                        >
+                          <Star className="w-4 h-4" />
+                          Leave review
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
         </div>
       </ResponsiveModalPanel>
+
+      {skillTipModal && (
+        <ResponsiveModalPanel
+          nested
+          onClose={() => setSkillTipModal(null)}
+          labelledBy="lesson-skill-tip-title"
+          maxWidthClass="sm:max-w-lg"
+        >
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+            <h2
+              id="lesson-skill-tip-title"
+              className="pr-2 text-lg font-semibold tracking-tight text-gray-900 dark:text-white"
+            >
+              {skillTipModal.title}
+            </h2>
+            <button
+              type="button"
+              onClick={() => setSkillTipModal(null)}
+              className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="overflow-y-auto p-4 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+            {skillTipModal.body}
+          </div>
+        </ResponsiveModalPanel>
+      )}
+
+      {showCancelLessonModal && lesson && (
+        <CancelLessonModal
+          lesson={lesson}
+          onClose={() => setShowCancelLessonModal(false)}
+          onCancel={() => {
+            setShowCancelLessonModal(false);
+            onLessonUpdate();
+            onClose();
+          }}
+        />
+      )}
+
+      {showStudentReviewForm && user?.id && lesson && (
+        <ResponsiveModalPanel
+          onClose={() => setShowStudentReviewForm(false)}
+          labelledBy="student-lesson-review-title"
+        >
+          <h2 id="student-lesson-review-title" className="sr-only">
+            Rate your lesson
+          </h2>
+          <div className="max-h-[min(90dvh,40rem)] overflow-y-auto px-4 pb-6 pt-4 sm:px-6 sm:pt-6">
+            <StudentReviewForm
+              lessonId={lesson.id}
+              studentId={user.id}
+              onClose={() => setShowStudentReviewForm(false)}
+              onSubmit={() => {
+                setShowStudentReviewForm(false);
+                onLessonUpdate();
+              }}
+            />
+          </div>
+        </ResponsiveModalPanel>
+      )}
 
       {/* Instructor feedback */}
       {showReviewForm && (
@@ -824,6 +976,7 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
           studentId={feedbackStudentId ?? lesson.studentIds?.[0] ?? ''}
           isOpen={true}
           existingFeedback={feedbackToEdit}
+          defaultSport={lesson.sport ?? 'skiing'}
           onCancel={() => {
             setShowReviewForm(false);
             setFeedbackStudentId(null);

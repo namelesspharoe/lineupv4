@@ -12,10 +12,11 @@ import {
   Search,
   ChevronRight,
   Settings,
-  Shield,
   User,
-  Trophy
+  Trophy,
+  ShoppingCart
 } from 'lucide-react';
+import { useCart } from '../context/CartContext';
 
 interface NavigationProps {
   onItemClick?: () => void;
@@ -48,7 +49,9 @@ const instructorLinks = [
 const studentLinks = [
   { name: 'Dashboard', icon: BarChart2, href: '/dashboard' },
   { name: 'My Progress', icon: GraduationCap, href: '/progress' },
-  { name: 'Achievements', icon: Trophy, href: '/achievements' },
+  { name: 'Achievements', icon: Trophy, href: '/progress?tab=achievements' },
+  { name: 'Book Lesson', icon: Calendar, href: '/book-lesson' },
+  { name: 'Cart', icon: ShoppingCart, href: '/cart' },
   { name: 'Lessons', icon: BookOpen, href: '/lessons' },
   { name: 'Messages', icon: MessageSquare, href: '/messages' },
   { name: 'Profile', icon: User, href: '/profile' },
@@ -57,6 +60,7 @@ const studentLinks = [
 
 export function Navigation({ onItemClick }: NavigationProps) {
   const { user } = useAuth();
+  const { itemCount } = useCart();
   
   let links;
   if (!user) {
@@ -79,8 +83,13 @@ export function Navigation({ onItemClick }: NavigationProps) {
           className="flex items-center justify-between px-3 py-3 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 group active:bg-blue-100 dark:active:bg-blue-900/30 touch-manipulation"
         >
           <div className="flex items-center gap-4">
-            <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-colors">
+            <div className="relative p-2 rounded-lg bg-gray-100 dark:bg-gray-800 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-colors">
               <link.icon className="w-5 h-5" />
+              {link.href === '/cart' && itemCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold text-white">
+                  {itemCount > 99 ? '99+' : itemCount}
+                </span>
+              )}
             </div>
             <span className="text-sm font-medium leading-snug">{link.name}</span>
           </div>

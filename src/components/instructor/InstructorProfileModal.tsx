@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { UnifiedLessonModal } from '../lessons/UnifiedLessonModal';
 import { InstructorCalendar } from '../dashboard/instructor/InstructorCalendar';
+import { ResponsiveModalPanel } from '../common/ResponsiveModalPanel';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { collection, query, getDocs, where, doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -347,11 +348,8 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
 
   return (
     <>
-      <div className="fixed inset-0 z-50 overflow-y-auto">
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-        
-        <div className="relative min-h-screen flex items-center justify-center p-4">
-          <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full overflow-hidden">
+      <ResponsiveModalPanel onClose={onClose} labelledBy="instructor-profile-modal-title" maxWidthClass="sm:max-w-4xl">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
             {/* Header Image */}
             <div className="relative h-64">
               <img
@@ -382,7 +380,9 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
                 <div className="flex-1">
                   <div className="flex items-start justify-between mb-6">
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900 mb-2">{instructor.name}</h2>
+                      <h2 id="instructor-profile-modal-title" className="mb-2 text-2xl font-bold text-gray-900">
+                        {instructor.name}
+                      </h2>
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1">
                           <MapPin className="w-4 h-4 text-gray-500" />
@@ -788,14 +788,14 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
                 </div>
               </div>
             </div>
-          </div>
         </div>
-      </div>
+      </ResponsiveModalPanel>
 
       <UnifiedLessonModal
         isOpen={showBooking}
         onClose={() => setShowBooking(false)}
         mode="book"
+        nested
         instructor={{
           id: instructor.id,
           name: instructor.name,
@@ -813,37 +813,39 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
       />
 
       {showCalendar && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowCalendar(false)} />
-          <div className="relative min-h-screen flex items-center justify-center p-4">
-            <div className="relative bg-white rounded-xl shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 rounded-t-xl">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-gray-900">{instructor.name}'s Availability</h2>
-                  <button
-                    onClick={() => setShowCalendar(false)}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-              <div className="p-6">
-                <InstructorCalendar
-                  user={{
-                    id: instructor.id,
-                    name: instructor.name,
-                    role: 'instructor',
-                    email: '',
-                    avatar: instructor.image,
-                    price: instructor.studentLessonRate ?? instructor.price ?? 0,
-                    specialties: instructor.specialties || []
-                  }}
-                />
-              </div>
-            </div>
+        <ResponsiveModalPanel
+          onClose={() => setShowCalendar(false)}
+          labelledBy="instructor-profile-calendar-title"
+          maxWidthClass="sm:max-w-6xl"
+          nested
+        >
+          <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-6 sm:py-3">
+            <h2 id="instructor-profile-calendar-title" className="text-xl font-bold text-gray-900 dark:text-white">
+              {instructor.name}&apos;s Availability
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowCalendar(false)}
+              className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              aria-label="Close calendar"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
-        </div>
+          <div className="min-h-0 flex-1 overflow-auto px-4 pb-6 pt-2 dark:bg-gray-900 sm:px-6 sm:pb-6 sm:pt-20">
+            <InstructorCalendar
+              user={{
+                id: instructor.id,
+                name: instructor.name,
+                role: 'instructor',
+                email: '',
+                avatar: instructor.image,
+                price: instructor.studentLessonRate ?? instructor.price ?? 0,
+                specialties: instructor.specialties || []
+              }}
+            />
+          </div>
+        </ResponsiveModalPanel>
       )}
     </>
   );

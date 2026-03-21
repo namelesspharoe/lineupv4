@@ -5,8 +5,10 @@ import {
   assignInstructorToMountain,
   createMountain,
   patchMountain,
-  unassignInstructorFromMountain
+  unassignInstructorFromMountain,
+  updateMountain
 } from '../../../../services/mountains';
+import type { MountainPassAffiliation, MountainRegionId } from '../../../../types';
 
 interface UseAdminActionsReturn {
   handleDeleteUser: (userId: string, users: User[], onSuccess: () => void) => Promise<void>;
@@ -22,7 +24,10 @@ interface UseAdminActionsReturn {
     baseDepthInches?: number;
     snowfall24hInches?: number;
     snowReportUpdatedAt?: string;
+    regionId?: MountainRegionId;
+    passAffiliations?: MountainPassAffiliation[];
   }) => Promise<void>;
+  handleUpdateMountainMeta: (mountainId: string, updates: { regionId: MountainRegionId; passAffiliations: MountainPassAffiliation[] }) => Promise<void>;
   handleUpdateMountainSnow: (
     mountainId: string,
     raw: { baseDepthInches: string; snowfall24hInches: string }
@@ -91,6 +96,8 @@ export function useAdminActions(): UseAdminActionsReturn {
     baseDepthInches?: number;
     snowfall24hInches?: number;
     snowReportUpdatedAt?: string;
+    regionId?: MountainRegionId;
+    passAffiliations?: MountainPassAffiliation[];
   }) => {
     try {
       await createMountain({
@@ -101,11 +108,28 @@ export function useAdminActions(): UseAdminActionsReturn {
         groupLessonPrice: data.groupLessonPrice,
         baseDepthInches: data.baseDepthInches,
         snowfall24hInches: data.snowfall24hInches,
-        snowReportUpdatedAt: data.snowReportUpdatedAt
+        snowReportUpdatedAt: data.snowReportUpdatedAt,
+        ...(data.regionId !== undefined ? { regionId: data.regionId } : {}),
+        ...(data.passAffiliations !== undefined ? { passAffiliations: data.passAffiliations } : {})
       });
     } catch (error) {
       console.error('Error creating mountain:', error);
       alert('Failed to create mountain. Please try again.');
+    }
+  };
+
+  const handleUpdateMountainMeta = async (
+    mountainId: string,
+    updates: { regionId: MountainRegionId; passAffiliations: MountainPassAffiliation[] }
+  ) => {
+    try {
+      await updateMountain(mountainId, {
+        regionId: updates.regionId,
+        passAffiliations: updates.passAffiliations
+      });
+    } catch (error) {
+      console.error('Error updating mountain:', error);
+      alert('Failed to update mountain. Please try again.');
     }
   };
 
@@ -171,6 +195,7 @@ export function useAdminActions(): UseAdminActionsReturn {
     handleUpdateUserRole,
     handleUpdateLessonStatus,
     handleCreateMountain,
+    handleUpdateMountainMeta,
     handleUpdateMountainSnow,
     handleAssignInstructorToMountain,
     handleUnassignInstructorFromMountain

@@ -4,8 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { Snowflake, ChevronRight, ChevronLeft, Plus, X } from 'lucide-react';
 import { StudentLevelQuestionnaire } from '../components/StudentLevelQuestionnaire';
 import { createKidProfile } from '../services/kids';
-import { KidProfile } from '../types';
+import { KidProfile, LessonSport, SkiPassType } from '../types';
+import { disciplineAvatarDataUrl } from '../utils/disciplineAvatar';
 import { auth } from '../lib/firebase';
+import { ResponsiveModalPanel } from '../components/common/ResponsiveModalPanel';
 
 interface FormData {
   name: string;
@@ -17,6 +19,7 @@ interface FormData {
   phone: string;
   address: string;
   level: 'first_time' | 'developing_turns' | 'linking_turns' | 'confident_turns' | 'consistent_blue';
+  discipline: LessonSport;
   interests: string[];
   hasKids: boolean;
   termsAccepted: boolean;
@@ -32,6 +35,7 @@ interface FormData {
   preferredInstructorGender: string;
   preferredInstructorExperience: string;
   learningStyle: string;
+  skiPass: SkiPassType;
 }
 
 interface FormErrors {
@@ -58,6 +62,7 @@ export function StudentSignup() {
     phone: '',
     address: '',
     level: 'first_time',
+    discipline: 'skiing',
     interests: [],
     hasKids: false,
     termsAccepted: false,
@@ -72,7 +77,8 @@ export function StudentSignup() {
     preferredTimes: [],
     preferredInstructorGender: 'any',
     preferredInstructorExperience: 'any',
-    learningStyle: 'balanced'
+    learningStyle: 'balanced',
+    skiPass: 'none'
   });
   
   // Navigate to dashboard when user is available after signup
@@ -156,11 +162,12 @@ export function StudentSignup() {
         name: formData.name,
         email: formData.email,
         role: 'student' as const,
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', // Default avatar
+        avatar: disciplineAvatarDataUrl(formData.discipline),
         bio: formData.bio || '',
         phone: formData.phone,
         address: formData.address,
         level: formData.level,
+        discipline: formData.discipline,
         specialties: formData.interests,
         // New preference fields for AI matching
         preferredLocations: formData.preferredLocations,
@@ -174,7 +181,8 @@ export function StudentSignup() {
           preferredTimes: formData.preferredTimes,
           preferredInstructorGender: formData.preferredInstructorGender,
           preferredInstructorExperience: formData.preferredInstructorExperience,
-          learningStyle: formData.learningStyle
+          learningStyle: formData.learningStyle,
+          skiPass: formData.skiPass
         },
         createdAt: new Date().toISOString()
       };
@@ -364,6 +372,38 @@ export function StudentSignup() {
 
           {step === 2 && (
             <div className="space-y-6">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Primary discipline</label>
+                <p className="mb-3 text-xs text-gray-500">
+                  Ski and snowboard are tracked separately — pick what you mainly ride.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {(
+                    [
+                      { id: 'skiing' as const, label: 'Skiing', hint: 'Alpine / downhill', icon: '⛷️' },
+                      { id: 'snowboarding' as const, label: 'Snowboarding', hint: 'Single board', icon: '🏂' }
+                    ] as const
+                  ).map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, discipline: opt.id }))}
+                      className={`rounded-xl border-2 p-4 text-left transition-all ${
+                        formData.discipline === opt.id
+                          ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-200'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <span className="text-2xl" aria-hidden>
+                        {opt.icon}
+                      </span>
+                      <div className="mt-2 font-semibold text-gray-900">{opt.label}</div>
+                      <div className="text-xs text-gray-500">{opt.hint}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <StudentLevelQuestionnaire onLevelSelect={handleLevelSelect} />
               
               {/* Avatar Upload - Temporarily Disabled */}
@@ -374,9 +414,9 @@ export function StudentSignup() {
                 <div className="flex items-center space-x-4">
                   <div className="relative">
                     <img
-                      src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"
-                      alt="Profile"
-                      className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
+                      src={disciplineAvatarDataUrl(formData.discipline)}
+                      alt=""
+                      className="w-16 h-16 rounded-full object-cover border-2 border-gray-200 bg-white"
                     />
                   </div>
                   <div className="text-sm text-gray-500">
@@ -461,6 +501,40 @@ export function StudentSignup() {
                 <p className="text-blue-700 text-sm">
                   These preferences help our AI match you with the best instructors. All fields are optional.
                 </p>
+              </div>
+
+              {/* Season pass — Book Lesson defaults */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Season pass (optional)
+                </label>
+                <p className="text-xs text-gray-500 mb-3">
+                  We use this to highlight compatible resorts when you book. Choose the closest match.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      { value: 'none' as const, label: 'Not sure / day tickets' },
+                      { value: 'ikon' as const, label: 'Ikon' },
+                      { value: 'epic' as const, label: 'Epic' },
+                      { value: 'both' as const, label: 'Ikon & Epic' },
+                      { value: 'independent' as const, label: 'Indy / other pass' }
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, skiPass: opt.value }))}
+                      className={`rounded-xl px-3 py-2 text-sm font-medium border-2 transition-colors ${
+                        formData.skiPass === opt.value
+                          ? 'border-blue-600 bg-blue-50 text-blue-900'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Preferred Locations */}
@@ -819,21 +893,27 @@ export function StudentSignup() {
       </div>
 
       {showKidForm && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowKidForm(false)} />
-          
-          <div className="relative min-h-screen flex items-center justify-center p-4">
-            <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
-              <button
-                onClick={() => setShowKidForm(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-6 h-6" />
-              </button>
+        <ResponsiveModalPanel onClose={() => setShowKidForm(false)} labelledBy="signup-kid-profile-title">
+          <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+            <button
+              type="button"
+              onClick={() => setShowKidForm(false)}
+              className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              aria-label="Close"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
 
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Add Kid Profile</h2>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+            <h2
+              id="signup-kid-profile-title"
+              className="mb-6 text-2xl font-bold text-gray-900 dark:text-white"
+            >
+              Add Kid Profile
+            </h2>
 
-              <form onSubmit={(e) => {
+            <form onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
                 const profile = {
@@ -975,9 +1055,8 @@ export function StudentSignup() {
                   </button>
                 </div>
               </form>
-            </div>
           </div>
-        </div>
+        </ResponsiveModalPanel>
       )}
     </div>
   );

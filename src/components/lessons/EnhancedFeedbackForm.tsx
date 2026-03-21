@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { ResponsiveModalPanel } from '../common/ResponsiveModalPanel';
 import { addLessonFeedback, updateLessonFeedback } from '../../services/lessons';
 import { LessonFeedback, User } from '../../types';
 
@@ -10,6 +12,8 @@ interface EnhancedFeedbackFormProps {
   onCancel: () => void;
   isOpen: boolean;
   existingFeedback?: LessonFeedback | null;
+  /** From the booked lesson — pre-selects ski vs snowboard when no feedback exists yet. */
+  defaultSport?: 'skiing' | 'snowboarding';
 }
 
 const SKILL_LEVELS = [
@@ -85,7 +89,8 @@ export const EnhancedFeedbackForm: React.FC<EnhancedFeedbackFormProps> = ({
   onFeedbackSubmitted,
   onCancel,
   isOpen,
-  existingFeedback
+  existingFeedback,
+  defaultSport = 'skiing'
 }) => {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,13 +111,13 @@ export const EnhancedFeedbackForm: React.FC<EnhancedFeedbackFormProps> = ({
       setRecommendations(existingFeedback.skillAssessment?.recommendations ?? '');
       setInstructorNotes(existingFeedback.instructorNotes ?? '');
     } else if (isOpen && !existingFeedback) {
-      setSelectedSport('skiing');
+      setSelectedSport(defaultSport === 'snowboarding' ? 'snowboarding' : 'skiing');
       setSelectedLevel('first_time');
       setCheckedSkills(new Set());
       setRecommendations('');
       setInstructorNotes('');
     }
-  }, [isOpen, existingFeedback]);
+  }, [isOpen, existingFeedback, defaultSport]);
 
   // Get current checklist based on sport and level
   const currentChecklist = SKILL_CHECKLISTS[selectedSport][selectedLevel as keyof typeof SKILL_CHECKLISTS[typeof selectedSport]] || [];
@@ -220,24 +225,24 @@ export const EnhancedFeedbackForm: React.FC<EnhancedFeedbackFormProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">
-              {existingFeedback ? 'Edit Feedback' : 'Lesson Feedback Form'}
-            </h2>
-            <button
-              onClick={onCancel}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+    <ResponsiveModalPanel onClose={onCancel} labelledBy="enhanced-feedback-title" maxWidthClass="sm:max-w-4xl">
+      <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          aria-label="Close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+        <h2 id="enhanced-feedback-title" className="mb-6 text-2xl font-bold text-gray-900 dark:text-white">
+          {existingFeedback ? 'Edit Feedback' : 'Lesson Feedback Form'}
+        </h2>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
                 {error}
@@ -356,25 +361,24 @@ export const EnhancedFeedbackForm: React.FC<EnhancedFeedbackFormProps> = ({
             </div>
 
             {/* Submit Buttons */}
-            <div className="flex justify-end space-x-3 pt-6 border-t">
+            <div className="flex flex-col gap-2 border-t border-gray-200 pt-6 dark:border-gray-800 sm:flex-row sm:justify-end sm:gap-3">
               <button
                 type="button"
                 onClick={onCancel}
-                className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                className="w-full rounded-md border border-gray-300 px-6 py-2.5 text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 sm:w-auto sm:py-2"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                className="w-full rounded-md bg-blue-600 px-6 py-2.5 text-white transition-colors hover:bg-blue-700 disabled:opacity-50 sm:w-auto sm:py-2"
               >
                 {isSubmitting ? (existingFeedback ? 'Updating...' : 'Submitting...') : (existingFeedback ? 'Update Feedback' : 'Submit Feedback')}
               </button>
             </div>
           </form>
-        </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }; 

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { AlertCircle, X } from 'lucide-react';
 import { User, Lesson } from '../../../../types';
 import { updateLesson } from '../../../../services/lessons';
+import { ResponsiveModalPanel } from '../../../common/ResponsiveModalPanel';
 
 interface CancelLessonModalProps {
   lesson: (Lesson & { instructor?: User }) | null;
@@ -15,16 +16,16 @@ export function CancelLessonModal({ lesson, onClose, onCancel }: CancelLessonMod
 
   const handleCancel = async () => {
     if (!lesson) return;
-    
+
     try {
       setIsCancelling(true);
       setError(null);
-      
+
       await updateLesson(lesson.id, { status: 'cancelled' });
       onCancel();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error cancelling lesson:', err);
-      setError(err.message || 'Failed to cancel lesson');
+      setError(err instanceof Error ? err.message : 'Failed to cancel lesson');
     } finally {
       setIsCancelling(false);
     }
@@ -33,75 +34,71 @@ export function CancelLessonModal({ lesson, onClose, onCancel }: CancelLessonMod
   if (!lesson) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full">
-          <div className="p-6">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Cancel Lesson</h2>
-                <p className="text-gray-600">Are you sure you want to cancel this lesson?</p>
-              </div>
-            </div>
+    <ResponsiveModalPanel onClose={onClose} labelledBy="cancel-lesson-title" maxWidthClass="sm:max-w-md">
+      <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          aria-label="Close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <h3 className="font-medium text-gray-900 mb-2">{lesson.title}</h3>
-              <p className="text-sm text-gray-600">
-                {new Date(lesson.date).toLocaleDateString(undefined, {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </p>
-              {lesson.instructor && (
-                <p className="text-sm text-gray-600 mt-1">
-                  with {lesson.instructor.name}
-                </p>
-              )}
-            </div>
-
-            {error && (
-              <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p>{error}</p>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-gray-600 hover:text-gray-900"
-              >
-                Keep Lesson
-              </button>
-              <button
-                onClick={handleCancel}
-                disabled={isCancelling}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-              >
-                {isCancelling ? 'Cancelling...' : 'Cancel Lesson'}
-              </button>
-            </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+        <div className="mb-6 flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-950/50">
+            <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+          </div>
+          <div>
+            <h2 id="cancel-lesson-title" className="text-xl font-bold text-gray-900 dark:text-white">
+              Cancel Lesson
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400">Are you sure you want to cancel this lesson?</p>
           </div>
         </div>
+
+        <div className="mb-6 rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+          <h3 className="mb-2 font-medium text-gray-900 dark:text-white">{lesson.title}</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {new Date(lesson.date).toLocaleDateString(undefined, {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })}
+          </p>
+          {lesson.instructor && (
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">with {lesson.instructor.name}</p>
+          )}
+        </div>
+
+        {error && (
+          <div className="mb-6 flex items-center gap-2 rounded-lg bg-red-50 p-4 text-red-600 dark:bg-red-900/30 dark:text-red-300">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <p>{error}</p>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full px-4 py-2.5 text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white sm:w-auto sm:py-2"
+          >
+            Keep Lesson
+          </button>
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={isCancelling}
+            className="w-full rounded-lg bg-red-600 px-4 py-2.5 text-white transition-colors hover:bg-red-700 disabled:opacity-50 sm:w-auto sm:py-2"
+          >
+            {isCancelling ? 'Cancelling...' : 'Cancel Lesson'}
+          </button>
+        </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }
-
-
-
-
-
-
-
-
-
-
-

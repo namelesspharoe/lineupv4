@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Mountain, User } from '../../../../types';
+import { Mountain, User, MountainRegionId, MountainPassAffiliation } from '../../../../types';
 import { Plus, Search, Mountain as MountainIcon, MapPin, UserPlus, UserMinus, Users } from 'lucide-react';
+import { MOUNTAIN_REGION_LABELS, MOUNTAIN_REGION_ORDER } from '../../../../constants/mountainBrowse';
 
 interface MountainManagementProps {
   mountains: Mountain[];
@@ -14,7 +15,13 @@ interface MountainManagementProps {
     baseDepthInches?: number;
     snowfall24hInches?: number;
     snowReportUpdatedAt?: string;
+    regionId?: MountainRegionId;
+    passAffiliations?: MountainPassAffiliation[];
   }) => Promise<void>;
+  onUpdateMountainMeta: (
+    mountainId: string,
+    updates: { regionId: MountainRegionId; passAffiliations: MountainPassAffiliation[] }
+  ) => Promise<void>;
   onUpdateMountainSnow: (
     mountainId: string,
     raw: { baseDepthInches: string; snowfall24hInches: string }
@@ -28,6 +35,7 @@ export function MountainManagement({
   mountains,
   users,
   onCreateMountain,
+  onUpdateMountainMeta,
   onUpdateMountainSnow,
   onAssignInstructorToMountain,
   onUnassignInstructorFromMountain,
@@ -42,7 +50,15 @@ export function MountainManagement({
     privateLessonPrice: '',
     groupLessonPrice: '',
     baseDepthInches: '',
-    snowfall24hInches: ''
+    snowfall24hInches: '',
+    regionId: 'other' as MountainRegionId,
+    passIkon: false,
+    passEpic: false
+  });
+  const [metaForm, setMetaForm] = useState({
+    regionId: 'other' as MountainRegionId,
+    passIkon: false,
+    passEpic: false
   });
   const [snowEditForm, setSnowEditForm] = useState({
     baseDepthInches: '',
@@ -95,6 +111,12 @@ export function MountainManagement({
       snowfall24hInches:
         selectedMountain.snowfall24hInches != null ? String(selectedMountain.snowfall24hInches) : ''
     });
+    const passes = selectedMountain.passAffiliations ?? [];
+    setMetaForm({
+      regionId: selectedMountain.regionId ?? 'other',
+      passIkon: passes.includes('ikon'),
+      passEpic: passes.includes('epic')
+    });
   }, [selectedMountain]);
 
   const getMountainInstructors = (mountain: Mountain) => {
@@ -136,6 +158,10 @@ export function MountainManagement({
         ? new Date().toISOString()
         : undefined;
 
+    const passAffiliations: MountainPassAffiliation[] = [];
+    if (createForm.passIkon) passAffiliations.push('ikon');
+    if (createForm.passEpic) passAffiliations.push('epic');
+
     try {
       setIsSubmitting(true);
       await onCreateMountain({
@@ -146,7 +172,9 @@ export function MountainManagement({
         groupLessonPrice: createForm.groupLessonPrice ? Number(createForm.groupLessonPrice) : 0,
         baseDepthInches,
         snowfall24hInches,
-        snowReportUpdatedAt
+        snowReportUpdatedAt,
+        regionId: createForm.regionId,
+        passAffiliations
       });
       setCreateForm({
         name: '',
@@ -155,7 +183,10 @@ export function MountainManagement({
         privateLessonPrice: '',
         groupLessonPrice: '',
         baseDepthInches: '',
-        snowfall24hInches: ''
+        snowfall24hInches: '',
+        regionId: 'other',
+        passIkon: false,
+        passEpic: false
       });
       await onRefresh();
     } finally {
@@ -168,6 +199,23 @@ export function MountainManagement({
     try {
       setIsSubmitting(true);
       await onUpdateMountainSnow(selectedMountain.id, snowEditForm);
+      await onRefresh();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveMountainMeta = async () => {
+    if (!selectedMountain) return;
+    const passAffiliations: MountainPassAffiliation[] = [];
+    if (metaForm.passIkon) passAffiliations.push('ikon');
+    if (metaForm.passEpic) passAffiliations.push('epic');
+    try {
+      setIsSubmitting(true);
+      await onUpdateMountainMeta(selectedMountain.id, {
+        regionId: metaForm.regionId,
+        passAffiliations
+      });
       await onRefresh();
     } finally {
       setIsSubmitting(false);
@@ -246,6 +294,43 @@ export function MountainManagement({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Optional mountain description"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Region (student browse)</label>
+              <select
+                value={createForm.regionId}
+                onChange={(e) =>
+                  setCreateForm((prev) => ({ ...prev, regionId: e.target.value as MountainRegionId }))
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {MOUNTAIN_REGION_ORDER.map((id) => (
+                  <option key={id} value={id}>
+                    {MOUNTAIN_REGION_LABELS[id]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="md:col-span-2 flex flex-wrap items-center gap-6">
+              <span className="text-sm font-medium text-gray-700">Pass network</span>
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={createForm.passIkon}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, passIkon: e.target.checked }))}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Ikon
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={createForm.passEpic}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, passEpic: e.target.checked }))}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Epic
+              </label>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Private lesson price</label>
@@ -478,6 +563,59 @@ export function MountainManagement({
                   {selectedMountain.description && (
                     <p className="text-sm text-gray-600 mb-4">{selectedMountain.description}</p>
                   )}
+
+                  <div className="border-t border-gray-200 pt-4 mb-4 space-y-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900">Region & pass (Book Lesson)</h4>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Used to group resorts and filter by Ikon/Epic for students.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Region</label>
+                      <select
+                        value={metaForm.regionId}
+                        onChange={(e) =>
+                          setMetaForm((prev) => ({ ...prev, regionId: e.target.value as MountainRegionId }))
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        {MOUNTAIN_REGION_ORDER.map((id) => (
+                          <option key={id} value={id}>
+                            {MOUNTAIN_REGION_LABELS[id]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-wrap gap-6">
+                      <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={metaForm.passIkon}
+                          onChange={(e) => setMetaForm((prev) => ({ ...prev, passIkon: e.target.checked }))}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        Ikon
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={metaForm.passEpic}
+                          onChange={(e) => setMetaForm((prev) => ({ ...prev, passEpic: e.target.checked }))}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        Epic
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSaveMountainMeta}
+                      disabled={isSubmitting}
+                      className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      Save region & passes
+                    </button>
+                  </div>
 
                   <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
                     <div className="rounded-lg bg-gray-50 p-3">

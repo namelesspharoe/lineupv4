@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { User } from '../../types';
+import { ResponsiveModalPanel } from '../common/ResponsiveModalPanel';
 import { getAvailableUsers, createConversation } from '../../services/messages';
 import { useAuth } from '../../context/AuthContext';
 import { 
@@ -100,35 +101,35 @@ export function NewConversationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
-        {/* Header - Mobile Optimized */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">New Conversation</h2>
-          <button
-            onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 rounded-lg active:bg-gray-200 transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+    <ResponsiveModalPanel onClose={onClose} labelledBy="new-conversation-title" maxWidthClass="sm:max-w-md">
+      <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-6 sm:py-3">
+        <h2 id="new-conversation-title" className="text-lg font-bold text-gray-900 dark:text-white sm:text-xl">
+          New Conversation
+        </h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 active:bg-gray-200 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
 
-        {/* Search - Mobile Optimized */}
-        <div className="p-4 border-b border-gray-200">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="shrink-0 border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:pt-20">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 transform text-gray-400 dark:text-gray-500" />
             <input
               type="text"
               placeholder="Search users..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+              className="w-full rounded-xl border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 text-base text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
             />
           </div>
         </div>
 
-        {/* Content - Mobile Optimized */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-4 dark:bg-gray-900">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
@@ -196,16 +197,16 @@ export function NewConversationModal({
           )}
         </div>
 
-        {/* Footer - Mobile Optimized */}
-        <div className="p-4 border-t border-gray-200">
+        <div className="shrink-0 border-t border-gray-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:border-gray-800 dark:bg-gray-900 sm:pb-4">
           <button
+            type="button"
             onClick={onClose}
-            className="w-full py-3 px-4 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 active:bg-gray-300 transition-colors font-medium"
+            className="w-full rounded-xl bg-gray-100 py-3 px-4 font-medium text-gray-700 transition-colors hover:bg-gray-200 active:bg-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
         </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 }

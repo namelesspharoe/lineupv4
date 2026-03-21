@@ -12,7 +12,8 @@ import {
   updateDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Mountain, User } from '../types';
+import { Mountain, User, type Lesson } from '../types';
+import { getUserById } from './users';
 
 type MountainInput = Omit<Mountain, 'id' | 'createdAt' | 'updatedAt' | 'instructorIds'> & {
   instructorIds?: string[];
@@ -218,6 +219,61 @@ export function instructorMatchesMountainSelection(
   );
 }
 
+/** Resolve the instructor's primary mountain from profile (`mountainId` or `homeMountain` name). */
+export function getMountainForInstructor(
+  instructor: Pick<User, 'mountainId' | 'homeMountain'>,
+  mountains: Mountain[]
+): Mountain | null {
+  const byId = instructor.mountainId
+    ? mountains.find((m) => m.id === instructor.mountainId)
+    : undefined;
+  const hm = instructor.homeMountain?.trim().toLowerCase();
+  const byName = hm
+    ? mountains.find((m) => m.name.trim().toLowerCase() === hm)
+    : undefined;
+  return byId || byName || null;
+}
+
+/**
+ * Price for a lesson type from a mountain doc (admin / edit forms).
+ * Workshop falls back to group, then private.
+ */
+export function getMountainLessonPriceForLessonType(
+  mountain: Mountain,
+  lessonType: Lesson['type']
+): number {
+  if (lessonType === 'private') {
+    const n = mountain.privateLessonPrice;
+    return n != null && n > 0 ? n : 0;
+  }
+  if (lessonType === 'group') {
+    const n = mountain.groupLessonPrice;
+    return n != null && n > 0 ? n : 0;
+  }
+  const g = mountain.groupLessonPrice;
+  if (g != null && g > 0) return g;
+  const p = mountain.privateLessonPrice;
+  return p != null && p > 0 ? p : 0;
+}
+
+/**
+ * When `lesson.price` is missing or zero, load the instructor and use their mountain's
+ * private/group/workshop rate (same source as student booking).
+ */
+export async function resolveLessonPriceFromMountain(
+  lesson: Pick<Lesson, 'price' | 'instructorId' | 'type'>
+): Promise<number | null> {
+  if (lesson.price != null && lesson.price > 0) return lesson.price;
+  if (!lesson.instructorId) return null;
+  const instructor = await getUserById(lesson.instructorId);
+  if (!instructor) return null;
+  const mountains = await getMountains();
+  const mountain = getMountainForInstructor(instructor, mountains);
+  if (!mountain) return null;
+  const n = getMountainLessonPriceForLessonType(mountain, lesson.type);
+  return n > 0 ? n : null;
+}
+
 /**
  * Student-facing lesson rate: **only** from the linked mountain doc (private, then group).
  * Never uses instructor `hourlyRate` / `price` — those are admin–instructor only.
@@ -226,15 +282,7 @@ export function getStudentFacingMountainLessonRate(
   instructor: Pick<User, 'mountainId' | 'homeMountain'>,
   mountains: Mountain[]
 ): number | null {
-  const byId = instructor.mountainId
-    ? mountains.find((m) => m.id === instructor.mountainId)
-    : undefined;
-  const hm = instructor.homeMountain?.trim().toLowerCase();
-  const byName = hm
-    ? mountains.find((m) => m.name.trim().toLowerCase() === hm)
-    : undefined;
-  const mountain = byId || byName;
-
+  const mountain = getMountainForInstructor(instructor, mountains);
   if (!mountain) return null;
   const priv = mountain.privateLessonPrice;
   const group = mountain.groupLessonPrice;

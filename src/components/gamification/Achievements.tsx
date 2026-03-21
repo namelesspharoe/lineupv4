@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Trophy, Search, Filter, Star, Target, Users, Flame, Award, ChevronRight, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Trophy, Search, Star, Target, Users, Flame, Award, X } from 'lucide-react';
 import { Achievement, AchievementDefinition } from '../../types';
 import { achievementService, ACHIEVEMENT_DEFINITIONS } from '../../services/achievements';
+import { ResponsiveModalPanel } from '../common/ResponsiveModalPanel';
 
 interface AchievementsProps {
   studentId: string;
@@ -16,147 +17,154 @@ interface AchievementCardProps {
 const getRarityColor = (rarity: string) => {
   switch (rarity) {
     case 'common':
-      return 'border-gray-300 bg-gray-50';
+      return 'border-slate-200/90 bg-slate-50/90 dark:border-slate-600 dark:bg-slate-800/60';
     case 'rare':
-      return 'border-blue-300 bg-blue-50';
+      return 'border-sky-300/80 bg-sky-50/90 dark:border-sky-700 dark:bg-sky-950/40';
     case 'epic':
-      return 'border-purple-300 bg-purple-50';
+      return 'border-violet-300/80 bg-violet-50/90 dark:border-violet-700 dark:bg-violet-950/40';
     case 'legendary':
-      return 'border-yellow-300 bg-yellow-50';
+      return 'border-amber-300/90 bg-amber-50/90 dark:border-amber-600 dark:bg-amber-950/30';
     default:
-      return 'border-gray-300 bg-gray-50';
+      return 'border-slate-200/90 bg-slate-50/90 dark:border-slate-600 dark:bg-slate-800/60';
   }
 };
 
 const getRarityTextColor = (rarity: string) => {
   switch (rarity) {
     case 'common':
-      return 'text-gray-600';
+      return 'text-slate-600 dark:text-slate-400';
     case 'rare':
-      return 'text-blue-600';
+      return 'text-sky-700 dark:text-sky-400';
     case 'epic':
-      return 'text-purple-600';
+      return 'text-violet-700 dark:text-violet-400';
     case 'legendary':
-      return 'text-yellow-600';
+      return 'text-amber-800 dark:text-amber-400';
     default:
-      return 'text-gray-600';
+      return 'text-slate-600 dark:text-slate-400';
   }
 };
 
-const getCategoryIcon = (category: string) => {
+const getCategoryIcon = (category: string, size: 'sm' | 'md' = 'md') => {
+  const cn = size === 'sm' ? 'h-3 w-3' : 'h-4 w-4';
   switch (category) {
     case 'skill':
-      return <Target className="w-4 h-4" />;
+      return <Target className={cn} />;
     case 'milestone':
-      return <Trophy className="w-4 h-4" />;
+      return <Trophy className={cn} />;
     case 'social':
-      return <Users className="w-4 h-4" />;
+      return <Users className={cn} />;
     case 'streak':
-      return <Flame className="w-4 h-4" />;
+      return <Flame className={cn} />;
     default:
-      return <Award className="w-4 h-4" />;
+      return <Award className={cn} />;
   }
 };
 
 const getCategoryColor = (category: string) => {
   switch (category) {
     case 'skill':
-      return 'bg-green-100 text-green-700';
+      return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300';
     case 'milestone':
-      return 'bg-blue-100 text-blue-700';
+      return 'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300';
     case 'social':
-      return 'bg-purple-100 text-purple-700';
+      return 'bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-300';
     case 'streak':
-      return 'bg-orange-100 text-orange-700';
+      return 'bg-orange-100 text-orange-900 dark:bg-orange-950/50 dark:text-orange-300';
     default:
-      return 'bg-gray-100 text-gray-700';
+      return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300';
   }
 };
 
+/**
+ * Locked rows use catalog `id`. Unlocked Firestore docs use auto-generated `id` but share `name` with the catalog.
+ */
+function definitionForAchievement(achievement: Achievement | AchievementDefinition) {
+  return (
+    ACHIEVEMENT_DEFINITIONS.find((d) => d.id === achievement.id) ??
+    ACHIEVEMENT_DEFINITIONS.find((d) => d.name === achievement.name)
+  );
+}
+
 function AchievementCard({ achievement, isUnlocked, onClick }: AchievementCardProps) {
-  const definition = ACHIEVEMENT_DEFINITIONS.find(d => d.id === achievement.id);
+  const definition = definitionForAchievement(achievement);
   const rarity = definition?.rarity || 'common';
   const points = definition?.points || 0;
 
   return (
     <div
-      className={`relative p-6 rounded-xl border-2 transition-all duration-200 cursor-pointer hover:scale-105 ${
-        isUnlocked 
-          ? getRarityColor(rarity) 
-          : 'border-gray-200 bg-gray-50 opacity-60'
+      className={`relative cursor-pointer rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-5 ${
+        isUnlocked ? getRarityColor(rarity) : 'border-slate-200/80 bg-slate-100/50 opacity-[0.72] dark:border-slate-600 dark:bg-slate-800/40'
       }`}
       onClick={onClick}
     >
-      {/* Rarity indicator */}
-      <div className="absolute top-3 right-3">
-        <span className={`text-xs font-medium px-2 py-1 rounded-full ${getRarityTextColor(rarity)} bg-white/80`}>
+      <div className="absolute right-2 top-2">
+        <span
+          className={`rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold capitalize shadow-sm dark:bg-slate-900/80 sm:px-2 sm:py-1 sm:text-xs ${getRarityTextColor(rarity)}`}
+        >
           {rarity}
         </span>
       </div>
 
-      {/* Achievement icon */}
-      <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4">
-        <span className="text-4xl">{achievement.icon}</span>
+      <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center sm:mb-3 sm:h-14 sm:w-14">
+        <span className="text-3xl drop-shadow-sm sm:text-4xl">{achievement.icon}</span>
       </div>
 
-      {/* Achievement info */}
       <div className="text-center">
-        <h3 className={`font-semibold mb-2 ${isUnlocked ? 'text-gray-900' : 'text-gray-500'}`}>
+        <h3
+          className={`mb-1 line-clamp-2 text-sm font-semibold leading-snug sm:mb-1.5 sm:text-base ${isUnlocked ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-500'}`}
+        >
           {achievement.name}
         </h3>
-        <p className={`text-sm mb-3 ${isUnlocked ? 'text-gray-600' : 'text-gray-400'}`}>
+        <p
+          className={`mb-2 line-clamp-3 text-xs leading-relaxed sm:mb-2.5 sm:text-sm ${isUnlocked ? 'text-slate-600 dark:text-slate-400' : 'text-slate-400'}`}
+        >
           {achievement.description}
         </p>
 
-        {/* Category badge */}
-        <div className="flex items-center justify-center gap-2 mb-3">
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(achievement.category)}`}>
-            {getCategoryIcon(achievement.category)}
+        <div className="mb-2 flex items-center justify-center gap-1.5 sm:mb-2.5 sm:gap-2">
+          <span
+            className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium sm:gap-1 sm:px-2 sm:py-1 sm:text-xs ${getCategoryColor(achievement.category)}`}
+          >
+            {getCategoryIcon(achievement.category, 'sm')}
           </span>
-          <span className="text-xs text-gray-500 capitalize">
-            {achievement.category}
-          </span>
+          <span className="text-[10px] capitalize text-slate-500 dark:text-slate-400 sm:text-xs">{achievement.category}</span>
         </div>
 
-        {/* Points */}
-        <div className="flex items-center justify-center gap-1">
-          <Star className="w-4 h-4 text-yellow-500" />
-          <span className="text-sm font-medium text-gray-700">{points} pts</span>
+        <div className="flex items-center justify-center gap-0.5">
+          <Star className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 sm:h-4 sm:w-4" />
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 sm:text-sm">{points} pts</span>
         </div>
 
-        {/* Action button for certain achievements */}
         {!isUnlocked && achievement.id === 'profile_picture' && (
-          <div className="mt-3 pt-3 border-t border-gray-200">
-            <button 
-              onClick={(e) => {
+          <div className="mt-2 border-t border-slate-200/80 pt-2 dark:border-slate-600/80 sm:mt-3 sm:pt-3">
+            <button
+              type="button"
+              onClick={e => {
                 e.stopPropagation();
-                // Navigate to profile page to add picture
                 window.location.href = '/profile';
               }}
-              className="w-full px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              className="w-full rounded-lg bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 sm:px-3 sm:py-1.5 sm:text-xs"
             >
-              Add Profile Picture
+              Add profile photo
             </button>
           </div>
         )}
 
-        {/* Unlock status */}
         {isUnlocked && 'unlockedDate' in achievement && (
-          <div className="mt-3 pt-3 border-t border-gray-200">
-            <p className="text-xs text-gray-500">
+          <div className="mt-2 border-t border-slate-200/80 pt-2 dark:border-slate-600/80 sm:mt-3 sm:pt-3">
+            <p className="text-[10px] text-slate-500 dark:text-slate-500 sm:text-xs">
               Unlocked {new Date(achievement.unlockedDate).toLocaleDateString()}
             </p>
           </div>
         )}
       </div>
 
-      {/* Lock overlay for locked achievements */}
       {!isUnlocked && (
-        <div className="absolute inset-0 bg-gray-900/20 rounded-xl flex items-center justify-center">
-          <div className="bg-white rounded-full p-2">
-            <div className="w-6 h-6 text-gray-400 flex items-center justify-center">
-              <span className="text-lg">🔒</span>
-            </div>
+        <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-slate-900/25 backdrop-blur-[1px] dark:bg-slate-950/40">
+          <div className="rounded-full bg-white/95 p-2 shadow-md dark:bg-slate-800/95 sm:p-2.5">
+            <span className="text-base sm:text-lg" aria-hidden>
+              🔒
+            </span>
           </div>
         </div>
       )}
@@ -179,12 +187,10 @@ export function Achievements({ studentId }: AchievementsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedRarity, setSelectedRarity] = useState<string>('all');
   const [showUnlockedOnly, setShowUnlockedOnly] = useState(false);
   const [selectedAchievement, setSelectedAchievement] = useState<Achievement | AchievementDefinition | null>(null);
 
-  const categories = ['all', 'skill', 'milestone', 'social', 'streak'];
   const rarities = ['all', 'common', 'rare', 'epic', 'legendary'];
 
   useEffect(() => {
@@ -225,18 +231,9 @@ export function Achievements({ studentId }: AchievementsProps) {
       );
     }
 
-    // Filter by category
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(a => a.category === selectedCategory);
+    if (selectedRarity !== 'all') {
+      filtered = filtered.filter((a) => definitionForAchievement(a)?.rarity === selectedRarity);
     }
-
-         // Filter by rarity
-     if (selectedRarity !== 'all') {
-       filtered = filtered.filter(achievement => {
-         const definition = ACHIEVEMENT_DEFINITIONS.find(d => d.id === achievement.id);
-         return definition?.rarity === selectedRarity;
-       });
-     }
 
     // Filter by unlock status
     if (showUnlockedOnly) {
@@ -248,10 +245,10 @@ export function Achievements({ studentId }: AchievementsProps) {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-500">Loading achievements...</p>
+      <div className="flex min-h-[40vh] items-center justify-center py-12">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600 dark:border-slate-600 dark:border-t-blue-400" />
+          <p className="mt-4 text-sm font-medium text-slate-500 dark:text-slate-400">Loading achievements…</p>
         </div>
       </div>
     );
@@ -259,148 +256,147 @@ export function Achievements({ studentId }: AchievementsProps) {
 
   if (error) {
     return (
-      <div className="space-y-6">
-        <div className="text-center py-12">
-          <p className="text-red-600 mb-4">{error}</p>
-          <button
-            onClick={loadAchievements}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Try Again
-          </button>
-        </div>
+      <div className="max-w-md mx-auto rounded-2xl border border-rose-200/80 bg-rose-50/50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-950/20">
+        <p className="mb-4 text-sm text-rose-800 dark:text-rose-200">{error}</p>
+        <button
+          type="button"
+          onClick={loadAchievements}
+          className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+        >
+          Try again
+        </button>
       </div>
     );
   }
 
+  const statShell =
+    'min-w-0 rounded-xl border border-slate-200/80 bg-white/90 p-3 shadow-sm transition hover:shadow-md dark:border-slate-700/80 dark:bg-slate-800/60 sm:rounded-2xl sm:p-5';
+
   const filtered = filteredAchievements();
+  const detailDefinition = selectedAchievement
+    ? definitionForAchievement(selectedAchievement)
+    : undefined;
 
   return (
-    <div className="space-y-6">
-      {/* Stats Overview */}
+    <div className="space-y-8">
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl p-6 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Trophy className="w-6 h-6 text-blue-600" />
+        <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
+          <div className={statShell}>
+            <div className="flex items-start justify-between gap-2 sm:gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">
+                  Unlocked
+                </p>
+                <p className="mt-0.5 text-xl font-bold tabular-nums text-slate-900 dark:text-white sm:mt-1 sm:text-3xl">
+                  {stats.totalAchievements}
+                </p>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalAchievements}</p>
-                <p className="text-sm text-gray-500">Achievements</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <Star className="w-6 h-6 text-yellow-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalPoints}</p>
-                <p className="text-sm text-gray-500">Total Points</p>
+              <div className="shrink-0 rounded-lg bg-sky-100 p-2 dark:bg-sky-950/50 sm:rounded-xl sm:p-3">
+                <Trophy className="h-5 w-5 text-sky-700 dark:text-sky-400 sm:h-6 sm:w-6" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-6 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <Target className="w-6 h-6 text-green-600" />
+          <div className={statShell}>
+            <div className="flex items-start justify-between gap-2 sm:gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">
+                  Points
+                </p>
+                <p className="mt-0.5 text-xl font-bold tabular-nums text-slate-900 dark:text-white sm:mt-1 sm:text-3xl">
+                  {stats.totalPoints}
+                </p>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="shrink-0 rounded-lg bg-amber-100 p-2 dark:bg-amber-950/50 sm:rounded-xl sm:p-3">
+                <Star className="h-5 w-5 text-amber-700 dark:text-amber-400 sm:h-6 sm:w-6" />
+              </div>
+            </div>
+          </div>
+
+          <div className={statShell}>
+            <div className="flex items-start justify-between gap-2 sm:gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">
+                  Completion
+                </p>
+                <p className="mt-0.5 text-xl font-bold tabular-nums text-slate-900 dark:text-white sm:mt-1 sm:text-3xl">
                   {Math.round((stats.totalAchievements / ACHIEVEMENT_DEFINITIONS.length) * 100)}%
                 </p>
-                <p className="text-sm text-gray-500">Completion</p>
+              </div>
+              <div className="shrink-0 rounded-lg bg-emerald-100 p-2 dark:bg-emerald-950/50 sm:rounded-xl sm:p-3">
+                <Target className="h-5 w-5 text-emerald-700 dark:text-emerald-400 sm:h-6 sm:w-6" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-6 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Award className="w-6 h-6 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
+          <div className={statShell}>
+            <div className="flex items-start justify-between gap-2 sm:gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">
+                  Recent
+                </p>
+                <p className="mt-0.5 text-xl font-bold tabular-nums text-slate-900 dark:text-white sm:mt-1 sm:text-3xl">
                   {stats.recentAchievements.length}
                 </p>
-                <p className="text-sm text-gray-500">Recent</p>
+              </div>
+              <div className="shrink-0 rounded-lg bg-violet-100 p-2 dark:bg-violet-950/50 sm:rounded-xl sm:p-3">
+                <Award className="h-5 w-5 text-violet-700 dark:text-violet-400 sm:h-6 sm:w-6" />
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl p-6 shadow-sm">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1">
+      <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-800/50 sm:p-6">
+        <p className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Filter & search</p>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
+          <div className="min-w-0 flex-1">
+            <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Search</label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
-                type="text"
-                placeholder="Search achievements..."
+                type="search"
+                placeholder="Search by name or description…"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500"
               />
             </div>
           </div>
 
-          {/* Category filter */}
-          <div className="flex gap-2">
-            {categories.map(category => (
-              <button
-                key={category}
-                onClick={() => setSelectedCategory(selectedCategory === category ? 'all' : category)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  selectedCategory === category
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {category === 'all' ? 'All' : category.charAt(0).toUpperCase() + category.slice(1)}
-              </button>
-            ))}
-          </div>
-
-          {/* Rarity filter */}
-          <div className="flex gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap content-start gap-2 xl:max-w-xl">
+            <span className="block w-full text-xs font-medium text-slate-500 dark:text-slate-400">Rarity</span>
             {rarities.map(rarity => (
               <button
                 key={rarity}
+                type="button"
                 onClick={() => setSelectedRarity(selectedRarity === rarity ? 'all' : rarity)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition sm:text-sm ${
                   selectedRarity === rarity
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-blue-600 text-white shadow-sm dark:bg-blue-500'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700/80 dark:text-slate-300 dark:hover:bg-slate-600'
                 }`}
               >
-                {rarity.charAt(0).toUpperCase() + rarity.slice(1)}
+                {rarity}
               </button>
             ))}
           </div>
 
-          {/* Unlocked only toggle */}
           <button
+            type="button"
             onClick={() => setShowUnlockedOnly(!showUnlockedOnly)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
               showUnlockedOnly
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-emerald-600 text-white shadow-sm dark:bg-emerald-600'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700/80 dark:text-slate-300 dark:hover:bg-slate-600'
             }`}
           >
-            {showUnlockedOnly ? 'Show All' : 'Unlocked Only'}
+            {showUnlockedOnly ? 'Show all' : 'Unlocked only'}
           </button>
         </div>
       </div>
 
-      {/* Achievements Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filtered.map((achievement) => (
           <AchievementCard
             key={achievement.id}
@@ -411,79 +407,85 @@ export function Achievements({ studentId }: AchievementsProps) {
         ))}
       </div>
 
-      {/* Empty state */}
       {filtered.length === 0 && (
-        <div className="text-center py-12">
-          <Trophy className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No achievements found</h3>
-          <p className="text-gray-500">
-            Try adjusting your filters or complete more activities to unlock achievements.
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 py-16 text-center dark:border-slate-600 dark:bg-slate-900/30">
+          <Trophy className="mx-auto mb-4 h-14 w-14 text-slate-300 dark:text-slate-600" />
+          <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">No achievements match</h3>
+          <p className="mx-auto max-w-sm text-sm text-slate-500 dark:text-slate-400">
+            Clear filters or keep skiing — new badges unlock as you progress.
           </p>
         </div>
       )}
 
       {/* Achievement Detail Modal */}
       {selectedAchievement && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedAchievement(null)} />
-          
-          <div className="relative min-h-screen flex items-center justify-center p-4">
-            <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full">
-              <button
-                onClick={() => setSelectedAchievement(null)}
-                className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
+        <ResponsiveModalPanel
+          onClose={() => setSelectedAchievement(null)}
+          labelledBy="achievement-detail-title"
+          maxWidthClass="sm:max-w-md"
+        >
+          <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+            <button
+              type="button"
+              onClick={() => setSelectedAchievement(null)}
+              className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              aria-label="Close"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
 
-              <div className="p-6">
-                <div className="text-center">
-                  <div className="flex items-center justify-center w-20 h-20 mx-auto mb-4">
-                    <span className="text-6xl">{selectedAchievement.icon}</span>
-                  </div>
-                  
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                    {selectedAchievement.name}
-                  </h2>
-                  
-                  <p className="text-gray-600 mb-4">
-                    {selectedAchievement.description}
-                  </p>
-
-                  <div className="flex items-center justify-center gap-4 mb-4">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getCategoryColor(selectedAchievement.category)}`}>
-                      {selectedAchievement.category}
-                    </span>
-                    
-                    {ACHIEVEMENT_DEFINITIONS.find(d => d.id === selectedAchievement.id) && (
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRarityTextColor(ACHIEVEMENT_DEFINITIONS.find(d => d.id === selectedAchievement.id)?.rarity || 'common')} bg-gray-100`}>
-                        {ACHIEVEMENT_DEFINITIONS.find(d => d.id === selectedAchievement.id)?.rarity}
-                      </span>
-                    )}
-                  </div>
-
-                  {ACHIEVEMENT_DEFINITIONS.find(d => d.id === selectedAchievement.id) && (
-                    <div className="flex items-center justify-center gap-2 mb-4">
-                      <Star className="w-5 h-5 text-yellow-500" />
-                      <span className="font-medium text-gray-900">
-                        {ACHIEVEMENT_DEFINITIONS.find(d => d.id === selectedAchievement.id)?.points} points
-                      </span>
-                    </div>
-                  )}
-
-                  {'unlockedDate' in selectedAchievement && selectedAchievement.unlockedDate && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <p className="text-green-800 font-medium">Achievement Unlocked!</p>
-                      <p className="text-green-600 text-sm">
-                        {new Date(selectedAchievement.unlockedDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                  )}
-                </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center">
+                <span className="text-6xl">{selectedAchievement.icon}</span>
               </div>
+
+              <h2
+                id="achievement-detail-title"
+                className="mb-2 text-2xl font-bold text-gray-900 dark:text-white"
+              >
+                {selectedAchievement.name}
+              </h2>
+                  
+              <p className="mb-4 text-gray-600 dark:text-gray-400">{selectedAchievement.description}</p>
+
+              <div className="mb-4 flex flex-wrap items-center justify-center gap-4">
+                <span
+                  className={`rounded-full px-3 py-1 text-sm font-medium ${getCategoryColor(selectedAchievement.category)}`}
+                >
+                  {selectedAchievement.category}
+                </span>
+
+                {detailDefinition && (
+                  <span
+                    className={`rounded-full bg-gray-100 px-3 py-1 text-sm font-medium capitalize dark:bg-gray-800 ${getRarityTextColor(detailDefinition.rarity)}`}
+                  >
+                    {detailDefinition.rarity}
+                  </span>
+                )}
+              </div>
+
+              {detailDefinition && (
+                <div className="mb-4 flex items-center justify-center gap-2">
+                  <Star className="h-5 w-5 text-yellow-500" />
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    {detailDefinition.points} points
+                  </span>
+                </div>
+              )}
+
+              {'unlockedDate' in selectedAchievement && selectedAchievement.unlockedDate && (
+                <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950/40">
+                  <p className="font-medium text-green-800 dark:text-green-300">Achievement Unlocked!</p>
+                  <p className="text-sm text-green-600 dark:text-green-400">
+                    {new Date(selectedAchievement.unlockedDate).toLocaleDateString()}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        </ResponsiveModalPanel>
       )}
     </div>
   );

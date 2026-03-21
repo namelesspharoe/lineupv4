@@ -16,7 +16,6 @@ import {
   MapPin,
   Mountain,
   Sparkles,
-  DollarSign,
   UsersRound,
   Snowflake
 } from 'lucide-react';
@@ -39,6 +38,9 @@ import {
   sortMountainsForStudentBrowse,
   mountainsHaveSnowReportData
 } from '../services/mountains';
+import { getLessonDate, isLessonUpcoming } from '../utils/lessonDate';
+import { MountainLocationPicker } from '../components/booking/MountainLocationPicker';
+import { passFilterFromStudentSkiPass } from '../constants/mountainBrowse';
 
 const DEFAULT_PRICE_FILTER_MAX = 500;
 
@@ -116,9 +118,20 @@ export function BookLesson() {
       }
 
       if (activeTab === 'active') {
-        userLessons = userLessons.filter(
-          (lesson) => lesson.status === 'scheduled' || lesson.status === 'in_progress'
-        );
+        const upcomingStatuses = new Set(['scheduled', 'in_progress', 'booked']);
+        userLessons = userLessons
+          .filter((lesson) => {
+            if (!upcomingStatuses.has(lesson.status as string)) return false;
+            return isLessonUpcoming(lesson);
+          })
+          .sort((a, b) => {
+            const ta = getLessonDate(a).getTime();
+            const tb = getLessonDate(b).getTime();
+            if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+            if (Number.isNaN(ta)) return 1;
+            if (Number.isNaN(tb)) return -1;
+            return ta - tb;
+          });
       } else if (activeTab === 'history') {
         userLessons = userLessons.filter(
           (lesson) => lesson.status === 'completed' || lesson.status === 'cancelled'
@@ -270,6 +283,11 @@ export function BookLesson() {
 
   const showSnowSortHint = useMemo(() => mountainsHaveSnowReportData(mountains), [mountains]);
 
+  const initialResortPassFilter = useMemo(
+    () => passFilterFromStudentSkiPass(user?.studentPreferences?.skiPass),
+    [user?.studentPreferences?.skiPass]
+  );
+
   const instructorCountByMountainId = useMemo(() => {
     const map: Record<string, number> = {};
     for (const m of mountains) {
@@ -351,7 +369,7 @@ export function BookLesson() {
       case 'browse':
         return 'Find a lesson';
       case 'active':
-        return 'Active lessons';
+        return 'Upcoming lessons';
       case 'history':
         return 'History';
     }
@@ -419,7 +437,7 @@ export function BookLesson() {
                 {getTabIcon(tab)}
                 <span className="hidden sm:inline">{getTabLabel(tab)}</span>
                 <span className="sm:hidden">
-                  {tab === 'browse' ? 'Book' : tab === 'active' ? 'Active' : 'Past'}
+                  {tab === 'browse' ? 'Book' : tab === 'active' ? 'Upcoming' : 'Past'}
                 </span>
               </button>
             ))}
@@ -463,161 +481,15 @@ export function BookLesson() {
                 )}
 
                 {hasMountains && (
-                  <section className="space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
-                      <div>
-                        <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white">
-                          Where do you want to ski?
-                        </h2>
-                        <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
-                          Rates shown are set per mountain. Select one to see instructors who teach there.
-                          {showSnowSortHint && (
-                            <span className="block mt-1 text-slate-500 dark:text-slate-500">
-                              Resorts with snow data are sorted by reported base depth (most first). Figures are
-                              entered by your school—not live telemetry.
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      {selectedMountainId && (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedMountainId(null)}
-                          className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline self-start sm:self-auto inline-flex items-center gap-1"
-                        >
-                          <X className="w-4 h-4" />
-                          Show all mountains
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Mobile: horizontal chips */}
-                    <div className="flex md:hidden gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin -mx-1 px-1">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedMountainId(null)}
-                        className={`snap-start shrink-0 px-4 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${
-                          selectedMountainId === null
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200'
-                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300'
-                        }`}
-                      >
-                        All · {instructors.length}
-                      </button>
-                      {mountainsForBrowse.map((m) => {
-                        const count = instructorCountByMountainId[m.id] ?? 0;
-                        const snowLine =
-                          m.baseDepthInches != null
-                            ? `${m.baseDepthInches}" base${
-                                m.snowfall24hInches != null ? ` · ${m.snowfall24hInches}" 24h` : ''
-                              }`
-                            : m.snowfall24hInches != null
-                              ? `${m.snowfall24hInches}" in 24h`
-                              : null;
-                        return (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() =>
-                              setSelectedMountainId(selectedMountainId === m.id ? null : m.id)
-                            }
-                            className={`snap-start shrink-0 max-w-[200px] px-4 py-2.5 rounded-xl text-sm font-semibold border-2 text-left transition-all ${
-                              selectedMountainId === m.id
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/50 text-blue-800 dark:text-blue-200'
-                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300'
-                            }`}
-                          >
-                            <span className="line-clamp-1">{m.name}</span>
-                            {snowLine && (
-                              <span className="flex items-center gap-1 text-[11px] font-medium text-sky-700 dark:text-sky-300 mt-0.5">
-                                <Snowflake className="w-3 h-3 shrink-0" />
-                                {snowLine}
-                              </span>
-                            )}
-                            <span className="block text-xs font-normal opacity-80 mt-0.5">{count} instructors</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Desktop: card grid */}
-                    <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedMountainId(null)}
-                        className={`text-left rounded-2xl border-2 p-5 transition-all hover:shadow-md ${
-                          selectedMountainId === null
-                            ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 ring-2 ring-blue-500/20'
-                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-300 dark:hover:border-blue-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wide mb-2">
-                          <MapPin className="w-3.5 h-3.5" />
-                          Everywhere
-                        </div>
-                        <div className="font-bold text-lg text-slate-900 dark:text-white mb-1">All locations</div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                          See every instructor across all listed ski areas.
-                        </p>
-                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                          {instructors.length} instructors
-                        </div>
-                      </button>
-
-                      {mountainsForBrowse.map((m) => {
-                        const count = instructorCountByMountainId[m.id] ?? 0;
-                        const selected = selectedMountainId === m.id;
-                        const snowUpdated = formatSnowReportDate(m.snowReportUpdatedAt);
-                        return (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => setSelectedMountainId(selected ? null : m.id)}
-                            className={`text-left rounded-2xl border-2 p-5 transition-all hover:shadow-md ${
-                              selected
-                                ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 ring-2 ring-blue-500/20'
-                                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-300 dark:hover:border-blue-700'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wide mb-2">
-                              <Mountain className="w-3.5 h-3.5" />
-                              {m.location || 'Resort'}
-                            </div>
-                            <div className="font-bold text-lg text-slate-900 dark:text-white mb-1 line-clamp-2">
-                              {m.name}
-                            </div>
-                            {(m.baseDepthInches != null || m.snowfall24hInches != null) && (
-                              <div className="flex flex-wrap items-center gap-2 mb-2 text-xs font-medium text-sky-800 dark:text-sky-200">
-                                <span className="inline-flex items-center gap-1 rounded-lg bg-sky-100/90 dark:bg-sky-950/60 px-2 py-1 border border-sky-200/80 dark:border-sky-800">
-                                  <Snowflake className="w-3.5 h-3.5 shrink-0" />
-                                  {m.baseDepthInches != null && <span>{m.baseDepthInches}" base</span>}
-                                  {m.baseDepthInches != null && m.snowfall24hInches != null && (
-                                    <span className="text-sky-600/80 dark:text-sky-400/80">·</span>
-                                  )}
-                                  {m.snowfall24hInches != null && <span>{m.snowfall24hInches}" 24h</span>}
-                                </span>
-                                {snowUpdated && (
-                                  <span className="text-slate-500 dark:text-slate-400 font-normal">as of {snowUpdated}</span>
-                                )}
-                              </div>
-                            )}
-                            <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 min-h-[2.5rem] mb-3">
-                              {m.description || 'Private and group lessons available.'}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
-                              <span className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400">
-                                <DollarSign className="w-3 h-3" />
-                                {formatLessonRate(m.privateLessonPrice, m.groupLessonPrice)}
-                              </span>
-                            </div>
-                            <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 text-sm font-medium text-blue-600 dark:text-blue-400">
-                              {count} instructor{count === 1 ? '' : 's'}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </section>
+                  <MountainLocationPicker
+                    mountains={mountainsForBrowse}
+                    instructorCountByMountainId={instructorCountByMountainId}
+                    instructorsTotal={instructors.length}
+                    selectedMountainId={selectedMountainId}
+                    onSelectMountain={setSelectedMountainId}
+                    showSnowSortHint={showSnowSortHint}
+                    initialPassFilter={initialResortPassFilter}
+                  />
                 )}
 
                 {selectedMountain && (
@@ -829,7 +701,7 @@ export function BookLesson() {
                 ) : lessons.length > 0 ? (
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
-                      <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Your active lessons</h2>
+                      <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Your upcoming lessons</h2>
                       <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
                         {lessons.length}
                       </span>
@@ -897,7 +769,7 @@ export function BookLesson() {
                 ) : (
                   <div className="text-center py-12">
                     <BookOpen className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">No active lessons</h3>
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">No upcoming lessons</h3>
                     <p className="text-slate-600 dark:text-slate-400 mb-6">
                       Book a lesson from the Find a lesson tab.
                     </p>

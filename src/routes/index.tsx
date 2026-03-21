@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '../context/AuthContext';
+import { CartProvider } from '../context/CartContext';
 import { ThemeProvider } from '../context/ThemeContext';
 import { Layout } from '../components/Layout';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -20,6 +21,7 @@ const Stats = React.lazy(() => import('../pages/Stats').then(module => ({ defaul
 const Resources = React.lazy(() => import('../pages/Resources').then(module => ({ default: module.Resources })));
 const CheckoutSuccess = React.lazy(() => import('../pages/checkout/Success').then(module => ({ default: module.CheckoutSuccess })));
 const CheckoutCancel = React.lazy(() => import('../pages/checkout/Cancel').then(module => ({ default: module.CheckoutCancel })));
+const Cart = React.lazy(() => import('../pages/Cart').then(module => ({ default: module.Cart })));
 const UsersPage = React.lazy(() => import('../pages/Users'));
 const StudentsPage = React.lazy(() => import('../pages/Students'));
 const SchedulePage = React.lazy(() => import('../pages/Schedule'));
@@ -134,6 +136,16 @@ const router = createBrowserRouter([
       <Layout>
         <BookLesson />
       </Layout>
+    ),
+  },
+  {
+    path: '/cart',
+    element: (
+      <ProtectedRoute requiredRole="student">
+        <Layout>
+          <Cart />
+        </Layout>
+      </ProtectedRoute>
     ),
   },
   {
@@ -318,11 +330,13 @@ export function AppRouter() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <ThemeProvider>
-          <React.Suspense fallback={<FullPageSpinner text="Loading..." />}>
-            <RouterProvider router={router} />
-          </React.Suspense>
-        </ThemeProvider>
+        <CartProvider>
+          <ThemeProvider>
+            <React.Suspense fallback={<FullPageSpinner text="Loading..." />}>
+              <RouterProvider router={router} />
+            </React.Suspense>
+          </ThemeProvider>
+        </CartProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

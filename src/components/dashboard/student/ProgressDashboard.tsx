@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { progressService } from '../../../services/progress';
+import { progressService, achievementService } from '../../../services/progress';
 import { getStudentFeedback } from '../../../services/lessons';
 import { StudentProgress, SkillProgress, Achievement, LessonFeedback } from '../../../types';
 
@@ -32,7 +32,7 @@ export const ProgressDashboard: React.FC = () => {
       ] = await Promise.all([
         progressService.getStudentProgress(user!.id),
         progressService.getSkillProgress(user!.id),
-        progressService.getStudentAchievements(user!.id),
+        achievementService.getStudentAchievements(user!.id),
         getStudentFeedback(user!.id),
         progressService.getProgressAnalytics(user!.id)
       ]);

@@ -11,7 +11,8 @@ import {
   Calendar,
   Loader2,
   Plus,
-  Minus
+  Minus,
+  RefreshCw
 } from 'lucide-react';
 import { Lesson, User } from '../../types';
 import { getInstructorActiveLessons, startLesson, completeLesson, updateLesson } from '../../services/lessons';
@@ -242,8 +243,40 @@ export function ActiveLessons({
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="space-y-6" aria-busy="true" aria-live="polite">
+        {showTimeTracking && (
+          <div className="rounded-xl border border-gray-100 bg-white p-4 sm:p-6 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex animate-pulse items-center justify-between">
+              <div className="space-y-2">
+                <div className="h-5 w-36 rounded bg-gray-200 dark:bg-gray-700" />
+                <div className="h-4 w-48 rounded bg-gray-200 dark:bg-gray-700" />
+              </div>
+              <div className="h-10 w-28 rounded-lg bg-gray-200 dark:bg-gray-700" />
+            </div>
+          </div>
+        )}
+        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white dark:border-gray-800 dark:bg-gray-900">
+          <div className="border-b border-gray-100 px-3 py-3 dark:border-gray-800 sm:px-6 sm:py-4">
+            <div className="h-5 w-56 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+            <div className="mt-2 h-4 max-w-md animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+          </div>
+          <div className="divide-y divide-gray-100 dark:divide-gray-800">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="space-y-3 px-3 py-4 sm:px-6 sm:py-6">
+                <div className="h-5 w-2/3 max-w-sm animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                <div className="flex flex-wrap gap-2">
+                  <div className="h-4 w-28 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                  <div className="h-4 w-24 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                </div>
+                <div className="h-24 max-w-xl animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-center gap-2 border-t border-gray-100 py-3 text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            Loading your schedule…
+          </div>
+        </div>
       </div>
     );
   }
@@ -274,12 +307,21 @@ export function ActiveLessons({
 
       {showTimeTracking && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 dark:bg-gray-900 dark:border-gray-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Time Tracking</h2>
-              <p className="text-gray-600 dark:text-gray-400">Track your working hours</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Resort / non-lesson time</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                Clock in here for work that isn&apos;t tied to a specific lesson (e.g. desk, training, mountain ops). For
+                teaching time, use <strong className="font-semibold text-gray-800 dark:text-gray-200">Clock in for this lesson</strong>{' '}
+                on the lesson row below so payroll links to the correct session.
+              </p>
             </div>
-            <ClockInOutButton instructorId={instructorId} />
+            <ClockInOutButton
+              instructorId={instructorId}
+              instructor={authUser ?? undefined}
+              onClockIn={() => void loadLessons({ silent: true })}
+              onClockOut={() => void loadLessons({ silent: true })}
+            />
           </div>
         </div>
       )}
@@ -410,6 +452,22 @@ export function ActiveLessons({
                     )}
                   </div>
 
+                  <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-emerald-200/80 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-950/20 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-100">Lesson time (payroll)</p>
+                      <p className="text-xs text-emerald-800/90 dark:text-emerald-200/80 mt-0.5">
+                        Clock in/out for this lesson so your hours tie to this session.
+                      </p>
+                    </div>
+                    <ClockInOutButton
+                      instructorId={instructorId}
+                      lessonId={lesson.id}
+                      instructor={authUser ?? undefined}
+                      onClockIn={() => void loadLessons({ silent: true })}
+                      onClockOut={() => void loadLessons({ silent: true })}
+                    />
+                  </div>
+
                   <div className="mt-2 w-full max-w-xl rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950/50 p-2.5 sm:p-3">
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <label
@@ -462,29 +520,35 @@ export function ActiveLessons({
               );
             })
           ) : (
-            <div className="px-3 py-5 sm:p-6 text-center text-gray-500 dark:text-gray-400">
-              No in-progress lessons and nothing on your schedule for today.
+            <div className="px-3 py-10 sm:px-6 sm:py-12 text-center">
+              <Calendar className="mx-auto mb-4 h-12 w-12 text-gray-300 dark:text-gray-600" />
+              <p className="text-base font-medium text-gray-900 dark:text-white">Nothing on deck right now</p>
+              <p className="mx-auto mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">
+                No in-progress lessons and nothing scheduled for today. Open your full calendar when you&apos;re ready to
+                plan ahead.
+              </p>
+              <button
+                type="button"
+                className="mt-5 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
+                onClick={() => void loadLessons()}
+              >
+                <RefreshCw className="h-4 w-4 shrink-0" aria-hidden />
+                Refresh list
+              </button>
             </div>
           )}
         </div>
       </div>
 
       {showFeedback && selectedLesson && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowFeedback(false)} />
-
-          <div className="relative min-h-screen flex items-center justify-center p-4">
-            <div className="relative max-w-4xl w-full">
-              <EnhancedFeedbackForm
-                lessonId={selectedLesson.id}
-                studentId={selectedLesson.studentIds?.[0] ?? ''}
-                onFeedbackSubmitted={handleFeedbackSubmit}
-                onCancel={() => setShowFeedback(false)}
-                isOpen={showFeedback}
-              />
-            </div>
-          </div>
-        </div>
+        <EnhancedFeedbackForm
+          lessonId={selectedLesson.id}
+          studentId={selectedLesson.studentIds?.[0] ?? ''}
+          onFeedbackSubmitted={handleFeedbackSubmit}
+          onCancel={() => setShowFeedback(false)}
+          isOpen={showFeedback}
+          defaultSport={selectedLesson.sport ?? 'skiing'}
+        />
       )}
 
       {detailsLesson && authUser && (

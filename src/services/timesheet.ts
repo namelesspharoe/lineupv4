@@ -13,15 +13,27 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { TimeEntry } from '../types';
+import { TimeEntry, type User } from '../types';
+import {
+  computeBillableHours,
+  resolveHourlyRateForEntry,
+  resolvePayCategory,
+  roundMoney
+} from '../utils/instructorPayroll';
 
 export async function clockIn(
   lessonId: string,
   instructorId: string,
   verificationMethod: 'manual' = 'manual',
-  hourlyRate?: number
+  hourlyRate?: number,
+  instructorProfile?: User
 ): Promise<string> {
   try {
+    const resolvedRate =
+      instructorProfile != null
+        ? resolveHourlyRateForEntry(lessonId, instructorProfile)
+        : hourlyRate ?? 50;
+    const payCategory = resolvePayCategory(lessonId);
     const timeEntry: Omit<TimeEntry, 'id'> = {
       lessonId,
       instructorId,
@@ -29,7 +41,9 @@ export async function clockIn(
       verificationMethod,
       status: 'active',
       breaks: [],
-      hourlyRate: hourlyRate || 50, // Default $50/hour if not provided
+      hourlyRate: resolvedRate,
+      payCategory,
+      appliedRatePerHour: resolvedRate,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -55,34 +69,24 @@ export async function clockOut(timeEntryId: string): Promise<void> {
       throw new Error('Time entry not found');
     }
     
-    // Calculate total work time (excluding breaks)
-    const clockInTime = new Date(timeEntry.clockIn);
-    const totalWorkTimeMs = clockOutTime.getTime() - clockInTime.getTime();
-    
-    // Calculate total break time
-    const totalBreakTimeMs = timeEntry.breaks?.reduce((total: number, breakPeriod: any) => {
-      if (breakPeriod.duration) {
-        return total + (breakPeriod.duration * 60 * 1000); // Convert minutes to milliseconds
-      }
-      return total;
-    }, 0) || 0;
-    
-    // Calculate actual work time (total time minus breaks)
-    const actualWorkTimeMs = totalWorkTimeMs - totalBreakTimeMs;
-    const actualWorkHours = actualWorkTimeMs / (1000 * 60 * 60);
+    const actualWorkHours = computeBillableHours(
+      timeEntry.clockIn,
+      clockOutTime.toISOString(),
+      timeEntry.breaks
+    );
     
     // Get instructor's hourly rate (you might want to fetch this from user profile)
     // For now, we'll use a default rate or calculate from lesson price
     const hourlyRate = timeEntry.hourlyRate || 50; // Default $50/hour
     
     // Calculate total earnings
-    const totalEarnings = actualWorkHours * hourlyRate;
+    const totalEarnings = roundMoney(actualWorkHours * hourlyRate);
     
     await updateDoc(timeEntryRef, {
       clockOut: clockOutTime.toISOString(),
       status: 'completed',
       hourlyRate,
-      totalEarnings: Math.round(totalEarnings * 100) / 100, // Round to 2 decimal places
+      totalEarnings,
       updatedAt: new Date().toISOString()
     });
 

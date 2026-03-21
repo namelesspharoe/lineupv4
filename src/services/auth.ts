@@ -19,6 +19,7 @@ import {
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { User } from '../types';
+import { parseStudentSkillLevel } from '../utils/studentSkillLevel';
 
 /**
  * Creates a new user account with both Firebase Auth and Firestore profile.
@@ -44,11 +45,18 @@ export async function signUp(
     // Create Firebase Auth user
     const { user: firebaseUser } = await createUserWithEmailAndPassword(auth, email, password);
     
-    // Update Auth profile with basic info
-    await updateProfile(firebaseUser, {
-      displayName: userData.name,
-      photoURL: userData.avatar
-    });
+    // Firebase Auth photoURL expects a normal URL; skip data URLs (Firestore avatar is canonical).
+    const profile: { displayName: string; photoURL?: string } = { displayName: userData.name };
+    if (/^https?:\/\//i.test(userData.avatar ?? '')) {
+      profile.photoURL = userData.avatar;
+    }
+    await updateProfile(firebaseUser, profile);
+
+    const rawLevel = typeof userData.level === 'string' ? userData.level : '';
+    const studentSkillLevel =
+      userData.role === 'student' ? parseStudentSkillLevel(rawLevel || undefined) : undefined;
+    const levelForDoc =
+      userData.role === 'student' ? studentSkillLevel! : rawLevel;
 
     // Prepare user data for Firestore with explicit type handling
     const newUser: User = {
@@ -57,15 +65,24 @@ export async function signUp(
       name: userData.name,
       role: userData.role,
       avatar: userData.avatar,
+      discipline: userData.discipline,
       bio: userData.bio ?? '', // Use nullish coalescing for explicit undefined check
       specialties: Array.isArray(userData.specialties) ? userData.specialties : [],
-      level: typeof userData.level === 'string' ? userData.level : '', // Explicit type check
+      level: levelForDoc,
+      ...(studentSkillLevel !== undefined ? { studentSkillLevel } : {}),
       certifications: Array.isArray(userData.certifications) ? userData.certifications : [],
       languages: Array.isArray(userData.languages) ? userData.languages : [],
       yearsOfExperience: typeof userData.yearsOfExperience === 'number' ? userData.yearsOfExperience : 0,
       hourlyRate: typeof userData.hourlyRate === 'number' ? userData.hourlyRate : 0,
       preferredLocations: Array.isArray(userData.preferredLocations) ? userData.preferredLocations : [],
-      qualifications: typeof userData.qualifications === 'string' ? userData.qualifications : ''
+      qualifications: typeof userData.qualifications === 'string' ? userData.qualifications : '',
+      ...(userData.phone !== undefined && userData.phone !== '' ? { phone: userData.phone } : {}),
+      ...(userData.address !== undefined && userData.address !== '' ? { address: userData.address } : {}),
+      ...(userData.gender !== undefined ? { gender: userData.gender } : {}),
+      ...(userData.studentPreferences !== undefined
+        ? { studentPreferences: userData.studentPreferences }
+        : {}),
+      ...(userData.createdAt !== undefined ? { createdAt: userData.createdAt } : {})
     };
 
     // Create Firestore user document

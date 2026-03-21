@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Camera, X, Upload, CheckCircle } from 'lucide-react';
+import { ResponsiveModalPanel } from './ResponsiveModalPanel';
 import { uploadAvatar } from '../../services/storage';
 import { updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -89,32 +90,35 @@ export function ProfilePicturePopup({ user, onClose, onUpdate }: ProfilePictureP
 
   return (
     <>
-      <div className="fixed inset-0 z-50 overflow-y-auto">
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={handleSkip} />
-        
-        <div className="relative min-h-screen flex items-center justify-center p-4">
-          <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full">
-            <button
-              onClick={handleSkip}
-              className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
+      <ResponsiveModalPanel onClose={handleSkip} labelledBy="profile-picture-popup-title" maxWidthClass="sm:max-w-md">
+        <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+          <button
+            type="button"
+            onClick={handleSkip}
+            className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            aria-label="Close"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+          <div className="mb-6 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40">
+              <Camera className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h2
+              id="profile-picture-popup-title"
+              className="mb-2 text-2xl font-bold text-gray-900 dark:text-white"
             >
-              <X className="w-6 h-6" />
-            </button>
+              Welcome to SlopesMaster, {user.name}! 🎿
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400">
+              Add a profile picture to personalize your experience and earn your first achievement!
+            </p>
+          </div>
 
-            <div className="p-6">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Camera className="w-8 h-8 text-blue-600" />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  Welcome to SlopesMaster, {user.name}! 🎿
-                </h2>
-                <p className="text-gray-600">
-                  Add a profile picture to personalize your experience and earn your first achievement!
-                </p>
-              </div>
-
-              <div className="space-y-4">
+          <div className="space-y-4">
                 {/* Current Avatar Preview */}
                 <div className="flex justify-center">
                   <div className="relative">
@@ -163,49 +167,50 @@ export function ProfilePicturePopup({ user, onClose, onUpdate }: ProfilePictureP
                 )}
 
                 {/* Action Buttons */}
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={handleSkip}
-                    disabled={isUploading}
-                    className="flex-1 px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors disabled:opacity-50"
-                  >
-                    Skip for now
-                  </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    <Upload className="w-4 h-4" />
-                    {isUploading ? 'Uploading...' : 'Add Photo'}
-                  </button>
-                </div>
+            <div className="flex flex-col gap-2 pt-4 sm:flex-row sm:gap-3">
+              <button
+                type="button"
+                onClick={handleSkip}
+                disabled={isUploading}
+                className="w-full flex-1 px-4 py-2.5 text-gray-600 transition-colors hover:text-gray-900 disabled:opacity-50 dark:text-gray-400 dark:hover:text-white sm:py-2"
+              >
+                Skip for now
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="flex w-full flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-white transition-colors hover:bg-blue-700 disabled:opacity-50 sm:py-2"
+              >
+                <Upload className="h-4 w-4" />
+                {isUploading ? 'Uploading...' : 'Add Photo'}
+              </button>
+            </div>
 
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </div>
+
+          <div className="mt-6 rounded-lg border border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50 p-4 dark:border-yellow-800 dark:from-yellow-950/40 dark:to-orange-950/40">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-900/50">
+                <span className="text-xl">📸</span>
               </div>
-
-              {/* Achievement Preview */}
-              <div className="mt-6 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <span className="text-xl">📸</span>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900">Profile Picture Achievement</h3>
-                    <p className="text-sm text-gray-600">Add a profile picture to unlock this achievement!</p>
-                  </div>
-                </div>
+              <div>
+                <h3 className="font-medium text-gray-900 dark:text-white">Profile Picture Achievement</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Add a profile picture to unlock this achievement!
+                </p>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </ResponsiveModalPanel>
 
       {/* Achievement Notification */}
       {showAchievement && achievement && (

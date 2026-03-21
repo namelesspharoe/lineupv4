@@ -30,6 +30,16 @@ export function getLessonDate(lesson: Lesson): Date {
     return rawDate.toDate();
   }
 
+  if (
+    typeof rawDate === 'object' &&
+    rawDate !== null &&
+    'seconds' in rawDate &&
+    typeof (rawDate as { seconds: unknown }).seconds === 'number'
+  ) {
+    const s = rawDate as { seconds: number; nanoseconds?: number };
+    return new Date(s.seconds * 1000 + Math.floor((s.nanoseconds ?? 0) / 1e6));
+  }
+
   if (typeof rawDate === 'string') {
     if (rawDate.includes('T')) {
       const parsed = safeParse(rawDate);
@@ -121,7 +131,8 @@ export function isLessonUpcoming(lesson: Lesson, now = new Date()): boolean {
     return start.getTime() >= now.getTime();
   }
 
-  return lesson.status === 'scheduled' || lesson.status === 'in_progress';
+  const st = lesson.status as string;
+  return st === 'scheduled' || st === 'in_progress' || st === 'booked';
 }
 
 /** Matches `getInstructorActiveLessons`: in-progress (any day) or today's row with a live status. */

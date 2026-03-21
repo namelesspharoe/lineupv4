@@ -1,14 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Calendar, Clock, Users, DollarSign, Target, FileText, MapPin } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useCart } from '../../context/CartContext';
 import { createLesson } from '../../services/lessons';
-import { User, Lesson, Mountain } from '../../types';
+import { prepareLessonCheckout } from '../../lib/stripe';
+import { User, Lesson, Mountain, LessonSport } from '../../types';
+import type { LessonBookingDraft } from '../../types/cart';
 import { format } from 'date-fns';
 import { StudentSearch } from '../common/StudentSearch';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { getMountainById, getMountains, getStudentFacingMountainLessonRate } from '../../services/mountains';
+import {
+  getMountainById,
+  getMountains,
+  getStudentFacingMountainLessonRate,
+  resolveLessonPriceFromMountain
+} from '../../services/mountains';
 import { getUserById } from '../../services/users';
+import { ResponsiveModalPanel } from '../common/ResponsiveModalPanel';
 
 interface UnifiedLessonModalProps {
   isOpen: boolean;
@@ -17,6 +26,10 @@ interface UnifiedLessonModalProps {
   instructor?: User; // Required for booking mode
   existingLesson?: Lesson; // For editing existing lessons
   isAdmin?: boolean; // For admin functionality
+  /** When true, stacks above another dialog (z-index + Escape order). */
+  nested?: boolean;
+  /** Create mode: pre-fill lesson date (yyyy-MM-dd), e.g. from calendar day picker. */
+  defaultDate?: string;
 }
 
 interface LessonFormData {
@@ -25,6 +38,7 @@ interface LessonFormData {
   startTime: string;
   endTime: string;
   type: 'private' | 'group' | 'workshop';
+  sport: LessonSport;
   maxStudents: number;
   skillLevel: 'first_time' | 'developing_turns' | 'linking_turns' | 'confident_turns' | 'consistent_blue';
   price: number;
@@ -54,15 +68,28 @@ const lessonTypeLabels: Record<'private' | 'group' | 'workshop', string> = {
   workshop: 'Workshop'
 };
 
+function getSessionTypeFromTimes(
+  startTime: string,
+  endTime: string
+): 'morning' | 'afternoon' | 'full_day' {
+  if (startTime === '09:00' && endTime === '12:00') return 'morning';
+  if (startTime === '13:00' && endTime === '16:00') return 'afternoon';
+  if (startTime === '09:00' && endTime === '17:00') return 'full_day';
+  return 'morning';
+}
+
 export function UnifiedLessonModal({ 
   isOpen, 
   onClose, 
   mode, 
   instructor, 
   existingLesson,
-  isAdmin = false
+  isAdmin = false,
+  nested = false,
+  defaultDate
 }: UnifiedLessonModalProps) {
   const { user } = useAuth();
+  const { addItem } = useCart();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(0);
@@ -78,6 +105,7 @@ export function UnifiedLessonModal({
     startTime: '09:00',
     endTime: '12:00',
     type: 'private',
+    sport: 'skiing',
     maxStudents: 10,
     skillLevel: 'first_time',
     price: instructor?.price || 0,
@@ -123,6 +151,7 @@ export function UnifiedLessonModal({
         startTime: existingLesson.startTime || '09:00',
         endTime: existingLesson.endTime || '12:00',
         type: existingLesson.type,
+        sport: existingLesson.sport ?? 'skiing',
         maxStudents: existingLesson.maxStudents,
         skillLevel: existingLesson.skillLevel,
         price: existingLesson.price,
@@ -142,6 +171,11 @@ export function UnifiedLessonModal({
       }));
     }
   }, [existingLesson, instructor, mode, isAdmin]);
+
+  useEffect(() => {
+    if (!isOpen || existingLesson || mode !== 'create' || !defaultDate) return;
+    setFormData((prev) => (prev.date === defaultDate ? prev : { ...prev, date: defaultDate }));
+  }, [isOpen, defaultDate, existingLesson, mode]);
 
   useEffect(() => {
     if (existingLesson) return;
@@ -336,8 +370,65 @@ export function UnifiedLessonModal({
     return (end.getTime() - start.getTime()) / (1000 * 60 * 60);
   };
 
+  const studentPayFirst =
+    mode === 'book' && user?.role === 'student' && !isAdmin && !existingLesson;
+
+  const buildBookingDraft = (): LessonBookingDraft | null => {
+    if (!instructor) return null;
+    return {
+      title: formData.title,
+      instructorId: instructor.id,
+      date: formData.date,
+      sport: formData.sport,
+      sessionType: getSessionTypeFromTimes(formData.startTime, formData.endTime),
+      startTime: formData.startTime,
+      endTime: formData.endTime,
+      type: formData.type,
+      maxStudents: formData.maxStudents,
+      skillLevel: formData.skillLevel,
+      skillsFocus: formData.skillsFocus,
+      notes: formData.notes,
+      description: formData.description
+    };
+  };
+
+  const handleAddToCart = () => {
+    const draft = buildBookingDraft();
+    if (!draft || !instructor) {
+      setError('Missing lesson details');
+      return;
+    }
+    addItem(draft, { instructorName: instructor.name });
+    onClose();
+  };
+
+  const handleBuyNow = async () => {
+    if (!user || !instructor) return;
+    const draft = buildBookingDraft();
+    if (!draft) {
+      setError('Missing lesson details');
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const successUrl = `${window.location.origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
+      const cancelUrl = `${window.location.origin}/checkout/cancel`;
+      const url = await prepareLessonCheckout([draft], successUrl, cancelUrl);
+      window.location.href = url;
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : 'Checkout failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (studentPayFirst) {
+      return;
+    }
     if (!user) {
       setError('You must be logged in to create lessons');
       return;
@@ -347,14 +438,6 @@ export function UnifiedLessonModal({
     setError(null);
 
     try {
-      // Determine session type based on start/end times
-      const getSessionType = (startTime: string, endTime: string): 'morning' | 'afternoon' | 'full_day' => {
-        if (startTime === '09:00' && endTime === '12:00') return 'morning';
-        if (startTime === '13:00' && endTime === '16:00') return 'afternoon';
-        if (startTime === '09:00' && endTime === '17:00') return 'full_day';
-        return 'morning'; // default
-      };
-
       // Debug: Log admin status and user info
       console.log('UnifiedLessonModal - Debug info:', {
         isAdmin,
@@ -364,19 +447,32 @@ export function UnifiedLessonModal({
         mode
       });
 
+      let priceForLesson = formData.price;
+      if (priceForLesson <= 0 && mode === 'book' && !isAdmin && instructor) {
+        const resolved = await resolveLessonPriceFromMountain({
+          price: 0,
+          instructorId: instructor.id,
+          type: formData.type
+        });
+        if (resolved != null && resolved > 0) {
+          priceForLesson = resolved;
+        }
+      }
+
       const lessonData = {
         title: formData.title,
         instructorId: isAdmin && selectedInstructorId ? selectedInstructorId : (mode === 'book' && instructor ? instructor.id : user.id),
         studentIds: mode === 'book' ? [user.id] : formData.selectedStudents.map(s => s.id),
         date: formData.date,
-        sessionType: getSessionType(formData.startTime, formData.endTime),
+        sport: formData.sport,
+        sessionType: getSessionTypeFromTimes(formData.startTime, formData.endTime),
         startTime: formData.startTime,
         endTime: formData.endTime,
         status: (mode === 'book' ? 'scheduled' : 'available') as 'available' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled',
         type: formData.type,
         maxStudents: formData.maxStudents,
         skillLevel: formData.skillLevel,
-        price: formData.price,
+        price: priceForLesson,
         description: formData.description,
         skillsFocus: formData.skillsFocus,
         notes: formData.notes
@@ -398,29 +494,45 @@ export function UnifiedLessonModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      
-      <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-100 dark:border-gray-800">
-          {/* Header */}
-          <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-4 rounded-t-xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                {mode === 'create' ? 'Create New Lesson' : 'Book Lesson'}
-                {existingLesson && ' - Edit'}
-              </h2>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-              </button>
-            </div>
-          </div>
+  const titleText =
+    (mode === 'create' ? 'Create New Lesson' : 'Book Lesson') + (existingLesson ? ' — Edit' : '');
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+  return (
+    <ResponsiveModalPanel
+      onClose={onClose}
+      labelledBy="unified-lesson-title"
+      nested={nested}
+      maxWidthClass="sm:max-w-2xl"
+    >
+      <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          aria-label="Close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2 sm:px-6 sm:pb-6 sm:pt-16">
+        <h2
+          id="unified-lesson-title"
+          className="mb-4 text-xl font-bold text-gray-900 dark:text-white sm:mb-6 sm:text-2xl"
+        >
+          {titleText}
+        </h2>
+
+        <form
+          onSubmit={(e) => {
+            if (studentPayFirst) {
+              e.preventDefault();
+              return;
+            }
+            void handleSubmit(e);
+          }}
+          className="space-y-6"
+        >
             {error && (
               <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
                 <p className="text-red-600 dark:text-red-300">{error}</p>
@@ -548,6 +660,35 @@ export function UnifiedLessonModal({
                   </select>
                 </div>
               </div>
+
+              <div>
+                <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Discipline</p>
+                <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                  Keeps ski vs snowboard progress separate for the student.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {(
+                    [
+                      { id: 'skiing' as const, label: 'Skiing', icon: '⛷️' },
+                      { id: 'snowboarding' as const, label: 'Snowboarding', icon: '🏂' }
+                    ] as const
+                  ).map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, sport: opt.id }))}
+                      className={`rounded-xl border-2 p-3 text-left transition-all ${
+                        formData.sport === opt.id
+                          ? 'border-blue-500 bg-blue-50 dark:border-blue-400/70 dark:bg-blue-950/40'
+                          : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500'
+                      }`}
+                    >
+                      <span className="text-2xl">{opt.icon}</span>
+                      <div className="mt-1 font-medium text-gray-900 dark:text-white">{opt.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Student Selection - Only show for create mode */}
@@ -630,26 +771,46 @@ export function UnifiedLessonModal({
               </div>
             </div>
 
-            {/* Submit Button */}
-            <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
+            {/* Submit / pay-first actions */}
+            <div className="flex flex-col gap-2 border-t border-gray-200 pt-4 dark:border-gray-800 sm:flex-row sm:gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 sm:flex-1 sm:py-2"
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isLoading ? 'Creating...' : mode === 'create' ? 'Create Lesson' : 'Book Lesson'}
-              </button>
+              {studentPayFirst ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleAddToCart}
+                    disabled={isLoading}
+                    className="w-full rounded-lg border border-blue-600 bg-white px-4 py-2.5 text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-500 dark:bg-gray-900 dark:text-blue-300 dark:hover:bg-blue-950/40 sm:flex-1 sm:py-2"
+                  >
+                    Add to cart
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleBuyNow()}
+                    disabled={isLoading}
+                    className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:py-2"
+                  >
+                    {isLoading ? 'Redirecting…' : 'Buy now'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:py-2"
+                >
+                  {isLoading ? 'Creating...' : mode === 'create' ? 'Create Lesson' : 'Book Lesson'}
+                </button>
+              )}
             </div>
           </form>
-        </div>
       </div>
-    </div>
+    </ResponsiveModalPanel>
   );
 } 

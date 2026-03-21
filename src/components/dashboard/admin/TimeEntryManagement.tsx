@@ -9,14 +9,20 @@ import {
   DollarSign,
   AlertTriangle,
   Eye,
-  RefreshCw
+  RefreshCw,
+  BookOpen,
+  Scale,
+  GraduationCap,
+  Building2
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { collection, query, getDocs, updateDoc, doc, orderBy, where, limit } from 'firebase/firestore';
+import { collection, query, getDocs, updateDoc, doc, getDoc, orderBy, where, limit } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { TimeEntry, User as UserType } from '../../../types';
 import { EditTimeEntryModal } from './EditTimeEntryModal';
 import { TimeEntryDetailsModal } from './TimeEntryDetailsModal';
+import { payCategoryLabel, resolvePayCategory } from '../../../utils/instructorPayroll';
+import { isNonLessonTimeEntryId } from '../../../constants/timeEntry';
 
 interface TimeEntryManagementProps {
   user: UserType;
@@ -30,7 +36,14 @@ interface Stats {
   totalEntries: number;
   pendingApproval: number;
   disputedEntries: number;
+  completedEntries: number;
   totalEarnings: number;
+  /** Sum of `lesson.price` for distinct lesson docs linked by time entries (teaching shifts). */
+  linkedLessonRevenue: number;
+  /** linkedLessonRevenue − totalEarnings (same loaded batch). */
+  netMargin: number;
+  teachingPayout: number;
+  resortPayout: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -50,7 +63,12 @@ export function TimeEntryManagement({ user }: TimeEntryManagementProps) {
     totalEntries: 0,
     pendingApproval: 0,
     disputedEntries: 0,
-    totalEarnings: 0
+    completedEntries: 0,
+    totalEarnings: 0,
+    linkedLessonRevenue: 0,
+    netMargin: 0,
+    teachingPayout: 0,
+    resortPayout: 0
   });
 
   // Load time entries and instructors
@@ -92,17 +110,64 @@ export function TimeEntryManagement({ user }: TimeEntryManagementProps) {
 
       setTimeEntries(entriesWithInstructors);
 
+      const uniqueLessonIds = [
+        ...new Set(
+          entriesWithInstructors
+            .map((e) => e.lessonId)
+            .filter((id): id is string => Boolean(id) && !isNonLessonTimeEntryId(id))
+        )
+      ];
+
+      const lessonPriceById = new Map<string, number>();
+      await Promise.all(
+        uniqueLessonIds.map(async (lessonId) => {
+          try {
+            const snap = await getDoc(doc(db, 'lessons', lessonId));
+            if (snap.exists()) {
+              const price = Number((snap.data() as { price?: number }).price) || 0;
+              lessonPriceById.set(lessonId, price);
+            }
+          } catch {
+            /* ignore missing lesson */
+          }
+        })
+      );
+
+      let linkedLessonRevenue = 0;
+      for (const id of uniqueLessonIds) {
+        linkedLessonRevenue += lessonPriceById.get(id) ?? 0;
+      }
+
       // Calculate stats
       const totalEntries = entriesWithInstructors.length;
-      const pendingApproval = entriesWithInstructors.filter(entry => entry.status === 'active').length;
-      const disputedEntries = entriesWithInstructors.filter(entry => entry.status === 'disputed').length;
+      const pendingApproval = entriesWithInstructors.filter((entry) => entry.status === 'active').length;
+      const disputedEntries = entriesWithInstructors.filter((entry) => entry.status === 'disputed').length;
+      const completedEntries = entriesWithInstructors.filter((entry) => entry.status === 'completed').length;
       const totalEarnings = entriesWithInstructors.reduce((sum, entry) => sum + (entry.totalEarnings || 0), 0);
+
+      let teachingPayout = 0;
+      let resortPayout = 0;
+      for (const entry of entriesWithInstructors) {
+        const pay = entry.totalEarnings || 0;
+        if (resolvePayCategory(entry.lessonId) === 'teaching') {
+          teachingPayout += pay;
+        } else {
+          resortPayout += pay;
+        }
+      }
+
+      const netMargin = linkedLessonRevenue - totalEarnings;
 
       setStats({
         totalEntries,
         pendingApproval,
         disputedEntries,
-        totalEarnings
+        completedEntries,
+        totalEarnings,
+        linkedLessonRevenue,
+        netMargin,
+        teachingPayout,
+        resortPayout
       });
 
     } catch (err) {
@@ -234,54 +299,142 @@ export function TimeEntryManagement({ user }: TimeEntryManagementProps) {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Clock className="w-5 h-5 text-blue-600" />
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Clock className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total entries</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.totalEntries}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Total Entries</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalEntries}</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Pending (active)</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.pendingApproval}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <XCircle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Disputed</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.disputedEntries}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Completed</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.completedEntries}</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <AlertTriangle className="w-5 h-5 text-yellow-600" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <BookOpen className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-gray-600">Lesson revenue (linked)</p>
+                <p className="text-2xl font-bold text-gray-900">${stats.linkedLessonRevenue.toFixed(2)}</p>
+                <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                  Sum of lesson prices for distinct lessons referenced by these entries.
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Pending Approval</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.pendingApproval}</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <DollarSign className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-gray-600">Instructor payout</p>
+                <p className="text-2xl font-bold text-gray-900">${stats.totalEarnings.toFixed(2)}</p>
+                <p className="text-xs text-gray-500 mt-1">Sum of recorded earnings on all loaded entries.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div
+                className={`p-2 rounded-lg ${
+                  stats.netMargin >= 0 ? 'bg-teal-100' : 'bg-orange-100'
+                }`}
+              >
+                <Scale className={`w-5 h-5 ${stats.netMargin >= 0 ? 'text-teal-700' : 'text-orange-700'}`} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-gray-600">Net (revenue − payout)</p>
+                <p
+                  className={`text-2xl font-bold ${
+                    stats.netMargin >= 0 ? 'text-teal-800' : 'text-orange-800'
+                  }`}
+                >
+                  ${stats.netMargin.toFixed(2)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                  Rough margin for this batch; not a full P&amp;L.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-slate-100 rounded-lg shrink-0">
+                <GraduationCap className="w-5 h-5 text-slate-700" />
+              </div>
+              <div className="min-w-0 space-y-2">
+                <p className="text-sm font-medium text-gray-700">Payout by type</p>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="flex items-center gap-1 text-gray-600">
+                    <GraduationCap className="w-3.5 h-3.5 shrink-0" />
+                    Teaching
+                  </span>
+                  <span className="font-semibold text-gray-900">${stats.teachingPayout.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="flex items-center gap-1 text-gray-600">
+                    <Building2 className="w-3.5 h-3.5 shrink-0" />
+                    Resort / other
+                  </span>
+                  <span className="font-semibold text-gray-900">${stats.resortPayout.toFixed(2)}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <XCircle className="w-5 h-5 text-red-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Disputed</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.disputedEntries}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <DollarSign className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Total Earnings</p>
-              <p className="text-2xl font-bold text-gray-900">${stats.totalEarnings.toFixed(2)}</p>
-            </div>
-          </div>
-        </div>
+        <p className="text-xs text-gray-500 max-w-4xl">
+          Figures use the latest <strong>200 time entries</strong> from the server (same as the table). Lesson
+          revenue counts each lesson once; multiple shifts on the same lesson still show one lesson price. Payout
+          sums every entry’s <span className="font-mono">totalEarnings</span>.
+        </p>
       </div>
 
       {/* Filters */}
@@ -415,10 +568,13 @@ export function TimeEntryManagement({ user }: TimeEntryManagementProps) {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     <div>
-                      {entry.hourlyRate && (
+                      <div className="text-xs text-gray-500">
+                        {payCategoryLabel(entry.payCategory ?? resolvePayCategory(entry.lessonId))}
+                      </div>
+                      {entry.hourlyRate != null && (
                         <div className="text-gray-500">${entry.hourlyRate}/hr</div>
                       )}
-                      {entry.totalEarnings && (
+                      {entry.totalEarnings != null && (
                         <div className="font-medium">${entry.totalEarnings.toFixed(2)}</div>
                       )}
                     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { X, Search } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
@@ -12,9 +12,20 @@ interface CreateLessonModalProps {
   onClose: () => void;
   onCreated: () => void;
   isAdmin?: boolean;
+  /** Pre-fill the new lesson date in the form (yyyy-MM-dd). */
+  initialDate?: string;
+  /** When admin creates from an instructor’s calendar, pre-select that instructor. */
+  prefillInstructor?: User;
 }
 
-export function CreateLessonModal({ isOpen, onClose, onCreated, isAdmin = false }: CreateLessonModalProps) {
+export function CreateLessonModal({
+  isOpen,
+  onClose,
+  onCreated,
+  isAdmin = false,
+  initialDate,
+  prefillInstructor
+}: CreateLessonModalProps) {
   const { user } = useAuth();
   const [selectedInstructor, setSelectedInstructor] = useState<User | null>(null);
   const [instructorSearchQuery, setInstructorSearchQuery] = useState('');
@@ -70,6 +81,12 @@ export function CreateLessonModal({ isOpen, onClose, onCreated, isAdmin = false 
     }
   }, [user, isAdmin]);
 
+  useEffect(() => {
+    if (!isOpen || !isAdmin || !prefillInstructor) return;
+    setSelectedInstructor(prefillInstructor);
+    setInstructorSearchQuery(prefillInstructor.name || '');
+  }, [isOpen, isAdmin, prefillInstructor]);
+
   const handleInstructorSelect = (instructor: User) => {
     setSelectedInstructor(instructor);
     setInstructors([]);
@@ -94,10 +111,21 @@ export function CreateLessonModal({ isOpen, onClose, onCreated, isAdmin = false 
     onClose();
   };
 
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      setShowUnifiedModal(false);
+      return;
+    }
+    if (initialDate && !isAdmin && user?.role === 'instructor') {
+      setShowUnifiedModal(true);
+    }
+  }, [isOpen, initialDate, isAdmin, user?.role]);
+
   if (!isOpen) return null;
 
   return (
     <>
+      {!showUnifiedModal && (
       <ResponsiveModalPanel onClose={onClose} labelledBy="create-lesson-title">
         <div className="flex shrink-0 items-center justify-end border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900 sm:absolute sm:inset-x-0 sm:top-0 sm:z-20 sm:border-0 sm:bg-transparent sm:px-4 sm:py-3">
           <button
@@ -236,14 +264,18 @@ export function CreateLessonModal({ isOpen, onClose, onCreated, isAdmin = false 
           </div>
         </div>
       </ResponsiveModalPanel>
+      )}
 
       {/* Unified Lesson Modal */}
       <UnifiedLessonModal
+        key={initialDate ? `lesson-${initialDate}` : 'lesson-default'}
         isOpen={showUnifiedModal}
         onClose={handleUnifiedModalClose}
         mode="create"
         instructor={selectedInstructor || undefined}
         isAdmin={isAdmin}
+        nested
+        defaultDate={initialDate}
       />
     </>
   );

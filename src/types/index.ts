@@ -16,30 +16,93 @@ export interface KidProfile {
   updated_at: string;
 }
 
+/** Ski vs snowboard — used on users (discipline), lessons (sport), and feedback. */
+export type LessonSport = 'skiing' | 'snowboarding';
+
+/** Student skill step (signup, feedback, studentProgress). Not used for instructor teaching-level strings. */
+export type StudentSkillLevel =
+  | 'first_time'
+  | 'developing_turns'
+  | 'linking_turns'
+  | 'confident_turns'
+  | 'consistent_blue';
+
+/** Student’s season pass — signup + preferences. */
+export type SkiPassType = 'ikon' | 'epic' | 'both' | 'independent' | 'none';
+
+/** Resort network tags on mountain docs (Ikon / Epic). */
+export type MountainPassAffiliation = 'ikon' | 'epic';
+
+/** Stable region bucket for grouping resorts in Book Lesson. */
+export type MountainRegionId =
+  | 'usa_rockies'
+  | 'usa_pnw'
+  | 'usa_northeast'
+  | 'usa_southwest'
+  | 'usa_other'
+  | 'canada'
+  | 'international'
+  | 'other';
+
+/** Instructor payroll: lesson time vs resort/non-lesson; extensible for future modifiers. */
+export interface InstructorPaySettings {
+  /** Resort / admin / non-lesson clock-ins (`lessonId` general or unset). */
+  baseRatePerHour?: number;
+  /** Clock-ins tied to a real lesson id. */
+  teachRatePerHour?: number;
+  /** Future: overtime multiplier, large-group add-on, etc. */
+  payModifiers?: Record<string, number>;
+}
+
+export interface StudentPreferences {
+  maxPrice?: number;
+  preferredLessonType?: 'private' | 'group' | 'workshop' | 'any';
+  learningGoals?: string[];
+  preferredDays?: string[];
+  preferredTimes?: string[];
+  preferredInstructorGender?: string;
+  preferredInstructorExperience?: string;
+  learningStyle?: string;
+  /** Season pass the student skis on (Book Lesson defaults, matching). */
+  skiPass?: SkiPassType;
+}
+
 export interface User {
   id: string;
   email: string;
   name: string;
   role: 'student' | 'instructor' | 'admin';
   avatar: string;
+  /** Primary sport — especially for students (ski vs snowboard). */
+  discipline?: LessonSport;
   bio?: string;
   phone?: string;
   address?: string;
   homeMountain?: string; // Only for instructors
   mountainId?: string;
   specialties?: string[];
+  /**
+   * Instructor: teaching / matching level (freeform).
+   * Student: same value as `studentSkillLevel` when set; use `getStudentSkillLevel()` for typed reads.
+   */
   level?: string;
+  /** Student-only: canonical skill step; kept in sync with `level` for students. */
+  studentSkillLevel?: StudentSkillLevel;
   certifications?: string[];
   languages?: string[];
   yearsOfExperience?: number;
   price?: number;
   hourlyRate?: number;
+  /** Instructor: structured teach vs base pay for timesheet. */
+  instructorPay?: InstructorPaySettings;
   preferredLocations?: string[];
   qualifications?: string;
   gender?: string;
   isGroup?: boolean;
   participants?: string[];
   createdAt?: string;
+  /** Student-only: AI matching + Book Lesson defaults (pass, price, goals, …). */
+  studentPreferences?: StudentPreferences;
 }
 
 export interface Mountain {
@@ -47,6 +110,10 @@ export interface Mountain {
   name: string;
   description?: string;
   location?: string;
+  /** Region bucket for browse grouping; legacy docs treated as `other`. */
+  regionId?: MountainRegionId;
+  /** Ikon / Epic (or both) — empty/undefined until admin tags the resort. */
+  passAffiliations?: MountainPassAffiliation[];
   privateLessonPrice?: number;
   groupLessonPrice?: number;
   /** Reported base depth (inches); used to sort resorts for students (higher first). */
@@ -77,7 +144,7 @@ export interface StudentProgress {
   id: string;
   studentId: string;
   name: string;
-  level: string; // 'first_time' | 'developing_turns' | 'linking_turns' | 'confident_turns' | 'consistent_blue'
+  level: StudentSkillLevel;
   totalLessons: number;
   completedLessons: number;
   skillProgress: {
@@ -185,6 +252,8 @@ export interface Lesson {
   instructorId: string;
   studentIds: string[];
   date: string;
+  /** Ski or snowboard for this session (defaults to skiing for legacy docs). */
+  sport?: LessonSport;
   sessionType: 'morning' | 'afternoon' | 'full_day';
   startTime?: string;
   endTime?: string;
@@ -306,6 +375,10 @@ export interface TimeEntry {
   }>;
   notes?: string;
   hourlyRate?: number;
+  /** Snapshot at clock-in for teach vs non-lesson classification. */
+  payCategory?: 'teaching' | 'non_lesson';
+  /** Rate used for this entry (matches hourlyRate when set). */
+  appliedRatePerHour?: number;
   totalEarnings?: number;
   verificationData?: {
     location?: {

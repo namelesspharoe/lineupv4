@@ -4,6 +4,7 @@ import { User, Lesson, LessonFeedback, StudentProgress } from '../types';
 import { getLessonsByStudent, getStudentFeedback } from './lessons';
 import { instructorStatsService, InstructorStats } from './instructorStats';
 import { getMountains, instructorMatchesMountainSelection } from './mountains';
+import { isLessonUpcoming } from '../utils/lessonDate';
 
 export interface InstructorMatch {
   instructor: User;
@@ -49,20 +50,37 @@ interface MatchingWeights {
 }
 
 const DEFAULT_WEIGHTS: MatchingWeights = {
-  skillLevel: 18,
-  specialties: 22,
+  skillLevel: 15,
+  specialties: 17,
   location: 12,
   language: 8,
   price: 10,
-  rating: 10,
+  rating: 7,
   experience: 5,
-  pastHistory: 3,
+  pastHistory: 14,
   studentGoals: 5,
   lessonType: 3,
   instructorGender: 2,
   instructorExperience: 2,
   learningStyle: 2
 };
+
+/**
+ * Whether this lesson counts as the student having taken a session with the instructor.
+ * Prefers `completed`; also counts past booked sessions not yet marked completed in the system.
+ */
+function lessonCountsAsTakenWithInstructor(lesson: Lesson, instructorId: string): boolean {
+  if (lesson.instructorId !== instructorId) return false;
+  const status = lesson.status as string;
+  if (status === 'cancelled') return false;
+  if (status === 'completed') return true;
+  if (status === 'available') return false;
+  return !isLessonUpcoming(lesson);
+}
+
+function countLessonsTakenWithInstructor(pastLessons: Lesson[], instructorId: string): number {
+  return pastLessons.filter((l) => lessonCountsAsTakenWithInstructor(l, instructorId)).length;
+}
 
 /**
  * AI Matching Service for matching students with instructors
@@ -211,8 +229,14 @@ export const instructorMatchingService = {
         })
       );
 
-      // Sort by match score (highest first)
-      matches.sort((a, b) => b.matchScore - a.matchScore);
+      // Sort by match score (highest first), then by prior lessons with that instructor
+      matches.sort((a, b) => {
+        const diff = b.matchScore - a.matchScore;
+        if (diff !== 0) return diff;
+        const ca = countLessonsTakenWithInstructor(studentProfile.pastLessons || [], a.instructor.id);
+        const cb = countLessonsTakenWithInstructor(studentProfile.pastLessons || [], b.instructor.id);
+        return cb - ca;
+      });
 
       // Return top results
       const maxResults = options?.maxResults || 10;
@@ -461,17 +485,13 @@ export const instructorMatchingService = {
    * Score past history (bonus for previous lessons)
    */
   scorePastHistory(pastLessons: Lesson[], instructorId: string): number {
-    const lessonsWithInstructor = pastLessons.filter(
-      lesson => lesson.instructorId === instructorId && lesson.status === 'completed'
-    );
-
-    if (lessonsWithInstructor.length === 0) return 0;
-
-    // Bonus increases with number of past lessons
-    if (lessonsWithInstructor.length >= 5) return 100;
-    if (lessonsWithInstructor.length >= 3) return 80;
-    if (lessonsWithInstructor.length >= 2) return 60;
-    return 40;
+    const n = countLessonsTakenWithInstructor(pastLessons, instructorId);
+    if (n === 0) return 0;
+    // Strong signal: repeat students should rank higher; scales with lesson count
+    if (n >= 5) return 100;
+    if (n >= 3) return 85;
+    if (n >= 2) return 68;
+    return 55;
   },
 
   /**
@@ -586,12 +606,12 @@ export const instructorMatchingService = {
       reasons.push(`${instructor.yearsOfExperience}+ years of experience`);
     }
 
-    // Past history
-    const pastLessonsWithInstructor = (student.pastLessons || []).filter(
-      lesson => lesson.instructorId === instructor.id && lesson.status === 'completed'
-    );
-    if (pastLessonsWithInstructor.length > 0) {
-      reasons.push(`You've had ${pastLessonsWithInstructor.length} successful lesson${pastLessonsWithInstructor.length > 1 ? 's' : ''} together`);
+    // Past history (same rules as scorePastHistory)
+    const takenCount = countLessonsTakenWithInstructor(student.pastLessons || [], instructor.id);
+    if (takenCount > 0) {
+      reasons.push(
+        `You've taken ${takenCount} lesson${takenCount > 1 ? 's' : ''} with this instructor before`
+      );
     }
 
     // Certifications

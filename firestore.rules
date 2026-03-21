@@ -49,9 +49,18 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Lessons collection
+    // Lessons: only instructors/admins may create; students book via Stripe + Cloud Function
     match /lessons/{lessonId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow create: if isAdmin() || isInstructor();
+      allow update: if isAdmin() || isInstructor() ||
+        (isStudent() && request.auth.uid in resource.data.studentIds);
+      allow delete: if isAdmin();
+    }
+
+    // Pending lesson checkouts — server (Admin SDK) only
+    match /pending_lesson_checkouts/{checkoutId} {
+      allow read, write: if false;
     }
 
     // Mountains collection
