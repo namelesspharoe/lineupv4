@@ -4,6 +4,10 @@ import { X } from 'lucide-react';
 
 // Define the structure of our filter state
 interface FilterPanelProps {
+  /** Omit outer card — use inside a parent panel (e.g. beside resort picker). */
+  embedded?: boolean;
+  /** Wider gaps and fewer columns per row so filters are not squeezed (e.g. Book Lesson full-width). */
+  layout?: 'default' | 'comfortable';
   filters: {
     discipline: string[];    // Array of selected disciplines (ski/snowboard)
     level: string[];        // Array of selected skill levels
@@ -27,7 +31,7 @@ interface FilterPanelProps {
 
 const PRICE_SLIDER_MAX = 500;
 
-export function FilterPanel({ filters, setFilters, onClear }: FilterPanelProps) {
+export function FilterPanel({ embedded = false, layout = 'default', filters, setFilters, onClear }: FilterPanelProps) {
   // Helper function to toggle filter values in arrays
   // If value exists in array, remove it; if it doesn't exist, add it
   const toggleFilter = (category: keyof typeof filters, value: string) => {
@@ -56,8 +60,12 @@ export function FilterPanel({ filters, setFilters, onClear }: FilterPanelProps) 
     onClear?.();
   };
 
+  const shellClass = embedded
+    ? undefined
+    : 'bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-4 md:p-6';
+
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-4 md:p-6">
+    <div className={shellClass}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center gap-2">
@@ -80,7 +88,13 @@ export function FilterPanel({ filters, setFilters, onClear }: FilterPanelProps) 
       </div>
 
       {/* Main filter container with responsive grid layout */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div
+        className={
+          layout === 'comfortable'
+            ? 'grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-8 lg:grid-cols-3 lg:gap-x-10 lg:gap-y-10'
+            : 'grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+        }
+      >
         {/* Discipline Filter Section */}
         <div>
           <h4 className="font-medium text-gray-900 dark:text-white mb-3 text-sm">Discipline</h4>
@@ -94,24 +108,6 @@ export function FilterPanel({ filters, setFilters, onClear }: FilterPanelProps) 
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">{discipline}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Skill Level Filter Section */}
-        <div>
-          <h4 className="font-medium text-gray-900 dark:text-white mb-3 text-sm">Level</h4>
-          <div className="space-y-2">
-            {['Beginner', 'Intermediate', 'Advanced', 'Expert'].map(level => (
-              <label key={level} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-1.5 -ml-1.5">
-                <input
-                  type="checkbox"
-                  checked={filters.level.includes(level)}
-                  onChange={() => toggleFilter('level', level)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">{level}</span>
               </label>
             ))}
           </div>
@@ -135,26 +131,14 @@ export function FilterPanel({ filters, setFilters, onClear }: FilterPanelProps) 
           </div>
         </div>
 
-        {/* Certification Level Filter Section */}
-        <div>
-          <h4 className="font-medium text-gray-900 dark:text-white mb-3 text-sm">Certification</h4>
-          <div className="space-y-2 max-h-40 overflow-y-auto">
-            {['PSIA Level 1', 'PSIA Level 2', 'PSIA Level 3', 'AASI Level 1', 'AASI Level 2', 'AASI Level 3'].map(cert => (
-              <label key={cert} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-1.5 -ml-1.5">
-                <input
-                  type="checkbox"
-                  checked={filters.certification.includes(cert)}
-                  onChange={() => toggleFilter('certification', cert)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">{cert}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
         {/* Price Range Filter Section */}
-        <div className="sm:col-span-2 lg:col-span-1">
+        <div
+          className={
+            layout === 'comfortable'
+              ? 'sm:col-span-2 lg:col-span-3'
+              : 'sm:col-span-2 lg:col-span-1'
+          }
+        >
           <h4 className="font-medium text-gray-900 dark:text-white mb-3 text-sm">
             Price Range: ${filters.price[0]} - ${filters.price[1]}/hour
           </h4>

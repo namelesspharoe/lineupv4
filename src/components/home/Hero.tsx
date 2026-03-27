@@ -1,61 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, Star, Snowflake, Mountain, Users } from 'lucide-react';
-import { collection, query, getDocs, where } from 'firebase/firestore';
+import { Mountain, Sparkles, Star } from 'lucide-react';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
-export function Hero() {
-  const [stats, setStats] = useState({
-    totalInstructors: 0,
-    totalLessons: 0,
-    averageRating: 0
-  });
+const LESSON_MATCH_PLACEHOLDER =
+  'Private snowboard lesson for two teens in Aspen, Saturday morning, never been before…';
+
+const LESSON_MATCH_EXAMPLE =
+  'Try: “Intermediate skier, weekday mornings, Breckenridge, want to learn carving.”';
+
+interface HeroProps {
+  lessonDescription: string;
+  onLessonDescriptionChange: (value: string) => void;
+  onMatchSubmit: (trimmedPrompt: string) => void | Promise<void>;
+  matchLoading?: boolean;
+}
+
+export function Hero({
+  lessonDescription,
+  onLessonDescriptionChange,
+  onMatchSubmit,
+  matchLoading = false
+}: HeroProps) {
+  const [totalLessons, setTotalLessons] = useState(0);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchLessonCount = async () => {
       try {
-        // Get total instructors
-        const instructorsQuery = query(
-          collection(db, 'users'),
-          where('role', '==', 'instructor')
-        );
-        const instructorsSnapshot = await getDocs(instructorsQuery);
-        const totalInstructors = instructorsSnapshot.size;
-
-        // Get total lessons
         const lessonsSnapshot = await getDocs(collection(db, 'lessons'));
-        const totalLessons = lessonsSnapshot.size;
-
-        // Calculate average rating from completed lessons
-        const completedLessons = lessonsSnapshot.docs
-          .map(doc => doc.data())
-          .filter(lesson => lesson.status === 'completed');
-        
-        const allReviews = completedLessons.flatMap(lesson => lesson.studentReviews || []);
-        const averageRating = allReviews.length > 0 
-          ? Math.round((allReviews.reduce((sum, review) => sum + review.rating, 0) / allReviews.length) * 10) / 10
-          : 4.8; // Default rating if no reviews
-
-        setStats({
-          totalInstructors,
-          totalLessons,
-          averageRating
-        });
+        setTotalLessons(lessonsSnapshot.size);
       } catch (error) {
-        console.error('Error fetching stats:', error);
-        // Fallback to default stats
-        setStats({
-          totalInstructors: 150,
-          totalLessons: 2500,
-          averageRating: 4.8
-        });
+        console.error('Error fetching lesson count:', error);
+        setTotalLessons(2500);
       }
     };
 
-    fetchStats();
+    fetchLessonCount();
   }, []);
 
+  const handleLessonMatchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = lessonDescription.trim();
+    if (!text || matchLoading) return;
+    await onMatchSubmit(text);
+  };
+
   return (
-    <div className="relative min-h-[90vh] flex items-center bg-gray-900">
+    <div className="relative min-h-[78vh] sm:min-h-[85vh] md:min-h-[90vh] flex items-center bg-gray-900 py-10 sm:py-0">
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-black/60 z-10" />
         <img
@@ -67,7 +58,7 @@ export function Hero() {
       
       <div className="container mx-auto px-4 sm:px-6 relative z-10">
         <div className="max-w-4xl">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4 sm:mb-6">
             <div className="flex items-center gap-1">
               <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-yellow-400" />
               <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-yellow-400" />
@@ -75,67 +66,62 @@ export function Hero() {
               <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-yellow-400" />
               <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-yellow-400" />
             </div>
-            <span className="text-sm sm:text-base text-gray-300 font-medium">Trusted by {stats.totalLessons.toLocaleString()}+ students worldwide</span>
+            <span className="text-sm sm:text-base text-gray-300 font-medium">{totalLessons.toLocaleString()}+ lessons booked</span>
           </div>
           
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-4 sm:mb-6 leading-tight">
             Find Your Perfect
             <span className="block text-blue-400">
               Ski & Snowboard Instructor
             </span>
           </h1>
           
-          <p className="text-lg sm:text-xl text-gray-300 mb-8 leading-relaxed max-w-2xl">
-            Our AI-powered matching system connects you with the perfect instructor based on your skill level, 
-            learning goals, and preferences. Book personalized lessons and track your progress from beginner to expert.
+          <p className="text-base sm:text-lg md:text-xl text-gray-300 mb-5 sm:mb-8 leading-relaxed max-w-2xl">
+            Smart matching, certified coaches, and easy booking—whether you&apos;re new to snow or leveling up.
           </p>
           
-          <div className="mb-8 inline-flex items-center gap-2 px-4 py-2 bg-blue-600/20 backdrop-blur-sm border border-blue-500/30 rounded-full">
-            <span className="text-sm font-semibold text-blue-300">✨ AI-Powered Matching</span>
-            <span className="text-xs text-gray-400">Find your perfect match instantly</span>
+          <div className="mb-5 sm:mb-8 inline-flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-600/20 backdrop-blur-sm border border-blue-500/30 rounded-xl sm:rounded-full max-w-full">
+            <span className="text-xs sm:text-sm font-semibold text-blue-300">✨ AI matching</span>
+            <span className="text-[11px] sm:text-xs text-gray-400">Suggestions based on your goals</span>
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-4 mb-12">
-            <a 
-              href="/find-instructor"
-              className="px-6 sm:px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2 shadow-lg touch-manipulation"
+          <form
+            onSubmit={handleLessonMatchSubmit}
+            className="mb-8 sm:mb-12 max-w-2xl"
+            aria-label="Describe your lesson for AI matching"
+          >
+            <label
+              htmlFor="hero-lesson-match"
+              className="flex items-center gap-2 text-sm sm:text-base font-medium text-gray-100 mb-2"
             >
-              <Mountain className="w-5 h-5" />
-              Find Your Instructor
-              <ChevronRight className="w-5 h-5" />
-            </a>
-            <a 
-              href="/book-lesson"
-              className="px-6 sm:px-8 py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-semibold transition-all duration-300 border border-gray-600 hover:border-gray-500 flex items-center justify-center gap-2 touch-manipulation"
-            >
-              <Snowflake className="w-5 h-5" />
-              Browse Lessons
-            </a>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
-            <div className="text-center">
-              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 mb-3 inline-block border border-gray-700">
-                <Users className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" />
+              <Mountain className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400 shrink-0" aria-hidden />
+              Describe your perfect lesson
+            </label>
+            <div className="rounded-xl sm:rounded-2xl border border-gray-600/90 bg-gray-950/55 backdrop-blur-md shadow-xl overflow-hidden ring-1 ring-white/5 focus-within:ring-2 focus-within:ring-blue-500/80 focus-within:border-blue-500/50 transition-shadow">
+              <textarea
+                id="hero-lesson-match"
+                name="lessonDescription"
+                rows={3}
+                value={lessonDescription}
+                onChange={(e) => onLessonDescriptionChange(e.target.value)}
+                placeholder={LESSON_MATCH_PLACEHOLDER}
+                className="w-full bg-transparent text-white placeholder:text-gray-500 px-4 py-3 sm:py-3.5 text-sm sm:text-base leading-relaxed resize-y min-h-[5.5rem] border-0 focus:ring-0"
+              />
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-t border-gray-700/90 bg-gray-900/50">
+                <p className="text-[11px] sm:text-xs text-gray-400 leading-snug order-2 sm:order-1">
+                  {LESSON_MATCH_EXAMPLE}
+                </p>
+                <button
+                  type="submit"
+                  disabled={!lessonDescription.trim() || matchLoading}
+                  className="order-1 sm:order-2 inline-flex items-center justify-center gap-2 min-h-[44px] px-5 py-2.5 rounded-xl font-semibold text-sm sm:text-base bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 disabled:opacity-40 disabled:pointer-events-none transition-colors touch-manipulation shadow-lg"
+                >
+                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                  {matchLoading ? 'Matching…' : 'Match with AI'}
+                </button>
               </div>
-              <p className="text-2xl sm:text-3xl font-bold text-white">{stats.totalInstructors}+</p>
-              <p className="text-sm sm:text-base text-gray-400 font-medium">Certified Instructors</p>
             </div>
-            <div className="text-center">
-              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 mb-3 inline-block border border-gray-700">
-                <Snowflake className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" />
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold text-white">{stats.totalLessons.toLocaleString()}+</p>
-              <p className="text-sm sm:text-base text-gray-400 font-medium">Lessons Completed</p>
-            </div>
-            <div className="text-center">
-              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 mb-3 inline-block border border-gray-700">
-                <Star className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400" />
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold text-white">{stats.averageRating}/5</p>
-              <p className="text-sm sm:text-base text-gray-400 font-medium">Average Rating</p>
-            </div>
-          </div>
+          </form>
         </div>
       </div>
     </div>

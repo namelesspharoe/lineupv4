@@ -40,6 +40,10 @@ interface MountainLocationPickerProps {
   showSnowSortHint: boolean;
   /** From signup / profile — preselect pass filter. */
   initialPassFilter: PassBrowseFilter;
+  /** Inside a combined panel — smaller heading, no outer section semantics. */
+  embedded?: boolean;
+  /** When a resort is chosen, hide the full directory until user chooses "Change resort". */
+  collapseWhenSelected?: boolean;
 }
 
 const PASS_OPTIONS: { id: PassBrowseFilter; label: string }[] = [
@@ -56,15 +60,31 @@ export function MountainLocationPicker({
   selectedMountainId,
   onSelectMountain,
   showSnowSortHint,
-  initialPassFilter
+  initialPassFilter,
+  embedded = false,
+  collapseWhenSelected = true
 }: MountainLocationPickerProps) {
   const [passFilter, setPassFilter] = useState<PassBrowseFilter>(initialPassFilter);
   const [regionScope, setRegionScope] = useState<MountainRegionId | 'all'>('all');
   const [resortSearch, setResortSearch] = useState('');
+  /** True = show full resort list (after "Change resort" or no selection). */
+  const [resortBrowserOpen, setResortBrowserOpen] = useState(false);
 
   useEffect(() => {
     setPassFilter(initialPassFilter);
   }, [initialPassFilter]);
+
+  useEffect(() => {
+    setResortBrowserOpen(false);
+  }, [selectedMountainId]);
+
+  const selectedMountain = useMemo(() => {
+    if (!selectedMountainId) return null;
+    return mountains.find((m) => m.id === selectedMountainId) ?? null;
+  }, [mountains, selectedMountainId]);
+
+  const showCollapsedSummary =
+    collapseWhenSelected && selectedMountainId != null && selectedMountain != null && !resortBrowserOpen;
 
   const filtered = useMemo(() => {
     const byPass = filterMountainsByPass(mountains, passFilter);
@@ -180,14 +200,86 @@ export function MountainLocationPicker({
     );
   };
 
+  const Root = embedded ? 'div' : 'section';
+  const titleClass = embedded
+    ? 'text-lg font-bold text-slate-900 dark:text-white'
+    : 'text-xl md:text-2xl font-bold text-slate-900 dark:text-white';
+
+  if (showCollapsedSummary && selectedMountain) {
+    const count = instructorCountByMountainId[selectedMountain.id] ?? 0;
+    const snowUpdated = formatSnowReportDate(selectedMountain.snowReportUpdatedAt);
+    return (
+      <Root className="min-w-0 space-y-3">
+        {embedded ? (
+          <h3 className={titleClass}>Selected resort</h3>
+        ) : (
+          <h2 className={titleClass}>Selected resort</h2>
+        )}
+        <div className="flex flex-col gap-3 rounded-xl border-2 border-blue-500/35 bg-blue-50/80 p-4 dark:border-blue-500/30 dark:bg-blue-950/25 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Mountain className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" aria-hidden />
+              <span className="font-semibold text-slate-900 dark:text-white">{selectedMountain.name}</span>
+              {selectedMountain.location && (
+                <span className="text-sm text-slate-500 dark:text-slate-400">· {selectedMountain.location}</span>
+              )}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+              <span className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400">
+                <DollarSign className="h-3 w-3" aria-hidden />
+                {formatLessonRate(selectedMountain.privateLessonPrice, selectedMountain.groupLessonPrice)}
+              </span>
+              <span>
+                {count} instructor{count === 1 ? '' : 's'}
+              </span>
+              {(selectedMountain.baseDepthInches != null || selectedMountain.snowfall24hInches != null) && (
+                <span className="inline-flex items-center gap-1 text-sky-700 dark:text-sky-300">
+                  <Snowflake className="h-3 w-3 shrink-0" aria-hidden />
+                  {selectedMountain.baseDepthInches != null && <span>{selectedMountain.baseDepthInches}" base</span>}
+                  {selectedMountain.baseDepthInches != null && selectedMountain.snowfall24hInches != null && ' · '}
+                  {selectedMountain.snowfall24hInches != null && (
+                    <span>{selectedMountain.snowfall24hInches}" 24h</span>
+                  )}
+                  {snowUpdated && <span className="text-slate-400">({snowUpdated})</span>}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setResortBrowserOpen(true)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+            >
+              Change resort
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectMountain(null)}
+              className="rounded-lg border border-transparent px-3 py-2 text-sm font-medium text-blue-700 underline-offset-2 hover:underline dark:text-blue-300"
+            >
+              All locations
+            </button>
+          </div>
+        </div>
+      </Root>
+    );
+  }
+
   return (
-    <section className="space-y-4">
+    <Root className="space-y-4 min-w-0">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white">Where do you want to ski?</h2>
+          {embedded ? (
+            <h3 className={titleClass}>Where do you want to ski?</h3>
+          ) : (
+            <h2 className={titleClass}>Where do you want to ski?</h2>
+          )}
           <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
-            Filter by pass and region, then pick a resort. Rates are set per mountain.
-            {showSnowSortHint && (
+            {resortBrowserOpen && selectedMountainId
+              ? 'Pick another resort or switch back to your current selection.'
+              : 'Filter by pass and region, then pick a resort. Rates are set per mountain.'}
+            {showSnowSortHint && !resortBrowserOpen && (
               <span className="block mt-1 text-slate-500 dark:text-slate-500">
                 Within each region, resorts with snow data are sorted by reported base depth (most first). Figures are
                 entered by your school—not live telemetry.
@@ -195,16 +287,27 @@ export function MountainLocationPicker({
             )}
           </p>
         </div>
-        {selectedMountainId && (
-          <button
-            type="button"
-            onClick={() => onSelectMountain(null)}
-            className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline self-start sm:self-auto inline-flex items-center gap-1"
-          >
-            <X className="w-4 h-4" />
-            Show all mountains
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {resortBrowserOpen && selectedMountainId && (
+            <button
+              type="button"
+              onClick={() => setResortBrowserOpen(false)}
+              className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white inline-flex items-center gap-1"
+            >
+              Done
+            </button>
+          )}
+          {selectedMountainId && (
+            <button
+              type="button"
+              onClick={() => onSelectMountain(null)}
+              className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+            >
+              <X className="w-4 h-4" />
+              All locations
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
@@ -368,6 +471,6 @@ export function MountainLocationPicker({
           </div>
         </div>
       )}
-    </section>
+    </Root>
   );
 }

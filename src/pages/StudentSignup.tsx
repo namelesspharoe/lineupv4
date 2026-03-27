@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Snowflake, ChevronRight, ChevronLeft, Plus, X } from 'lucide-react';
+import { Snowflake, ChevronRight, ChevronLeft, Plus, X, CheckCircle2, Sparkles } from 'lucide-react';
 import { StudentLevelQuestionnaire } from '../components/StudentLevelQuestionnaire';
 import { createKidProfile } from '../services/kids';
 import { KidProfile, LessonSport, SkiPassType } from '../types';
@@ -27,19 +27,144 @@ interface FormData {
   // New fields for AI matching
   preferredLocations: string[];
   preferredLanguages: string[];
-  maxPrice: number;
-  preferredLessonType: 'private' | 'group' | 'workshop' | 'any';
   learningGoals: string[];
-  preferredDays: string[];
-  preferredTimes: string[];
   preferredInstructorGender: string;
-  preferredInstructorExperience: string;
   learningStyle: string;
   skiPass: SkiPassType;
 }
 
 interface FormErrors {
   [key: string]: string;
+}
+
+type SignupStepHelp = {
+  label: string;
+  headline: string;
+  body: string;
+  matchingBullets?: string[];
+};
+
+const SIGNUP_STEP_HELP: SignupStepHelp[] = [
+  {
+    label: 'Account',
+    headline: 'Create your login',
+    body: 'We use email and password so you can return to bookings, messages, and lesson history. Phone and address help coaches or logistics reach you when plans shift—you can keep them minimal if you prefer.',
+  },
+  {
+    label: 'Skills & style',
+    headline: 'Level and how you ride',
+    body: 'Discipline (ski vs snowboard), the short questionnaire, interests, and bio describe where you are on snow. That profile feeds browse filters, recommendations, and matching when you describe a lesson—honest answers mean better instructor fits.',
+    matchingBullets: [
+      'The questionnaire maps you to a clear skill level instructors expect',
+      'Interests highlight parks, powder, carving, racing, and more',
+      'You can update level and bio anytime from your profile',
+    ],
+  },
+  {
+    label: 'Matching prefs',
+    headline: 'Fine-tune coach fit',
+    body: 'Pass type, favorite resorts, languages, goals, instructor gender preference, and learning style are all optional. They narrow suggestions toward coaches who teach where you ski and how you like to learn—skip anything you are unsure about.',
+    matchingBullets: [
+      'Resorts + pass: align with where you actually hold a ticket',
+      'Goals + learning style: match teaching tone to how you progress best',
+    ],
+  },
+  {
+    label: 'Family',
+    headline: 'Kids on snow',
+    body: 'If children will take lessons, add a short profile per kid (age, level, colors, emergency contact) so bookings stay accurate and safe. If this is only for you, you will skip adding profiles here.',
+  },
+  {
+    label: 'Finish',
+    headline: 'Review and start',
+    body: 'Accept the terms to complete signup. You will land on your dashboard next—you can refine photos, level, and preferences before you book your first lesson.',
+  },
+];
+
+function SignupAside({
+  step,
+  help,
+  allSteps,
+}: {
+  step: number;
+  help: SignupStepHelp;
+  allSteps: SignupStepHelp[];
+}) {
+  return (
+    <div className="sticky top-24 space-y-8 rounded-2xl border border-slate-200/90 bg-white/95 p-6 shadow-md shadow-slate-200/40 backdrop-blur-sm">
+      <div>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">How signup works</h2>
+        <ol className="mt-4 space-y-3">
+          {allSteps.map((h, i) => {
+            const n = i + 1;
+            const done = step > n;
+            const active = step === n;
+            return (
+              <li key={n} className="flex gap-3">
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    active
+                      ? 'bg-blue-600 text-white ring-2 ring-blue-200'
+                      : done
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-slate-200 text-slate-600'
+                  }`}
+                  aria-hidden
+                >
+                  {done ? <CheckCircle2 className="h-4 w-4" strokeWidth={2.5} /> : n}
+                </span>
+                <div className="min-w-0 pt-0.5">
+                  <p className={`text-sm font-semibold ${active ? 'text-slate-900' : 'text-slate-700'}`}>
+                    {h.label}
+                  </p>
+                  <p className="text-xs text-slate-500">{h.headline}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      <div className="border-t border-slate-100 pt-6">
+        <div className="flex items-start gap-3">
+          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-blue-500" aria-hidden />
+          <div>
+            <h3 className="font-semibold text-slate-900">{help.headline}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">{help.body}</p>
+            {help.matchingBullets && help.matchingBullets.length > 0 ? (
+              <ul className="mt-3 space-y-1.5 text-sm text-slate-600">
+                {help.matchingBullets.map((b) => (
+                  <li key={b} className="flex gap-2">
+                    <span className="font-bold text-blue-500">·</span>
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileStepHelp({ help }: { help: SignupStepHelp }) {
+  return (
+    <div className="mb-6 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/90 to-slate-50 p-4 lg:hidden">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-800">This step</p>
+      <p className="mt-1 text-sm font-semibold text-slate-900">{help.headline}</p>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600">{help.body}</p>
+      {help.matchingBullets && help.matchingBullets.length > 0 ? (
+        <ul className="mt-3 space-y-1 text-sm text-slate-600">
+          {help.matchingBullets.map((b) => (
+            <li key={b} className="flex gap-2 pl-0.5">
+              <span className="text-blue-500">·</span>
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 export function StudentSignup() {
@@ -70,13 +195,8 @@ export function StudentSignup() {
     // New fields for AI matching
     preferredLocations: [],
     preferredLanguages: [],
-    maxPrice: 150,
-    preferredLessonType: 'any',
     learningGoals: [],
-    preferredDays: [],
-    preferredTimes: [],
     preferredInstructorGender: 'any',
-    preferredInstructorExperience: 'any',
     learningStyle: 'balanced',
     skiPass: 'none'
   });
@@ -88,6 +208,10 @@ export function StudentSignup() {
       navigate('/dashboard');
     }
   }, [signupCompleted, user, navigate]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [step]);
 
   // Avatar upload temporarily disabled
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -174,13 +298,8 @@ export function StudentSignup() {
         languages: formData.preferredLanguages,
         // Store additional preferences in a studentPreferences object
         studentPreferences: {
-          maxPrice: formData.maxPrice,
-          preferredLessonType: formData.preferredLessonType,
           learningGoals: formData.learningGoals,
-          preferredDays: formData.preferredDays,
-          preferredTimes: formData.preferredTimes,
           preferredInstructorGender: formData.preferredInstructorGender,
-          preferredInstructorExperience: formData.preferredInstructorExperience,
           learningStyle: formData.learningStyle,
           skiPass: formData.skiPass
         },
@@ -251,63 +370,113 @@ export function StudentSignup() {
     }
   };
 
+  const stepHelp = SIGNUP_STEP_HELP[step - 1] ?? SIGNUP_STEP_HELP[0];
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 bg-blue-100 rounded-xl flex items-center justify-center">
-            <Snowflake className="h-8 w-8 text-blue-600" />
+    <div className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-white py-10 px-4 sm:px-6 lg:py-14">
+      <div className="mx-auto max-w-5xl">
+        <header className="mb-8 text-center lg:mb-10 lg:text-left">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 lg:mx-0">
+            <Snowflake className="h-8 w-8 text-blue-600" aria-hidden />
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">Create Your Account</h2>
-          <p className="mt-2 text-sm text-gray-600">Join our community of snow sports enthusiasts</p>
-        </div>
+          <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">
+            Create your student account
+          </h1>
+          <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-gray-600 lg:mx-0 lg:text-base">
+            Five steps: secure your account, tell us how you ride (for level and matching), optional preferences
+            for instructor fit, kid profiles if needed, then terms. Account fields and preferences can be edited
+            anytime in your profile after signup.
+          </p>
+        </header>
 
-        <div className="flex justify-center space-x-2">
-          {[1, 2, 3, 4, 5].map((s) => (
-            <div
-              key={s}
-              className={`h-2 w-12 rounded-full ${
-                s === step ? 'bg-blue-600' : 'bg-gray-200'
-              }`}
-            />
-          ))}
-        </div>
+        <div className="grid gap-8 lg:grid-cols-12 lg:items-start lg:gap-10">
+          <aside className="hidden lg:col-span-5 lg:block xl:col-span-4">
+            <SignupAside step={step} help={stepHelp} allSteps={SIGNUP_STEP_HELP} />
+          </aside>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {errors.submit && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">
+          <div className="lg:col-span-7 xl:col-span-8">
+            <div className="rounded-2xl border border-gray-200/90 bg-white p-6 shadow-lg shadow-slate-200/40 sm:p-8">
+              <MobileStepHelp help={stepHelp} />
+
+              <div className="mb-8">
+                <p className="text-center text-sm text-gray-600 lg:text-left">
+                  <span className="font-semibold text-gray-900">Step {step} of 5</span>
+                  <span className="mx-2 text-gray-300" aria-hidden>
+                    ·
+                  </span>
+                  <span>{stepHelp.label}</span>
+                </p>
+                <div
+                  className="mt-3 flex gap-1.5 sm:justify-center lg:justify-start"
+                  aria-hidden
+                >
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <div
+                      key={s}
+                      className={`h-2 max-w-24 min-w-0 flex-1 rounded-full transition-colors ${
+                        s < step ? 'bg-blue-400' : s === step ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+          {errors.submit ? (
+            <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
               {errors.submit}
             </div>
-          )}
+          ) : null}
 
           {step === 1 && (
             <div className="space-y-4">
+              <p className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-relaxed text-slate-700">
+                Use a personal email you check often—this is how we send booking confirmations and password resets.
+                Phone and address are optional on this step but help if an instructor needs to coordinate on the mountain.
+              </p>
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                  Full Name
+                  Full name
                 </label>
                 <input
                   id="name"
+                  name="name"
                   type="text"
+                  autoComplete="name"
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  aria-invalid={errors.name ? 'true' : 'false'}
+                  aria-describedby={errors.name ? 'name-error' : undefined}
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 />
-                {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+                {errors.name ? (
+                  <p id="name-error" className="mt-1 text-sm text-red-600" role="alert">
+                    {errors.name}
+                  </p>
+                ) : null}
               </div>
 
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email Address
+                  Email address
                 </label>
                 <input
                   id="email"
+                  name="email"
                   type="email"
+                  autoComplete="email"
+                  inputMode="email"
                   value={formData.email}
                   onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  aria-invalid={errors.email ? 'true' : 'false'}
+                  aria-describedby={errors.email ? 'email-error' : undefined}
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 />
-                {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
+                {errors.email ? (
+                  <p id="email-error" className="mt-1 text-sm text-red-600" role="alert">
+                    {errors.email}
+                  </p>
+                ) : null}
               </div>
 
               <div>
@@ -316,66 +485,106 @@ export function StudentSignup() {
                 </label>
                 <input
                   id="password"
+                  name="password"
                   type="password"
+                  autoComplete="new-password"
                   value={formData.password}
                   onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  aria-invalid={errors.password ? 'true' : 'false'}
+                  aria-describedby={errors.password ? 'password-error' : undefined}
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 />
-                {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+                {errors.password ? (
+                  <p id="password-error" className="mt-1 text-sm text-red-600" role="alert">
+                    {errors.password}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-gray-500">At least 6 characters.</p>
+                )}
               </div>
 
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                  Confirm Password
+                  Confirm password
                 </label>
                 <input
                   id="confirmPassword"
+                  name="confirmPassword"
                   type="password"
+                  autoComplete="new-password"
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  aria-invalid={errors.confirmPassword ? 'true' : 'false'}
+                  aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 />
-                {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
+                {errors.confirmPassword ? (
+                  <p id="confirmPassword-error" className="mt-1 text-sm text-red-600" role="alert">
+                    {errors.confirmPassword}
+                  </p>
+                ) : null}
               </div>
 
               <div>
                 <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                  Phone Number
+                  Phone number <span className="font-normal text-gray-500">(optional)</span>
                 </label>
                 <input
                   id="phone"
+                  name="phone"
                   type="tel"
+                  autoComplete="tel"
+                  inputMode="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   placeholder="(555) 123-4567"
                 />
-                {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
+                {errors.phone ? (
+                  <p className="mt-1 text-sm text-red-600" role="alert">
+                    {errors.phone}
+                  </p>
+                ) : null}
               </div>
 
               <div>
                 <label htmlFor="address" className="block text-sm font-medium text-gray-700">
-                  Address
+                  Address <span className="font-normal text-gray-500">(optional)</span>
                 </label>
                 <textarea
                   id="address"
+                  name="address"
                   rows={3}
+                  autoComplete="street-address"
                   value={formData.address}
                   onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter your full address..."
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="City, region, or full address—whatever you are comfortable sharing"
                 />
-                {errors.address && <p className="mt-1 text-sm text-red-600">{errors.address}</p>}
+                {errors.address ? (
+                  <p className="mt-1 text-sm text-red-600" role="alert">
+                    {errors.address}
+                  </p>
+                ) : null}
               </div>
             </div>
           )}
 
           {step === 2 && (
             <div className="space-y-6">
+              <div className="rounded-xl border border-blue-100 bg-blue-50/90 p-4 text-sm leading-relaxed text-blue-950">
+                <p className="font-semibold text-blue-900">Used for level and matching</p>
+                <p className="mt-2 text-blue-900/90">
+                  Answers here become your default skill level and ride style across the app. Instructors and
+                  search tools use them to suggest appropriate lessons; the home matching flow also leans on this
+                  profile when you describe what you want to work on.
+                </p>
+              </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Primary discipline</label>
                 <p className="mb-3 text-xs text-gray-500">
-                  Ski and snowboard are tracked separately — pick what you mainly ride.
+                  Ski and snowboard are tracked separately—pick what you mainly ride. You can add the other sport later
+                  from your profile if you do both.
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   {(
@@ -404,7 +613,14 @@ export function StudentSignup() {
                 </div>
               </div>
 
-              <StudentLevelQuestionnaire onLevelSelect={handleLevelSelect} />
+              <div>
+                <p className="mb-2 text-sm font-medium text-gray-800">Skill questionnaire</p>
+                <p className="mb-3 text-xs text-gray-500">
+                  There are no wrong answers—we map your responses to a standard level so coaches know what to expect
+                  before you meet.
+                </p>
+                <StudentLevelQuestionnaire onLevelSelect={handleLevelSelect} />
+              </div>
               
               {/* Avatar Upload - Temporarily Disabled */}
               <div>
@@ -442,9 +658,11 @@ export function StudentSignup() {
 
               {/* Interests */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Interests
-                </label>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Interests</label>
+                <p className="mb-2 text-xs text-gray-500">
+                  Choose anything that excites you on snow. We use this to highlight relevant coaches and terrain
+                  when you browse or match.
+                </p>
                 <div className="grid grid-cols-2 gap-2">
                   {['Skiing', 'Snowboarding', 'Freestyle', 'Backcountry', 'Racing', 'Terrain Park'].map((interest) => (
                     <label key={interest} className="flex items-center">
@@ -496,10 +714,13 @@ export function StudentSignup() {
 
           {step === 3 && (
             <div className="space-y-6">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="text-lg font-medium text-blue-900 mb-2">Help us find your perfect instructor</h3>
-                <p className="text-blue-700 text-sm">
-                  These preferences help our AI match you with the best instructors. All fields are optional.
+              <div className="rounded-xl bg-blue-50 p-4 sm:p-5">
+                <h3 className="text-lg font-semibold text-blue-950">Matching preferences (all optional)</h3>
+                <p className="mt-2 text-sm leading-relaxed text-blue-900/90">
+                  Nothing here blocks signup. When you search, book, or use lesson matching, we combine these choices
+                  with your level from the last step to surface coaches who teach where you ski, speak your languages,
+                  and fit how you like to learn. Skip anything you are not sure about—you can complete it from your
+                  profile before your first booking.
                 </p>
               </div>
 
@@ -587,52 +808,6 @@ export function StudentSignup() {
                 </div>
               </div>
 
-              {/* Budget */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Maximum Price per Hour: ${formData.maxPrice}
-                </label>
-                <input
-                  type="range"
-                  min="50"
-                  max="300"
-                  step="10"
-                  value={formData.maxPrice}
-                  onChange={(e) => setFormData(prev => ({ ...prev, maxPrice: parseInt(e.target.value) }))}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>$50</span>
-                  <span>$300</span>
-                </div>
-              </div>
-
-              {/* Preferred Lesson Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Preferred Lesson Type
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: 'any', label: 'Any' },
-                    { value: 'private', label: 'Private' },
-                    { value: 'group', label: 'Group' },
-                    { value: 'workshop', label: 'Workshop' }
-                  ].map((type) => (
-                    <label key={type.value} className="flex items-center">
-                      <input
-                        type="radio"
-                        name="lessonType"
-                        checked={formData.preferredLessonType === type.value}
-                        onChange={() => setFormData(prev => ({ ...prev, preferredLessonType: type.value as any }))}
-                        className="text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-gray-700 text-sm">{type.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
               {/* Learning Goals */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -658,90 +833,21 @@ export function StudentSignup() {
                 </div>
               </div>
 
-              {/* Preferred Days */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Preferred Days (optional)
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
-                    <label key={day} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.preferredDays.includes(day)}
-                        onChange={(e) => {
-                          const newDays = e.target.checked
-                            ? [...formData.preferredDays, day]
-                            : formData.preferredDays.filter(d => d !== day);
-                          setFormData(prev => ({ ...prev, preferredDays: newDays }));
-                        }}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="ml-1 text-gray-700 text-xs">{day.slice(0, 3)}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Preferred Times */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Preferred Times (optional)
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['Morning', 'Afternoon', 'Evening'].map((time) => (
-                    <label key={time} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.preferredTimes.includes(time)}
-                        onChange={(e) => {
-                          const newTimes = e.target.checked
-                            ? [...formData.preferredTimes, time]
-                            : formData.preferredTimes.filter(t => t !== time);
-                          setFormData(prev => ({ ...prev, preferredTimes: newTimes }));
-                        }}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-gray-700 text-sm">{time}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
               {/* Instructor Preferences */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Preferred Instructor Gender
-                  </label>
-                  <select
-                    value={formData.preferredInstructorGender}
-                    onChange={(e) => setFormData(prev => ({ ...prev, preferredInstructorGender: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="any">No Preference</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="non-binary">Non-binary</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Preferred Instructor Experience
-                  </label>
-                  <select
-                    value={formData.preferredInstructorExperience}
-                    onChange={(e) => setFormData(prev => ({ ...prev, preferredInstructorExperience: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="any">No Preference</option>
-                    <option value="beginner">1-3 years</option>
-                    <option value="intermediate">3-5 years</option>
-                    <option value="advanced">5-10 years</option>
-                    <option value="expert">10+ years</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Preferred Instructor Gender
+                </label>
+                <select
+                  value={formData.preferredInstructorGender}
+                  onChange={(e) => setFormData(prev => ({ ...prev, preferredInstructorGender: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="any">No Preference</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="non-binary">Non-binary</option>
+                </select>
               </div>
 
               {/* Learning Style */}
@@ -773,7 +879,11 @@ export function StudentSignup() {
 
           {step === 4 && formData.hasKids && (
             <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Kid Profiles</h3>
+              <p className="text-sm leading-relaxed text-gray-600">
+                Add one profile per child who will take lessons. Details stay on your account for faster booking and
+                safety; instructors see what you choose to share when you book for them.
+              </p>
+              <h3 className="text-lg font-medium text-gray-900">Kid profiles</h3>
               
               {kidProfiles.map((profile, index) => (
                 <div key={index} className="p-4 bg-gray-50 rounded-lg">
@@ -804,17 +914,20 @@ export function StudentSignup() {
           )}
 
           {step === 4 && !formData.hasKids && (
-            <div className="text-center py-8">
-              <p className="text-gray-600">No kid profiles to add.</p>
+            <div className="py-8 text-center">
+              <p className="text-gray-600">
+                You indicated lessons are just for you—no kid profiles needed. Tap <strong>Next</strong> to review terms.
+              </p>
             </div>
           )}
 
           {step === 5 && (
             <div className="space-y-6">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="text-lg font-medium text-blue-900 mb-2">Almost there!</h3>
-                <p className="text-blue-700">
-                  Please review and accept our terms to complete your registration.
+              <div className="rounded-lg bg-blue-50 p-4">
+                <h3 className="mb-2 text-lg font-semibold text-blue-950">Almost there</h3>
+                <p className="text-sm leading-relaxed text-blue-900/90">
+                  Accept the terms to create your account. You can update level, matching preferences, and photos from
+                  your dashboard before you book.
                 </p>
               </div>
 
@@ -890,6 +1003,9 @@ export function StudentSignup() {
             </div>
           </div>
         </form>
+            </div>
+          </div>
+        </div>
       </div>
 
       {showKidForm && (

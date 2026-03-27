@@ -78,6 +78,4 @@ export { KidProfileList } from '../kids/KidProfileList';
 
 // Home Page Components
 export { Hero } from '../home/Hero';
-export { InstructorCard } from '../home/InstructorCard';
 export { ProgressShowcase } from '../home/ProgressShowcase';
-export { TopInstructors } from '../home/TopInstructors';

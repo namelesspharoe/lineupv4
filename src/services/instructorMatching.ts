@@ -65,6 +65,116 @@ const DEFAULT_WEIGHTS: MatchingWeights = {
   learningStyle: 2
 };
 
+/** Resorts we recognize in free-text prompts (same set as common signup picks). */
+const GUEST_PROMPT_RESORT_NAMES = [
+  'Aspen',
+  'Vail',
+  'Breckenridge',
+  'Park City',
+  'Deer Valley',
+  'Jackson Hole',
+  'Big Sky',
+  'Telluride'
+];
+
+function buildGuestProfileFromPrompt(prompt: string): StudentProfile {
+  const lower = prompt.toLowerCase();
+
+  let level: string | undefined = 'first_time';
+  if (/\b(intermediate|blue runs?|carving|linked turns)\b/i.test(prompt)) {
+    level = 'linking_turns';
+  }
+  if (/\b(confident|advanced|black runs?|steeps?|moguls?|freestyle)\b/i.test(prompt)) {
+    level = 'confident_turns';
+  }
+  if (/\b(expert|competition|racing)\b/i.test(prompt)) {
+    level = 'consistent_blue';
+  }
+
+  const specialties: string[] = [];
+  if (/\b(ski|skiing|skier)\b/i.test(prompt)) specialties.push('Skiing');
+  if (/\b(snowboard|snowboarding|rider)\b/i.test(prompt)) specialties.push('Snowboarding');
+  if (specialties.length === 0) {
+    specialties.push('Skiing');
+    specialties.push('Snowboarding');
+  }
+  if (/\bfreestyle\b/i.test(prompt) || /\bterrain park\b/i.test(prompt)) {
+    if (!specialties.includes('Freestyle')) specialties.push('Freestyle');
+  }
+
+  const preferredLocations: string[] = [];
+  for (const r of GUEST_PROMPT_RESORT_NAMES) {
+    if (lower.includes(r.toLowerCase())) preferredLocations.push(r);
+  }
+
+  return {
+    id: '__guest__',
+    level,
+    preferredLocations,
+    preferredLanguages: [],
+    maxPrice: 500,
+    specialties,
+    pastLessons: [],
+    preferredLessonType: 'any',
+    learningGoals: [],
+    preferredDays: [],
+    preferredTimes: [],
+    preferredInstructorGender: 'any',
+    preferredInstructorExperience: 'any',
+    learningStyle: 'balanced'
+  };
+}
+
+function scoreGuestPromptKeywordOverlap(prompt: string, instructor: User): number {
+  const stop = new Set([
+    'the',
+    'a',
+    'an',
+    'for',
+    'and',
+    'or',
+    'to',
+    'in',
+    'on',
+    'at',
+    'my',
+    'your',
+    'want',
+    'lesson',
+    'lessons',
+    'private',
+    'group',
+    'with',
+    'from',
+    'need',
+    'looking',
+    'book',
+    'learn'
+  ]);
+  const tokens = prompt
+    .toLowerCase()
+    .split(/[^a-z0-9+]+/)
+    .filter((t) => t.length > 2 && !stop.has(t));
+  if (tokens.length === 0) return 55;
+
+  const hay = [
+    instructor.name,
+    instructor.bio,
+    ...(instructor.specialties || []),
+    ...(instructor.preferredLocations || []),
+    instructor.homeMountain
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  let hits = 0;
+  for (const t of tokens) {
+    if (hay.includes(t)) hits++;
+  }
+  return Math.min(100, 35 + (hits / tokens.length) * 65);
+}
+
 /**
  * Whether this lesson counts as the student having taken a session with the instructor.
  * Prefers `completed`; also counts past booked sessions not yet marked completed in the system.
@@ -245,6 +355,76 @@ export const instructorMatchingService = {
       console.error('Error matching student with instructors:', error);
       throw error;
     }
+  },
+
+  /**
+   * Public home / guest flow: rank instructors from a free-text lesson description (no login).
+   */
+  async matchGuestPromptWithInstructors(
+    prompt: string,
+    options?: { maxResults?: number }
+  ): Promise<InstructorMatch[]> {
+    const trimmed = prompt.trim();
+    if (!trimmed) return [];
+
+    const studentProfile = buildGuestProfileFromPrompt(trimmed);
+
+    const instructorsQuery = query(collection(db, 'users'), where('role', '==', 'instructor'));
+    const snapshot = await getDocs(instructorsQuery);
+    let instructors = snapshot.docs.map((d) => ({
+      id: d.id,
+      ...d.data()
+    })) as User[];
+
+    let mountainsList: Awaited<ReturnType<typeof getMountains>> = [];
+    try {
+      mountainsList = await getMountains();
+    } catch {
+      mountainsList = [];
+    }
+
+    if (studentProfile.preferredLocations && studentProfile.preferredLocations.length > 0) {
+      const matched = instructors.filter((instructor) =>
+        studentProfile.preferredLocations!.some((resortName) => {
+          const mountainDoc = mountainsList.find(
+            (m) => m.name.toLowerCase() === resortName.toLowerCase()
+          );
+          if (mountainDoc) {
+            return instructorMatchesMountainSelection(
+              instructor,
+              mountainDoc.id,
+              mountainDoc.name,
+              mountainsList
+            );
+          }
+          const n = resortName.trim().toLowerCase();
+          return (
+            instructor.homeMountain?.trim().toLowerCase() === n ||
+            (instructor.preferredLocations?.some((loc) => loc.trim().toLowerCase() === n) ?? false) ||
+            instructor.mountainId === resortName
+          );
+        })
+      );
+      if (matched.length > 0) instructors = matched;
+    }
+
+    const matches: InstructorMatch[] = await Promise.all(
+      instructors.map(async (instructor) => {
+        const stats = await instructorStatsService.getInstructorStats(instructor.id);
+        const baseScore = this.calculateMatchScore(studentProfile, instructor, stats);
+        const overlap = scoreGuestPromptKeywordOverlap(trimmed, instructor);
+        const matchScore = Math.min(100, Math.round(0.72 * baseScore + 0.28 * overlap));
+        const reasons = this.generateMatchReasons(studentProfile, instructor, stats);
+        if (overlap >= 50 && reasons.length < 8) {
+          reasons.push("Strong overlap between your message and this instructor's profile");
+        }
+        return { instructor, matchScore, reasons, stats };
+      })
+    );
+
+    matches.sort((a, b) => b.matchScore - a.matchScore);
+    const maxResults = options?.maxResults ?? 3;
+    return matches.slice(0, maxResults);
   },
 
   /**

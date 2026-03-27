@@ -22,6 +22,7 @@ import {
   StudentSkillLevel
 } from '../types';
 import { parseStudentSkillLevel, studentSkillLevelUserFields } from '../utils/studentSkillLevel';
+import { isGeneratedDisciplineAvatar } from '../utils/disciplineAvatar';
 
 // --- Achievement definitions (static catalog) ---
 
@@ -317,7 +318,12 @@ export const achievementService = {
             if (userDoc.exists()) {
               const userData = userDoc.data();
               const defaultAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
-              criteriaValue = userData.avatar && userData.avatar !== defaultAvatar ? 1 : 0;
+              const avatar = userData.avatar as string | undefined;
+              const hasUploadedPhoto =
+                !!avatar &&
+                avatar !== defaultAvatar &&
+                !isGeneratedDisciplineAvatar(avatar);
+              criteriaValue = hasUploadedPhoto ? 1 : 0;
             }
             break;
           }

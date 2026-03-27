@@ -12,21 +12,24 @@ import { useAdminActions } from './hooks/useAdminActions';
 import { StatsGrid } from './components/StatsGrid';
 import { TabNavigation } from './components/TabNavigation';
 import { UserTable } from './components/UserTable';
-import { LessonTable } from './components/LessonTable';
+import { LessonManagementPanel } from './components/LessonManagementPanel';
 import { StudentProfileWrapper } from './components/StudentProfileWrapper';
 import { MountainManagement } from './components/MountainManagement';
 import { AdminOverviewDayCards } from './components/AdminOverviewDayCards';
 import { EditTimeEntryModal } from './EditTimeEntryModal';
 import { AdminOverviewLessonDetailModal } from './AdminOverviewLessonDetailModal';
+import { AdminLocationFilter } from './components/AdminLocationFilter';
+import {
+  filterUsersForAdminMountain,
+  filterLessonsForAdminMountain,
+  filterTimeEntriesForAdminMountain
+} from './utils/adminLocationFilter';
 
 interface AdminDashboardProps {
   user: User;
 }
 
 export function AdminDashboard({ user }: AdminDashboardProps) {
-  // Debug: Log user role to help identify permission issues
-  console.log('AdminDashboard - Current user:', { id: user.id, role: user.role, email: user.email });
-
   const {
     stats,
     users,
@@ -47,6 +50,28 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     for (const l of hydratedLessons) byId.set(l.id, l);
     return [...byId.values()];
   }, [lessons, hydratedLessons]);
+
+  const [locationMountainId, setLocationMountainId] = useState<string | null>(null);
+
+  const filteredUsers = useMemo(
+    () => filterUsersForAdminMountain(users, locationMountainId, mountains),
+    [users, locationMountainId, mountains]
+  );
+
+  const filteredLessons = useMemo(
+    () => filterLessonsForAdminMountain(lessons, users, locationMountainId, mountains),
+    [lessons, users, locationMountainId, mountains]
+  );
+
+  const lessonsForOverviewFiltered = useMemo(
+    () => filterLessonsForAdminMountain(lessonsForOverview, users, locationMountainId, mountains),
+    [lessonsForOverview, users, locationMountainId, mountains]
+  );
+
+  const filteredTimeEntries = useMemo(
+    () => filterTimeEntriesForAdminMountain(timeEntries, users, locationMountainId, mountains),
+    [timeEntries, users, locationMountainId, mountains]
+  );
 
   const {
     handleDeleteUser,
@@ -145,6 +170,12 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
       {/* Tab Navigation */}
       <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
+      <AdminLocationFilter
+        mountains={mountains}
+        selectedMountainId={locationMountainId}
+        onSelectedMountainIdChange={setLocationMountainId}
+      />
+
       {/* Tab Content */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
@@ -172,8 +203,8 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
             </div>
           </div>
           <AdminOverviewDayCards
-            lessons={lessonsForOverview}
-            timeEntries={timeEntries}
+            lessons={lessonsForOverviewFiltered}
+            timeEntries={filteredTimeEntries}
             users={users}
             mountains={mountains}
             onViewLessonDetail={setOverviewLessonDetail}
@@ -185,7 +216,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
 
       {activeTab === 'users' && (
         <UserTable
-          users={users}
+          users={filteredUsers}
           onEditUser={handleEditUser}
           onManageAvailability={handleManageAvailability}
           onViewProfile={handleViewProfile}
@@ -195,29 +226,14 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
       )}
 
       {activeTab === 'lessons' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="border-b border-gray-100 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Lesson Management</h2>
-              <button
-                onClick={() => setShowCreateLesson(true)}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
-              >
-                <Plus className="w-4 h-4" />
-                Create Lesson
-              </button>
-            </div>
-          </div>
-          <div className="p-6">
-            <LessonTable
-              lessons={lessons}
-              users={users}
-              onEditLesson={handleEditLesson}
-              onUpdateLessonStatus={handleUpdateLessonStatusWithRefresh}
-              onDeleteLesson={handleDeleteLessonWithRefresh}
-            />
-          </div>
-        </div>
+        <LessonManagementPanel
+          lessons={filteredLessons}
+          users={users}
+          onCreateLesson={() => setShowCreateLesson(true)}
+          onEditLesson={handleEditLesson}
+          onUpdateLessonStatus={handleUpdateLessonStatusWithRefresh}
+          onDeleteLesson={handleDeleteLessonWithRefresh}
+        />
       )}
 
       {activeTab === 'mountains' && (

@@ -19,3 +19,9 @@ export function disciplineAvatarDataUrl(discipline: LessonSport): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="48" fill="${bg}"/><text x="48" y="54" font-size="42" text-anchor="middle" dominant-baseline="middle" font-family="system-ui,Segoe UI Emoji,Apple Color Emoji,sans-serif">${emoji}</text></svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
+
+/** True for signup default avatars (ski/snowboard emoji SVG) — not an uploaded photo. */
+export function isGeneratedDisciplineAvatar(avatar: string | undefined | null): boolean {
+  if (!avatar) return false;
+  return avatar.startsWith('data:image/svg+xml');
+}

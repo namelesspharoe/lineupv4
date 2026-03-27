@@ -5,11 +5,13 @@ import {
   collection, 
   addDoc, 
   setDoc, 
+  updateDoc,
   doc,
   serverTimestamp,
   query, 
   where, 
   getDocs,
+  arrayUnion,
   orderBy, 
   limit 
 } from 'firebase/firestore';
@@ -19,6 +21,14 @@ import {
   updateProfile,
   signInWithEmailAndPassword 
 } from 'firebase/auth';
+import {
+  instructors,
+  students,
+  kidProfiles,
+  MOUNTAIN_SEEDS,
+  INSTRUCTOR_PRIMARY_MOUNTAIN_BY_EMAIL,
+  slugify
+} from './seed-firebase.data.js';
 
 // Load environment variables from .env file
 config();
@@ -93,114 +103,7 @@ const ACHIEVEMENT_DEFINITIONS = [
   }
 ];
 
-// Test data
-const instructors = [
-  {
-    name: "Sarah Johnson",
-    email: "sarah.johnson@slopesmaster.com",
-    password: "password123",
-    role: "instructor",
-    avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150",
-    bio: "Certified ski instructor with 8 years of experience. Specialized in teaching beginners and intermediate skiers.",
-    specialties: ["Skiing", "Freestyle", "Backcountry"],
-    certifications: ["PSIA Level 2", "Avalanche Safety", "First Aid"],
-    languages: ["English", "Spanish"],
-    yearsOfExperience: 8,
-    hourlyRate: 85,
-    preferredLocations: ["Whistler Blackcomb", "Vail"],
-    qualifications: "PSIA Level 2 Certified, Avalanche Safety Certified"
-  },
-  {
-    name: "Mike Chen",
-    email: "mike.chen@slopesmaster.com",
-    password: "password123",
-    role: "instructor",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
-    bio: "Expert snowboard instructor passionate about teaching all skill levels. Former competitive snowboarder.",
-    specialties: ["Snowboarding", "Terrain Park", "Racing"],
-    certifications: ["AASI Level 3", "Terrain Park Safety", "CPR"],
-    languages: ["English", "Mandarin"],
-    yearsOfExperience: 12,
-    hourlyRate: 95,
-    preferredLocations: ["Whistler Blackcomb", "Park City"],
-    qualifications: "AASI Level 3 Certified, Former Competitive Snowboarder"
-  },
-  {
-    name: "Emma Rodriguez",
-    email: "emma.rodriguez@slopesmaster.com",
-    password: "password123",
-    role: "instructor",
-    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150",
-    bio: "Dedicated instructor specializing in children's lessons and family groups. Patient and encouraging teaching style.",
-    specialties: ["Skiing", "Children's Lessons", "Family Groups"],
-    certifications: ["PSIA Level 1", "Child Safety", "Teaching Children"],
-    languages: ["English", "Spanish", "French"],
-    yearsOfExperience: 5,
-    hourlyRate: 75,
-    preferredLocations: ["Whistler Blackcomb", "Aspen"],
-    qualifications: "PSIA Level 1 Certified, Child Safety Specialist"
-  }
-];
-
-const students = [
-  {
-    name: "Alex Thompson",
-    email: "alex.thompson@email.com",
-    password: "password123",
-    role: "student",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150",
-    bio: "New to skiing, excited to learn the basics and progress to intermediate level.",
-    level: "first_time",
-    specialties: ["Skiing"]
-  },
-  {
-    name: "Jessica Park",
-    email: "jessica.park@email.com",
-    password: "password123",
-    role: "student",
-    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150",
-    bio: "Intermediate snowboarder looking to improve technique and learn new tricks.",
-    level: "linking_turns",
-    specialties: ["Snowboarding", "Freestyle"]
-  },
-  {
-    name: "David Wilson",
-    email: "david.wilson@email.com",
-    password: "password123",
-    role: "student",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
-    bio: "Family man with two kids, looking to improve skiing skills for family trips.",
-    level: "developing_turns",
-    specialties: ["Skiing", "Family Skiing"]
-  }
-];
-
-const kidProfiles = [
-  {
-    name: "Lily Wilson",
-    age: 8,
-    allergies: "None",
-    helmet_color: "#FF6B6B",
-    jacket_color: "#4ECDC4",
-    pants_color: "#45B7D1",
-    level: "first_time",
-    emergency_contact_name: "David Wilson",
-    emergency_contact_phone: "+1-555-0123",
-    emergency_contact_relationship: "Father"
-  },
-  {
-    name: "Max Wilson",
-    age: 10,
-    allergies: "Peanuts",
-    helmet_color: "#96CEB4",
-    jacket_color: "#FFEAA7",
-    pants_color: "#DDA0DD",
-    level: "developing_turns",
-    emergency_contact_name: "David Wilson",
-    emergency_contact_phone: "+1-555-0123",
-    emergency_contact_relationship: "Father"
-  }
-];
+// Instructors, students, kidProfiles, mountains metadata: ./seed-firebase.data.js
 
 // Generate availability for instructors
 const generateAvailability = (instructorId) => {
@@ -433,12 +336,38 @@ function getSkillsForLevel(level, sport) {
 }
 
 async function seedFirebase() {
+  /** In-memory lesson payloads for instructor stats (Firestore IDs not required). */
+  let lessonPayloads = [];
+
   try {
     console.log('🌱 Starting comprehensive Firebase seeding...');
+
+    const seedTimestamp = new Date().toISOString();
+    console.log('🌄 Seeding mountains...');
+    for (const m of MOUNTAIN_SEEDS) {
+      const mountainId = slugify(m.name);
+      await setDoc(doc(db, 'mountains', mountainId), {
+        name: m.name,
+        location: m.location,
+        description: m.description,
+        privateLessonPrice: m.privateLessonPrice,
+        groupLessonPrice: m.groupLessonPrice,
+        baseDepthInches: m.baseDepthInches,
+        snowfall24hInches: m.snowfall24hInches,
+        regionId: m.regionId,
+        passAffiliations: m.passAffiliations ?? [],
+        snowReportUpdatedAt: seedTimestamp,
+        instructorIds: [],
+        createdAt: seedTimestamp,
+        updatedAt: seedTimestamp
+      });
+    }
+    console.log(`✅ Seeded ${MOUNTAIN_SEEDS.length} mountains`);
     
     // Create instructors
     console.log('👨‍🏫 Creating instructors...');
     const createdInstructors = [];
+    let instructorMountainFallback = 0;
     for (const instructor of instructors) {
       try {
         const userCredential = await createUserWithEmailAndPassword(
@@ -451,6 +380,12 @@ async function seedFirebase() {
           displayName: instructor.name,
           photoURL: instructor.avatar
         });
+
+        const homeMountainName =
+          INSTRUCTOR_PRIMARY_MOUNTAIN_BY_EMAIL[instructor.email] ??
+          MOUNTAIN_SEEDS[instructorMountainFallback % MOUNTAIN_SEEDS.length].name;
+        instructorMountainFallback += 1;
+        const mountainId = slugify(homeMountainName);
         
         const userData = {
           id: userCredential.user.uid,
@@ -465,10 +400,18 @@ async function seedFirebase() {
           yearsOfExperience: instructor.yearsOfExperience,
           hourlyRate: instructor.hourlyRate,
           preferredLocations: instructor.preferredLocations,
-          qualifications: instructor.qualifications
+          qualifications: instructor.qualifications,
+          mountainId,
+          homeMountain: homeMountainName,
+          ...(instructor.gender && { gender: instructor.gender }),
+          ...(instructor.level && { level: instructor.level })
         };
         
         await setDoc(doc(db, 'users', userCredential.user.uid), userData);
+        await updateDoc(doc(db, 'mountains', mountainId), {
+          instructorIds: arrayUnion(userCredential.user.uid),
+          updatedAt: seedTimestamp
+        });
         createdInstructors.push({ ...instructor, id: userCredential.user.uid });
         console.log(`✅ Created instructor: ${instructor.name}`);
               } catch (error) {
@@ -507,7 +450,11 @@ async function seedFirebase() {
           avatar: student.avatar,
           bio: student.bio,
           level: student.level,
-          specialties: student.specialties
+          specialties: student.specialties,
+          ...(student.studentPreferences &&
+            Object.keys(student.studentPreferences).length > 0 && {
+              studentPreferences: student.studentPreferences
+            })
         };
         
         await setDoc(doc(db, 'users', userCredential.user.uid), userData);
@@ -562,11 +509,11 @@ async function seedFirebase() {
     // Create lessons only if we have users
     if (createdInstructors.length > 0 && createdStudents.length > 0) {
       console.log('📚 Creating lessons...');
-      const lessons = generateLessons(createdInstructors, createdStudents);
-      for (const lesson of lessons) {
+      lessonPayloads = generateLessons(createdInstructors, createdStudents);
+      for (const lesson of lessonPayloads) {
         await addDoc(collection(db, 'lessons'), lesson);
       }
-      console.log(`✅ Created ${lessons.length} lessons`);
+      console.log(`✅ Created ${lessonPayloads.length} lessons`);
     } else {
       console.log('⚠️ Skipping lesson creation - no new users created');
     }
@@ -708,10 +655,10 @@ async function seedFirebase() {
       console.log('⚠️ Skipping progress seeding - no new students created');
     }
     
-    // Seed instructor stats only if we have instructors and lessons
+    // Seed instructor stats only if we have instructors
     if (createdInstructors.length > 0) {
       console.log('📈 Seeding instructor stats...');
-      const allLessons = lessons || [];
+      const allLessons = lessonPayloads;
       
       // Calculate comprehensive stats for each instructor
       const instructorStatsPromises = createdInstructors.map(async (instructor, index) => {

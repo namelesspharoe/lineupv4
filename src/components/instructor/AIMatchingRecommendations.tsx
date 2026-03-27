@@ -2,8 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { Sparkles, TrendingUp, Star, MapPin, DollarSign, Award, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { instructorMatchingService, InstructorMatch } from '../../services/instructorMatching';
-import { getStudentFacingMountainLessonRate } from '../../services/mountains';
+import type { InstructorStats } from '../../services/instructorStats';
+import {
+  getStudentFacingMountainLessonRate,
+  formatStudentMountainRateBadge
+} from '../../services/mountains';
 import { User, Mountain } from '../../types';
+import { directoryGridSearchNeedle } from '../../utils/bookLessonSearch';
+import { InstructorProfileModal } from './InstructorProfileModal';
 
 interface FilterState {
   discipline: string[];
@@ -21,18 +27,56 @@ interface AIMatchingRecommendationsProps {
   resort?: string | null;
   filters?: FilterState;
   searchQuery?: string;
-  onInstructorSelect?: (instructor: User) => void;
+}
+
+/** Shape expected by `InstructorProfileModal` (same mapping as Book Lesson instructor grid). */
+function userToProfileModalInstructor(
+  instructor: User,
+  matchStats: InstructorStats | undefined,
+  mountains: Mountain[]
+) {
+  const studentRate = getStudentFacingMountainLessonRate(instructor, mountains);
+  const stats = matchStats
+    ? {
+        totalLessons: matchStats.totalLessons,
+        averageRating: matchStats.averageRating,
+        totalStudents: matchStats.totalStudents,
+        totalReviews: matchStats.totalReviews
+      }
+    : undefined;
+
+  return {
+    id: instructor.id,
+    name: instructor.name,
+    image: instructor.avatar || '',
+    location:
+      instructor.homeMountain ||
+      mountains.find((m) => m.id === instructor.mountainId)?.name ||
+      instructor.preferredLocations?.[0] ||
+      'Mountain not specified',
+    rating: matchStats?.averageRating ?? 0,
+    reviewCount: matchStats?.totalReviews ?? 0,
+    priceLabel: formatStudentMountainRateBadge(studentRate),
+    studentLessonRate: studentRate,
+    specialties: instructor.specialties || [],
+    experience: instructor.yearsOfExperience || 0,
+    languages: instructor.languages || [],
+    availability: 'Full-time',
+    stats
+  };
 }
 
 export function AIMatchingRecommendations({
   mountains,
   resort,
   filters,
-  searchQuery,
-  onInstructorSelect
+  searchQuery
 }: AIMatchingRecommendationsProps) {
   const { user } = useAuth();
   const [matches, setMatches] = useState<InstructorMatch[]>([]);
+  const [profileModalInstructor, setProfileModalInstructor] = useState<ReturnType<
+    typeof userToProfileModalInstructor
+  > | null>(null);
   // Start true for students so we don't render `matches.length === 0 → null` before the first fetch runs
   const [isLoading, setIsLoading] = useState(() => user?.role === 'student');
   const [error, setError] = useState<string | null>(null);
@@ -138,15 +182,14 @@ export function AIMatchingRecommendations({
         });
       }
 
-      // Apply search query filter
-      if (searchQuery && searchQuery.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        filtered = filtered.filter(match => {
+      const searchNeedle = directoryGridSearchNeedle(searchQuery || '');
+      if (searchNeedle) {
+        filtered = filtered.filter((match) => {
           const instructor = match.instructor;
           return (
-            instructor.name.toLowerCase().includes(query) ||
-            instructor.specialties?.some(spec => spec.toLowerCase().includes(query)) ||
-            instructor.bio?.toLowerCase().includes(query)
+            instructor.name.toLowerCase().includes(searchNeedle) ||
+            instructor.specialties?.some((spec) => spec.toLowerCase().includes(searchNeedle)) ||
+            (instructor.bio || '').toLowerCase().includes(searchNeedle)
           );
         });
       }
@@ -364,16 +407,27 @@ export function AIMatchingRecommendations({
                 </div>
                 <button
                   type="button"
-                  onClick={() => onInstructorSelect?.(match.instructor)}
+                  onClick={() =>
+                    setProfileModalInstructor(
+                      userToProfileModalInstructor(match.instructor, match.stats, mountains)
+                    )
+                  }
                   className="w-full sm:w-auto px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-colors shrink-0 self-stretch sm:self-start text-center"
                 >
-                  Book lesson
+                  View profile
                 </button>
               </div>
             </div>
           </li>
         ))}
       </ul>
+
+      {profileModalInstructor && (
+        <InstructorProfileModal
+          instructor={profileModalInstructor}
+          onClose={() => setProfileModalInstructor(null)}
+        />
+      )}
     </div>
   );
 }

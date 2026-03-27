@@ -1,31 +1,29 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Search,
-  Filter,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useLayoutEffect,
+  type FormEvent
+} from 'react';
+import { useSearchParams, useLocation } from 'react-router-dom';
+import {
   Calendar,
   Clock,
   BookOpen,
   History,
   Plus,
-  ChevronDown,
   Users,
   Target,
   AlertCircle,
   CheckCircle,
   X,
-  MapPin,
   Mountain,
-  Sparkles,
-  UsersRound,
-  Snowflake
+  UsersRound
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { InstructorGrid } from '../components/instructor/InstructorGrid';
-import { FilterPanel } from '../components/instructor/FilterPanel';
 import { ActiveLessons } from '../components/lessons/ActiveLessons';
-import { UnifiedLessonModal } from '../components/lessons/UnifiedLessonModal';
-import { AIMatchingRecommendations } from '../components/instructor/AIMatchingRecommendations';
-import { useLessonBooking } from '../hooks/useLessonBooking';
+import { BookLessonBrowseView } from '../components/booking/BookLessonBrowseView';
 import { getLessonsByStudent, getLessonsByInstructor } from '../services/lessons';
 import { collection, query, getDocs, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -34,28 +32,14 @@ import {
   getMountains,
   instructorMatchesMountainSelection,
   getStudentFacingMountainLessonRate,
-  formatStudentMountainRateBadge,
   sortMountainsForStudentBrowse,
   mountainsHaveSnowReportData
 } from '../services/mountains';
 import { getLessonDate, isLessonUpcoming } from '../utils/lessonDate';
-import { MountainLocationPicker } from '../components/booking/MountainLocationPicker';
 import { passFilterFromStudentSkiPass } from '../constants/mountainBrowse';
+import { directoryGridSearchNeedle } from '../utils/bookLessonSearch';
 
 const DEFAULT_PRICE_FILTER_MAX = 500;
-
-function formatSnowReportDate(iso: string | undefined): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  });
-}
 
 type TabType = 'browse' | 'active' | 'history';
 
@@ -71,18 +55,13 @@ interface InstructorWithStats extends User {
   stats: InstructorStats;
 }
 
-function formatLessonRate(privateP?: number, groupP?: number): string {
-  const parts: string[] = [];
-  if (privateP != null && privateP > 0) parts.push(`Private $${privateP}/hr`);
-  if (groupP != null && groupP > 0) parts.push(`Group $${groupP}/hr`);
-  return parts.length ? parts.join(' · ') : 'Rates on request';
-}
-
 export function BookLesson() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const qFromUrl = searchParams.get('q') ?? searchParams.get('match') ?? '';
   const [activeTab, setActiveTab] = useState<TabType>('browse');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(qFromUrl);
   const [selectedMountainId, setSelectedMountainId] = useState<string | null>(null);
   const [mountains, setMountains] = useState<MountainType[]>([]);
   const [instructors, setInstructors] = useState<InstructorWithStats[]>([]);
@@ -147,28 +126,24 @@ export function BookLesson() {
     }
   }, [user, activeTab]);
 
-  const handleBookingComplete = useCallback(() => {
-    if (activeTab === 'active') {
-      void loadLessons();
-    }
-  }, [activeTab, loadLessons]);
-
-  const {
-    isBookingModalOpen,
-    selectedInstructor,
-    selectedLesson,
-    bookingMode,
-    openBookingModal,
-    closeBookingModal
-  } = useLessonBooking({
-    onSuccess: () => handleBookingComplete(),
-    onError: (err) => setError(err)
-  });
-
   useEffect(() => {
     if (!user || (activeTab !== 'active' && activeTab !== 'history')) return;
     void loadLessons();
   }, [user, activeTab, loadLessons]);
+
+  useEffect(() => {
+    setSearchQuery(qFromUrl);
+  }, [qFromUrl]);
+
+  useLayoutEffect(() => {
+    if (location.hash !== '#book-lesson-match') return;
+    if (activeTab !== 'browse') return;
+    const el = document.getElementById('book-lesson-match');
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [location.hash, location.search, activeTab]);
 
   useEffect(() => {
     if (activeTab !== 'browse') return;
@@ -274,8 +249,6 @@ export function BookLesson() {
     [mountains, selectedMountainId]
   );
 
-  const selectedMountainName = selectedMountain?.name;
-
   const mountainsForBrowse = useMemo(
     () => sortMountainsForStudentBrowse(mountains),
     [mountains]
@@ -309,15 +282,21 @@ export function BookLesson() {
           mountains
         );
 
-      const q = searchQuery.toLowerCase();
+      const needle = directoryGridSearchNeedle(searchQuery);
       const matchesSearch =
-        !q ||
-        (instructor.name || '').toLowerCase().includes(q) ||
-        instructor.specialties?.some((s) => s.toLowerCase().includes(q));
+        needle === null ||
+        (instructor.name || '').toLowerCase().includes(needle) ||
+        instructor.specialties?.some((s) => s.toLowerCase().includes(needle)) ||
+        (instructor.bio || '').toLowerCase().includes(needle);
 
       const matchesDiscipline =
         filters.discipline.length === 0 ||
-        instructor.specialties?.some((s) => filters.discipline.includes(s));
+        instructor.specialties?.some((s) => {
+          const sl = s.toLowerCase();
+          return filters.discipline.some(
+            (d) => sl.includes(d.toLowerCase()) || d.toLowerCase().includes(sl)
+          );
+        });
 
       const matchesLevel =
         filters.level.length === 0 ||
@@ -379,311 +358,110 @@ export function BookLesson() {
 
   const hasMountains = mountains.length > 0;
 
+  const scrollToAiMatching = useCallback(() => {
+    document.getElementById('ai-matching')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  const handleBookLessonMatchSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (user?.role === 'student') {
+      scrollToAiMatching();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Hero */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 text-white">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-30"
-          style={{
-            backgroundImage: `radial-gradient(circle at 20% 20%, rgba(96,165,250,0.35), transparent 45%),
-              radial-gradient(circle at 80% 60%, rgba(129,140,248,0.25), transparent 40%)`
-          }}
-        />
-        <div className="relative container mx-auto px-4 md:px-6 py-10 md:py-14">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-            <div className="max-w-2xl">
-              <p className="text-blue-200 text-sm font-medium tracking-wide uppercase mb-2">
-                Resort directory
-              </p>
-              <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3">Book a ski lesson</h1>
-              <p className="text-slate-300 text-base md:text-lg leading-relaxed">
-                {user?.role === 'student'
-                  ? 'Pick a mountain, compare resort lesson rates, and book an instructor who teaches there.'
-                  : 'Manage your schedule and lesson history.'}
-              </p>
-            </div>
-            {hasMountains && activeTab === 'browse' && !isLoadingBrowse && (
-              <div className="flex flex-wrap gap-3 text-sm text-slate-200">
-                <div className="flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 backdrop-blur-sm border border-white/10">
-                  <Mountain className="w-4 h-4 text-sky-300" />
-                  <span>{mountains.length} ski areas</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 backdrop-blur-sm border border-white/10">
-                  <UsersRound className="w-4 h-4 text-emerald-300" />
-                  <span>{instructors.length} instructors</span>
+      <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="container mx-auto flex flex-col gap-4 px-4 py-6 md:flex-row md:items-center md:justify-between md:px-6 md:py-7">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white md:text-[1.65rem]">
+              Lessons
+            </h1>
+            <p className="mt-1 max-w-xl text-sm text-slate-600 dark:text-slate-400">
+              {user?.role === 'student'
+                ? 'Search the directory, choose a resort, book a certified instructor.'
+                : 'Browse the directory or manage your schedule and history.'}
+            </p>
+          </div>
+          {hasMountains && activeTab === 'browse' && !isLoadingBrowse && (
+            <dl className="flex flex-wrap gap-4 text-sm">
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/80">
+                <Mountain className="h-4 w-4 text-blue-600 dark:text-blue-400" aria-hidden />
+                <div>
+                  <dt className="sr-only">Resorts</dt>
+                  <dd className="font-semibold tabular-nums text-slate-900 dark:text-white">{mountains.length}</dd>
+                  <dd className="text-xs text-slate-500 dark:text-slate-400">resorts</dd>
                 </div>
               </div>
-            )}
-          </div>
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/80">
+                <UsersRound className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                <div>
+                  <dt className="sr-only">Instructors</dt>
+                  <dd className="font-semibold tabular-nums text-slate-900 dark:text-white">{instructors.length}</dd>
+                  <dd className="text-xs text-slate-500 dark:text-slate-400">instructors</dd>
+                </div>
+              </div>
+            </dl>
+          )}
         </div>
-      </div>
+      </header>
 
-      {/* Tabs */}
-      <div className="sticky top-16 z-20 border-b border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-sm">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="flex overflow-x-auto scrollbar-hide gap-1">
+      <div className="sticky top-16 z-20 border-b border-slate-200 bg-white/95 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95">
+        <div className="container mx-auto px-4 py-3 md:px-6">
+          <nav className="inline-flex gap-0.5 rounded-lg bg-slate-100 p-1 dark:bg-slate-800" aria-label="Lesson views">
             {(['browse', 'active', 'history'] as TabType[]).map((tab) => (
               <button
                 key={tab}
                 type="button"
+                role="tab"
+                aria-selected={activeTab === tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex items-center gap-2 py-4 px-4 md:px-5 border-b-2 font-semibold text-sm transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors md:px-4 ${
                   activeTab === tab
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                    ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                 }`}
               >
                 {getTabIcon(tab)}
                 <span className="hidden sm:inline">{getTabLabel(tab)}</span>
                 <span className="sm:hidden">
-                  {tab === 'browse' ? 'Book' : tab === 'active' ? 'Upcoming' : 'Past'}
+                  {tab === 'browse' ? 'Browse' : tab === 'active' ? 'Upcoming' : 'Past'}
                 </span>
               </button>
             ))}
-          </div>
+          </nav>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 md:px-6 py-6 md:py-10">
+      <div className="container mx-auto px-4 py-6 md:px-6 md:py-8">
         {error && (
-          <div className="mb-6 rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/40 p-4 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-            <p className="text-red-800 dark:text-red-200 text-sm">{error}</p>
+          <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/40">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
+            <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
           </div>
         )}
 
         {activeTab === 'browse' && (
-          <div className="space-y-8">
-            {isLoadingBrowse ? (
-              <div className="flex flex-col items-center justify-center min-h-[320px] gap-4">
-                <div className="h-12 w-12 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
-                <p className="text-slate-500 dark:text-slate-400 text-sm">Loading resorts and instructors…</p>
-              </div>
-            ) : (
-              <>
-                {!hasMountains && (
-                  <div className="rounded-2xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/30 p-5 md:p-6 flex gap-4">
-                    <div className="shrink-0 p-2 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200">
-                      <MapPin className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h2 className="font-semibold text-amber-950 dark:text-amber-100 mb-1">
-                        No ski areas in Firestore yet
-                      </h2>
-                      <p className="text-sm text-amber-900/90 dark:text-amber-200/90 leading-relaxed">
-                        The <code className="text-xs bg-amber-100/80 dark:bg-amber-900/50 px-1 rounded">mountains</code>{' '}
-                        collection is empty. Add resorts in the admin dashboard (or run your seed script). Until then,
-                        you can still browse all instructors below without filtering by mountain.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {hasMountains && (
-                  <MountainLocationPicker
-                    mountains={mountainsForBrowse}
-                    instructorCountByMountainId={instructorCountByMountainId}
-                    instructorsTotal={instructors.length}
-                    selectedMountainId={selectedMountainId}
-                    onSelectMountain={setSelectedMountainId}
-                    showSnowSortHint={showSnowSortHint}
-                    initialPassFilter={initialResortPassFilter}
-                  />
-                )}
-
-                {selectedMountain && (
-                  <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-lg">
-                    <div className="p-6 md:p-8">
-                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sky-300/90 text-xs font-semibold uppercase tracking-wider mb-1">
-                            Selected mountain
-                          </p>
-                          <h3 className="text-2xl md:text-3xl font-bold tracking-tight">{selectedMountain.name}</h3>
-                          {selectedMountain.location && (
-                            <p className="text-slate-400 text-sm mt-1 flex items-center gap-1.5">
-                              <MapPin className="w-4 h-4 shrink-0" />
-                              {selectedMountain.location}
-                            </p>
-                          )}
-                          {selectedMountain.description && (
-                            <p className="text-slate-300 text-sm mt-4 leading-relaxed max-w-3xl">
-                              {selectedMountain.description}
-                            </p>
-                          )}
-                          {(selectedMountain.baseDepthInches != null ||
-                            selectedMountain.snowfall24hInches != null) && (
-                            <p className="text-sky-200/90 text-sm mt-3 flex flex-wrap items-center gap-2">
-                              <Snowflake className="w-4 h-4 shrink-0" />
-                              <span>
-                                {selectedMountain.baseDepthInches != null && (
-                                  <>{selectedMountain.baseDepthInches}" base</>
-                                )}
-                                {selectedMountain.baseDepthInches != null &&
-                                  selectedMountain.snowfall24hInches != null &&
-                                  ' · '}
-                                {selectedMountain.snowfall24hInches != null && (
-                                  <>{selectedMountain.snowfall24hInches}" last 24h</>
-                                )}
-                              </span>
-                              {(() => {
-                                const asOf = formatSnowReportDate(selectedMountain.snowReportUpdatedAt);
-                                return asOf ? (
-                                  <span className="text-slate-500 text-xs">(as of {asOf})</span>
-                                ) : null;
-                              })()}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-3 shrink-0">
-                          <div className="rounded-xl bg-white/10 px-4 py-3 border border-white/10">
-                            <div className="text-xs text-slate-400 uppercase font-medium">Lesson rates</div>
-                            <div className="text-sm font-semibold mt-1">
-                              {formatLessonRate(
-                                selectedMountain.privateLessonPrice,
-                                selectedMountain.groupLessonPrice
-                              )}
-                            </div>
-                          </div>
-                          <div className="rounded-xl bg-white/10 px-4 py-3 border border-white/10">
-                            <div className="text-xs text-slate-400 uppercase font-medium">Instructors</div>
-                            <div className="text-lg font-bold mt-1">
-                              {instructorCountByMountainId[selectedMountain.id] ?? 0}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-4 md:p-6">
-                  <div className="flex flex-col md:flex-row gap-4">
-                    <div className="flex-1 relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                      <input
-                        type="search"
-                        placeholder="Search by name or specialty…"
-                        className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowFilters((v) => !v)}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-medium bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                    >
-                      <Filter className="w-5 h-5" />
-                      Filters
-                      <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-                    </button>
-                  </div>
-                  {showFilters && (
-                    <div className="mt-5 pt-5 border-t border-slate-200 dark:border-slate-800">
-                      <FilterPanel filters={filters} setFilters={setFilters} />
-                    </div>
-                  )}
-                </section>
-
-                {user?.role === 'student' && (
-                  <section className="space-y-3">
-                    <div className="flex items-center gap-2 text-slate-900 dark:text-white">
-                      <Sparkles className="w-5 h-5 text-violet-500" />
-                      <h2 className="text-lg font-bold">Recommended for you</h2>
-                      {selectedMountainName && (
-                        <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
-                          at {selectedMountainName}
-                        </span>
-                      )}
-                    </div>
-                    <AIMatchingRecommendations
-                      mountains={mountains}
-                      resort={selectedMountainName}
-                      filters={filters}
-                      searchQuery={searchQuery}
-                      onInstructorSelect={(instructor) => openBookingModal(instructor, 'book')}
-                    />
-                  </section>
-                )}
-
-                <section className="space-y-4">
-                  <div>
-                    <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white">
-                      {selectedMountain
-                        ? `Instructors at ${selectedMountain.name}`
-                        : hasMountains
-                          ? 'All instructors'
-                          : 'Instructors'}
-                    </h2>
-                    <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
-                      {filteredInstructors.length} instructor
-                      {filteredInstructors.length !== 1 ? 's' : ''} match your filters
-                      {selectedMountain ? '' : hasMountains ? ' across all mountains' : ''}.
-                    </p>
-                  </div>
-
-                  {filteredInstructors.length > 0 ? (
-                    <InstructorGrid
-                      instructors={filteredInstructors.map((instructor) => {
-                        const studentRate = getStudentFacingMountainLessonRate(instructor, mountains);
-                        return {
-                          id: instructor.id,
-                          name: instructor.name,
-                          image: instructor.avatar,
-                          location:
-                            instructor.homeMountain ||
-                            mountains.find((m) => m.id === instructor.mountainId)?.name ||
-                            instructor.preferredLocations?.[0] ||
-                            'Mountain not specified',
-                          rating: instructor.stats.averageRating,
-                          reviewCount: instructor.stats.totalReviews,
-                          priceLabel: formatStudentMountainRateBadge(studentRate),
-                          studentLessonRate: studentRate,
-                          specialties: instructor.specialties || [],
-                          experience: instructor.yearsOfExperience || 0,
-                          languages: instructor.languages || [],
-                          availability: 'Full-time',
-                          stats: instructor.stats
-                        };
-                      })}
-                    />
-                  ) : (
-                    <div className="text-center py-16 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
-                      <Search className="w-14 h-14 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                        No instructors match
-                      </h3>
-                      <p className="text-slate-600 dark:text-slate-400 text-sm max-w-md mx-auto mb-6">
-                        Try another mountain, clear filters, or widen the price range.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSearchQuery('');
-                          setSelectedMountainId(null);
-                          setFilters({
-                            discipline: [],
-                            level: [],
-                            price: [0, DEFAULT_PRICE_FILTER_MAX],
-                            availability: [],
-                            languages: [],
-                            gender: [],
-                            certification: []
-                          });
-                          setShowFilters(false);
-                        }}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
-                      >
-                        Reset search & filters
-                      </button>
-                    </div>
-                  )}
-                </section>
-              </>
-            )}
-          </div>
+          <BookLessonBrowseView
+            userRole={user?.role}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            onMatchSubmit={handleBookLessonMatchSubmit}
+            hasMountains={hasMountains}
+            mountains={mountains}
+            mountainsForBrowse={mountainsForBrowse}
+            instructors={instructors}
+            filteredInstructors={filteredInstructors}
+            selectedMountain={selectedMountain}
+            selectedMountainId={selectedMountainId}
+            setSelectedMountainId={setSelectedMountainId}
+            instructorCountByMountainId={instructorCountByMountainId}
+            showSnowSortHint={showSnowSortHint}
+            initialResortPassFilter={initialResortPassFilter}
+            filters={filters}
+            setFilters={setFilters}
+            isLoadingBrowse={isLoadingBrowse}
+          />
         )}
 
         {activeTab === 'active' && (
@@ -887,16 +665,6 @@ export function BookLesson() {
           </div>
         )}
       </div>
-
-      {isBookingModalOpen && selectedInstructor && (
-        <UnifiedLessonModal
-          isOpen={isBookingModalOpen}
-          onClose={closeBookingModal}
-          mode={bookingMode}
-          instructor={selectedInstructor}
-          existingLesson={selectedLesson || undefined}
-        />
-      )}
     </div>
   );
 }

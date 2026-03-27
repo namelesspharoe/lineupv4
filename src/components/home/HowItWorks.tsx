@@ -1,21 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Search, 
   Calendar, 
   MessageSquare, 
   Mountain, 
-  CheckCircle, 
   Star,
   ArrowRight,
-  Sparkles
+  UserCircle,
+  ChevronDown,
+  ShieldCheck,
+  Users,
+  HeartHandshake
 } from 'lucide-react';
 
 export function HowItWorks() {
   const steps = [
     {
-      icon: Sparkles,
-      title: 'Get AI Recommendations',
-      description: 'Our AI analyzes your preferences, skill level, and learning goals to instantly match you with the perfect instructors.',
+      icon: UserCircle,
+      title: 'Create Profile',
+      description: 'Sign up and add your level, goals, and preferences so we can match you with the right coach.',
       color: 'bg-gradient-to-br from-purple-600 to-blue-600',
       bgColor: 'bg-gray-800',
       iconColor: 'text-purple-400',
@@ -24,7 +27,7 @@ export function HowItWorks() {
     {
       icon: Search,
       title: 'Browse & Compare',
-      description: 'Review AI-matched instructors, read detailed profiles and reviews, and compare options to find your ideal match.',
+      description: 'Read profiles and reviews, then pick who feels right.',
       color: 'bg-blue-600',
       bgColor: 'bg-gray-800',
       iconColor: 'text-blue-400'
@@ -32,7 +35,7 @@ export function HowItWorks() {
     {
       icon: Calendar,
       title: 'Book Your Lesson',
-      description: 'Choose your preferred date and time, select lesson type (private or group), and secure your spot instantly.',
+      description: 'Choose time, lesson type, and confirm in a few taps.',
       color: 'bg-green-600',
       bgColor: 'bg-gray-800',
       iconColor: 'text-green-400'
@@ -40,7 +43,7 @@ export function HowItWorks() {
     {
       icon: MessageSquare,
       title: 'Connect & Prepare',
-      description: 'Message your instructor to discuss lesson plans, share your goals, and get personalized preparation tips.',
+      description: 'Message your coach to align on plan and gear.',
       color: 'bg-purple-600',
       bgColor: 'bg-gray-800',
       iconColor: 'text-purple-400'
@@ -48,7 +51,7 @@ export function HowItWorks() {
     {
       icon: Mountain,
       title: 'Learn & Progress',
-      description: 'Meet your instructor on the mountain, receive expert instruction, and see immediate improvement in your skills.',
+      description: 'On-snow coaching with clear next steps after each session.',
       color: 'bg-orange-600',
       bgColor: 'bg-gray-800',
       iconColor: 'text-orange-400'
@@ -56,78 +59,82 @@ export function HowItWorks() {
     {
       icon: Star,
       title: 'Track & Improve',
-      description: 'Review your progress, get detailed feedback, and plan your next lesson to continue your development.',
+      description: 'Review feedback and book your next milestone.',
       color: 'bg-pink-600',
       bgColor: 'bg-gray-800',
       iconColor: 'text-pink-400'
     }
   ];
 
-  const benefits = [
+  const parentFaqs = [
     {
-      title: 'No Hidden Fees',
-      description: 'Transparent pricing with no surprise charges'
+      icon: Users,
+      iconBg: 'bg-sky-600 shadow-sky-950/40',
+      question: 'How do I find an instructor who works well with kids?',
+      answer:
+        'Browse profiles and reviews from other families, look for coaches who teach juniors or beginners, and message instructors before you book. You stay in control of who teaches your child.'
     },
     {
-      title: 'Flexible Scheduling',
-      description: 'Book lessons that fit your schedule'
+      icon: ShieldCheck,
+      iconBg: 'bg-emerald-600 shadow-emerald-950/40',
+      question: 'What gives parents peace of mind?',
+      answer:
+        'Clear pricing before you commit, certified instructors, and easy in-app messaging so plans and expectations are never a mystery. Reschedule when life gets busy—we keep it straightforward.'
     },
     {
-      title: 'Quality Guaranteed',
-      description: 'Satisfaction guaranteed or your money back'
+      icon: HeartHandshake,
+      iconBg: 'bg-rose-600 shadow-rose-950/40',
+      question: 'What if my child is nervous or brand new to snow?',
+      answer:
+        'Share their age, comfort level, and goals when you create your profile or message a coach. Many instructors specialize in first-timers and build confidence at a pace that feels right for kids.'
     },
     {
-      title: 'Expert Instructors',
-      description: 'All instructors are certified professionals'
+      icon: MessageSquare,
+      iconBg: 'bg-violet-600 shadow-violet-950/40',
+      question: 'Can I stay involved and talk to the coach?',
+      answer:
+        'Yes. Coordinate details, ask questions, and align on gear or meeting spots through messaging. Many parents like to confirm the plan ahead of time so everyone feels ready on the mountain.'
     }
   ];
 
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+
   return (
-    <section className="py-20 bg-gray-800">
-      <div className="container mx-auto px-6">
+    <section className="py-12 sm:py-16 md:py-20 bg-gray-800">
+      <div className="container mx-auto px-4 sm:px-6">
         {/* Header */}
-        <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
+        <div className="text-center mb-10 sm:mb-14 md:mb-16">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4 sm:mb-6 leading-tight">
             How It
             <span className="block text-blue-400">
               Works
             </span>
           </h2>
-          <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
-            Getting started is easy! Follow these simple steps to begin your skiing or snowboarding journey 
-            with professional instruction.
+          <p className="text-base sm:text-lg md:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed px-1 sm:px-0">
+            A simple path from match to first lesson—no guesswork.
           </p>
         </div>
 
         {/* Steps */}
-        <div className="max-w-6xl mx-auto mb-16">
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-8">
+        <div className="max-w-6xl mx-auto mb-12 sm:mb-16">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 sm:gap-6 md:gap-8">
             {steps.map((step, index) => {
               const IconComponent = step.icon;
               const isFeatured = step.featured;
               return (
                 <div key={index} className="relative">
-                  {/* Step Number */}
-                  <div className={`absolute -top-4 -left-4 w-8 h-8 ${isFeatured ? 'bg-gradient-to-br from-purple-600 to-blue-600' : 'bg-blue-600'} text-white rounded-full flex items-center justify-center font-bold text-sm z-10 shadow-lg`}>
+                  <div className={`absolute -top-3 -left-3 sm:-top-4 sm:-left-4 w-7 h-7 sm:w-8 sm:h-8 ${isFeatured ? 'bg-gradient-to-br from-purple-600 to-blue-600' : 'bg-blue-600'} text-white rounded-full flex items-center justify-center font-bold text-xs sm:text-sm z-10 shadow-lg`}>
                     {index + 1}
                   </div>
                   
-                  {/* Step Card */}
-                  <div className={`${step.bgColor} rounded-2xl p-6 h-full border ${isFeatured ? 'border-purple-500/50 shadow-lg shadow-purple-500/20' : 'border-gray-700'} hover:border-gray-600 hover:shadow-xl transition-all duration-300 group`}>
-                    {isFeatured && (
-                      <div className="mb-3 inline-flex items-center gap-2 px-2 py-1 bg-purple-600/20 border border-purple-500/30 rounded-full">
-                        <Sparkles className="w-3 h-3 text-purple-400" />
-                        <span className="text-xs font-semibold text-purple-300">AI-Powered</span>
-                      </div>
-                    )}
-                    <div className={`w-14 h-14 ${step.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg`}>
-                      <IconComponent className="w-7 h-7 text-white" />
+                  <div className={`${step.bgColor} rounded-xl sm:rounded-2xl p-4 sm:p-6 h-full border ${isFeatured ? 'border-purple-500/50 shadow-lg shadow-purple-500/20' : 'border-gray-700'} md:hover:border-gray-600 md:hover:shadow-xl transition-all duration-300 group`}>
+                    <div className={`w-12 h-12 sm:w-14 sm:h-14 ${step.color} rounded-lg sm:rounded-xl flex items-center justify-center mb-3 sm:mb-4 md:group-hover:scale-110 transition-transform shadow-lg`}>
+                      <IconComponent className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                     </div>
-                    <h3 className="text-lg font-semibold text-white mb-3">{step.title}</h3>
-                    <p className="text-gray-400 text-sm leading-relaxed">{step.description}</p>
+                    <h3 className="text-base sm:text-lg font-semibold text-white mb-2 sm:mb-3">{step.title}</h3>
+                    <p className="text-gray-400 text-[13px] sm:text-sm leading-relaxed">{step.description}</p>
                   </div>
 
-                  {/* Arrow (except for last step) */}
                   {index < steps.length - 1 && (
                     <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2 z-10">
                       <div className={`w-8 h-8 ${isFeatured ? 'bg-gradient-to-br from-purple-600 to-blue-600' : 'bg-blue-600'} rounded-full flex items-center justify-center shadow-lg`}>
@@ -141,55 +148,60 @@ export function HowItWorks() {
           </div>
         </div>
 
-        {/* Benefits Section */}
-        <div className="bg-gray-900 rounded-3xl p-12 shadow-lg border border-gray-700">
-          <div className="text-center mb-12">
-            <h3 className="text-3xl font-bold text-white mb-4">
-              Why Students Love Our Platform
+        {/* Parents FAQ */}
+        <div className="bg-gray-900 rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 shadow-lg border border-gray-700">
+          <div className="text-center mb-8 sm:mb-10 md:mb-12 max-w-3xl mx-auto">
+            <p className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-blue-400 mb-2">
+              For parents
+            </p>
+            <h3 className="text-2xl sm:text-3xl font-bold text-white mb-3 sm:mb-4 leading-tight px-1 sm:px-0">
+              Booking lessons for your kids?
             </h3>
-            <p className="text-lg text-gray-300 max-w-2xl mx-auto">
-              Join thousands of satisfied students who have transformed their skiing and snowboarding skills 
-              with our platform.
+            <p className="text-base sm:text-lg text-gray-300 leading-relaxed">
+              Peace of mind starts with choosing the right coach. Here are answers parents ask us most—finding someone who connects with children, staying in the loop, and knowing what to expect.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {benefits.map((benefit, index) => (
-              <div key={index} className="text-center">
-                <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                  <CheckCircle className="w-8 h-8 text-white" />
+          <div className="max-w-3xl mx-auto flex flex-col gap-3 sm:gap-4">
+            {parentFaqs.map((item, index) => {
+              const Icon = item.icon;
+              const isOpen = openFaqIndex === index;
+              return (
+                <div
+                  key={index}
+                  className="rounded-xl border border-gray-700/90 bg-gray-800/35 overflow-hidden transition-colors hover:border-gray-600/90"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                    className="flex w-full items-start gap-3 sm:gap-4 text-left p-4 sm:p-5 touch-manipulation"
+                    aria-expanded={isOpen}
+                  >
+                    <div
+                      className={`w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-lg flex items-center justify-center shadow-md ${item.iconBg}`}
+                    >
+                      <Icon className="w-5 h-5 text-white" aria-hidden />
+                    </div>
+                    <span className="flex-1 min-w-0 pt-0.5 text-base sm:text-lg font-semibold text-white leading-snug pr-2">
+                      {item.question}
+                    </span>
+                    <ChevronDown
+                      className={`w-5 h-5 shrink-0 text-gray-400 mt-1 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                      aria-hidden
+                    />
+                  </button>
+                  <div
+                    className={`grid transition-[grid-template-rows] duration-200 ease-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+                  >
+                    <div className="min-h-0 overflow-hidden">
+                      <p className="px-4 sm:px-5 pb-4 sm:pb-5 pl-[4.25rem] sm:pl-20 text-gray-400 text-sm sm:text-base leading-relaxed border-t border-gray-700/50 pt-3 sm:pt-4">
+                        {item.answer}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <h4 className="text-lg font-semibold text-white mb-2">{benefit.title}</h4>
-                <p className="text-gray-400 text-sm">{benefit.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* CTA Section */}
-        <div className="text-center mt-16">
-          <div className="bg-gray-900 rounded-2xl p-8 border border-gray-700">
-            <h3 className="text-2xl font-bold text-white mb-4">
-              Ready to Get Started?
-            </h3>
-            <p className="text-gray-300 mb-6 max-w-2xl mx-auto">
-              Join our community of skiers and snowboarders who are mastering the mountains 
-              with professional instruction.
-            </p>
-            <div className="flex flex-wrap gap-4 justify-center">
-              <a 
-                href="/find-instructor"
-                className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors"
-              >
-                Find Your Instructor
-              </a>
-              <a 
-                href="/signup"
-                className="px-8 py-3 border-2 border-gray-600 text-gray-300 hover:border-gray-500 hover:text-white rounded-xl font-semibold transition-colors"
-              >
-                Create Account
-              </a>
-            </div>
+              );
+            })}
           </div>
         </div>
       </div>
