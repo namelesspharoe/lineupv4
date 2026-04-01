@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Calendar, Clock, Target, Users, MapPin, Star, MessageSquare, Edit, Trash2, Plus, Play, StickyNote } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { User, Lesson, LessonFeedback, StudentReview } from '../../../../types';
+import { User, Lesson, LessonFeedback, StudentReview, KidProfile } from '../../../../types';
 import { EnhancedFeedbackForm } from '../../../lessons/EnhancedFeedbackForm';
 import { InstructorProfileModal } from '../../../instructor/InstructorProfileModal';
 import { buildInstructorProfile } from '../../../../utils/instructorProfile';
@@ -16,6 +16,7 @@ import { ResponsiveModalPanel } from '../../../common/ResponsiveModalPanel';
 import { StudentReviewForm } from '../../../lessons/StudentReviewForm';
 import { CancelLessonModal } from './CancelLessonModal';
 import { formatSkillLabel, getSkillDescription } from '../../../../utils/skillDescriptions';
+import { getKidProfiles } from '../../../../services/kids';
 
 interface LessonDetailsModalProps {
   lesson: (Lesson & { instructor?: User }) | null;
@@ -31,6 +32,8 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
   const [selectedInstructor, setSelectedInstructor] = useState<User | null>(null);
   const [students, setStudents] = useState<User[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [lessonKidProfiles, setLessonKidProfiles] = useState<KidProfile[]>([]);
+  const [isLoadingKidProfiles, setIsLoadingKidProfiles] = useState(false);
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<any | null>(null);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -121,6 +124,41 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
 
     loadStudents();
   }, [lesson]);
+
+  useEffect(() => {
+    const kidIds = [
+      ...(lesson?.kidProfileIds ?? []),
+      ...(lesson?.kidProfileId ? [lesson.kidProfileId] : [])
+    ];
+    const unique = [...new Set(kidIds)];
+    if (!lesson || unique.length === 0) {
+      setLessonKidProfiles([]);
+      setIsLoadingKidProfiles(false);
+      return;
+    }
+    const parentId = lesson.studentIds?.[0];
+    if (!parentId) {
+      setLessonKidProfiles([]);
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingKidProfiles(true);
+    (async () => {
+      try {
+        const all = await getKidProfiles(parentId);
+        const filtered = all.filter((k) => unique.includes(k.id));
+        if (!cancelled) setLessonKidProfiles(filtered);
+      } catch (e) {
+        console.error('Error loading kid profiles for lesson:', e);
+        if (!cancelled) setLessonKidProfiles([]);
+      } finally {
+        if (!cancelled) setIsLoadingKidProfiles(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lesson?.id, lesson?.kidProfileIds, lesson?.kidProfileId, lesson?.studentIds]);
 
   // Load feedback documents when lesson.feedback is array of IDs (e.g. from instructor dashboard)
   useEffect(() => {
@@ -412,6 +450,48 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                         <p className="text-sm text-gray-500 dark:text-gray-400">Loading roster...</p>
                       ) : students.length > 0 ? (
                         <ul className="space-y-2">
+                          {isLoadingKidProfiles &&
+                            ((lesson.kidProfileIds?.length ?? 0) > 0 || Boolean(lesson.kidProfileId)) && (
+                            <li className="text-sm text-gray-500 dark:text-gray-400">Loading children on lesson…</li>
+                          )}
+                          {!isLoadingKidProfiles &&
+                            lessonKidProfiles.map((kid) => (
+                              <li
+                                key={kid.id}
+                                className="rounded-lg border border-sky-200 bg-sky-50/80 p-3 dark:border-sky-800 dark:bg-sky-950/30"
+                              >
+                                <p className="text-xs font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200">
+                                  Participant
+                                </p>
+                                <p className="font-medium text-gray-900 dark:text-white">{kid.name}</p>
+                                <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                  Age {kid.age} · {kid.discipline === 'snowboarding' ? 'Snowboard' : 'Ski'} ·{' '}
+                                  {formatSkillLabel(String(kid.level).replace(/_/g, ' '))}
+                                </p>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">Gear</span>
+                                  <span className="inline-flex items-center gap-1">
+                                    <span
+                                      className="h-4 w-4 rounded-full border border-gray-200 dark:border-gray-600"
+                                      style={{ backgroundColor: kid.helmet_color }}
+                                    />
+                                    <span
+                                      className="h-4 w-4 rounded-full border border-gray-200 dark:border-gray-600"
+                                      style={{ backgroundColor: kid.jacket_color }}
+                                    />
+                                    <span
+                                      className="h-4 w-4 rounded-full border border-gray-200 dark:border-gray-600"
+                                      style={{ backgroundColor: kid.pants_color }}
+                                    />
+                                  </span>
+                                </div>
+                                {kid.allergies?.trim() && (
+                                  <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                                    Note: {kid.allergies}
+                                  </p>
+                                )}
+                              </li>
+                            ))}
                           {students.map((student) => (
                             <li
                               key={student.id}
@@ -445,6 +525,9 @@ export function LessonDetailsModal({ lesson, onClose, onLessonUpdate }: LessonDe
                                   )}
                                 </div>
                                 <div>
+                                  {lessonKidProfiles.length > 0 && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Parent / Payer</p>
+                                  )}
                                   <p className="font-medium text-gray-900 dark:text-white">
                                     {student.name}
                                   </p>

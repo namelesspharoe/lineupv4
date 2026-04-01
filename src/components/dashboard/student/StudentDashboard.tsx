@@ -14,6 +14,7 @@ import { ProfilePicturePopup } from '../../common/ProfilePicturePopup';
 import { InstructorProfileModal } from '../../instructor/InstructorProfileModal';
 import { LessonDetailsModal } from './components/LessonDetailsModal';
 import { StudentActiveLessons } from '../../lessons/StudentActiveLessons';
+import { KidProfileList } from '../../kids/KidProfileList';
 
 interface StudentDashboardProps {
   user: User;
@@ -282,6 +283,8 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
             </div>
           </div>
         </div>
+
+        <KidProfileList parentId={user.id} embedded hideWhenEmpty dashboardCard />
 
         <StudentActiveLessons
           studentId={user.id}

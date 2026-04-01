@@ -371,42 +371,13 @@ export const instructorMatchingService = {
 
     const instructorsQuery = query(collection(db, 'users'), where('role', '==', 'instructor'));
     const snapshot = await getDocs(instructorsQuery);
-    let instructors = snapshot.docs.map((d) => ({
+    const instructors = snapshot.docs.map((d) => ({
       id: d.id,
       ...d.data()
     })) as User[];
 
-    let mountainsList: Awaited<ReturnType<typeof getMountains>> = [];
-    try {
-      mountainsList = await getMountains();
-    } catch {
-      mountainsList = [];
-    }
-
-    if (studentProfile.preferredLocations && studentProfile.preferredLocations.length > 0) {
-      const matched = instructors.filter((instructor) =>
-        studentProfile.preferredLocations!.some((resortName) => {
-          const mountainDoc = mountainsList.find(
-            (m) => m.name.toLowerCase() === resortName.toLowerCase()
-          );
-          if (mountainDoc) {
-            return instructorMatchesMountainSelection(
-              instructor,
-              mountainDoc.id,
-              mountainDoc.name,
-              mountainsList
-            );
-          }
-          const n = resortName.trim().toLowerCase();
-          return (
-            instructor.homeMountain?.trim().toLowerCase() === n ||
-            (instructor.preferredLocations?.some((loc) => loc.trim().toLowerCase() === n) ?? false) ||
-            instructor.mountainId === resortName
-          );
-        })
-      );
-      if (matched.length > 0) instructors = matched;
-    }
+    // Score the full instructor roster so we can always return up to maxResults (e.g. 3).
+    // Resort names in the prompt still lift relevant instructors via location scoring.
 
     const matches: InstructorMatch[] = await Promise.all(
       instructors.map(async (instructor) => {

@@ -2,8 +2,47 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, Star, MapPin, Award, ChevronRight, CheckCircle } from 'lucide-react';
 import type { InstructorMatch } from '../../services/instructorMatching';
-import { getMountains, getStudentFacingMountainLessonRate } from '../../services/mountains';
+import {
+  getMountains,
+  getStudentFacingMountainLessonRate,
+  formatStudentMountainRateBadge
+} from '../../services/mountains';
 import type { Mountain } from '../../types';
+import { InstructorProfileModal } from '../instructor/InstructorProfileModal';
+
+/** Same mapping as Book Lesson / AI recommendations → `InstructorProfileModal`. */
+function matchToProfileModalInstructor(match: InstructorMatch, mountains: Mountain[]) {
+  const { instructor, stats: matchStats } = match;
+  const studentRate = getStudentFacingMountainLessonRate(instructor, mountains);
+  const stats = matchStats
+    ? {
+        totalLessons: matchStats.totalLessons,
+        averageRating: matchStats.averageRating,
+        totalStudents: matchStats.totalStudents,
+        totalReviews: matchStats.totalReviews
+      }
+    : undefined;
+
+  return {
+    id: instructor.id,
+    name: instructor.name,
+    image: instructor.avatar || '',
+    location:
+      instructor.homeMountain ||
+      mountains.find((m) => m.id === instructor.mountainId)?.name ||
+      instructor.preferredLocations?.[0] ||
+      'Mountain not specified',
+    rating: matchStats?.averageRating ?? 0,
+    reviewCount: matchStats?.totalReviews ?? 0,
+    priceLabel: formatStudentMountainRateBadge(studentRate),
+    studentLessonRate: studentRate,
+    specialties: instructor.specialties || [],
+    experience: instructor.yearsOfExperience || 0,
+    languages: instructor.languages || [],
+    availability: 'Full-time',
+    stats
+  };
+}
 
 interface HomeMatchResultsProps {
   prompt: string;
@@ -21,6 +60,9 @@ export function HomeMatchResults({
   visible
 }: HomeMatchResultsProps) {
   const [mountains, setMountains] = useState<Mountain[]>([]);
+  const [profileModalInstructor, setProfileModalInstructor] = useState<ReturnType<
+    typeof matchToProfileModalInstructor
+  > | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -45,7 +87,7 @@ export function HomeMatchResults({
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-600/20 border border-violet-500/40 text-violet-300 text-xs font-semibold mb-3">
                 <Sparkles className="w-3.5 h-3.5" />
-                AI matches for you
+                Top instructors
               </div>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white leading-tight">
                 Top picks from your lesson
@@ -97,7 +139,7 @@ export function HomeMatchResults({
 
           {!loading && !error && matches.length > 0 && (
             <ul className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 list-none p-0 m-0">
-              {matches.map((match, index) => {
+              {matches.slice(0, 3).map((match, index) => {
                 const rate = getStudentFacingMountainLessonRate(match.instructor, mountains);
                 const topReasons = match.reasons.slice(0, 3);
                 return (
@@ -171,12 +213,15 @@ export function HomeMatchResults({
                           </ul>
                         )}
 
-                        <Link
-                          to={bookHref}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setProfileModalInstructor(matchToProfileModalInstructor(match, mountains))
+                          }
                           className="mt-auto w-full text-center py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
                         >
-                          Continue to book
-                        </Link>
+                          View profile
+                        </button>
                       </div>
                     </article>
                   </li>
@@ -186,6 +231,13 @@ export function HomeMatchResults({
           )}
         </div>
       </div>
+
+      {profileModalInstructor && (
+        <InstructorProfileModal
+          instructor={profileModalInstructor}
+          onClose={() => setProfileModalInstructor(null)}
+        />
+      )}
     </section>
   );
 }

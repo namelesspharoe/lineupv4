@@ -70,8 +70,6 @@ export { InstructorTimesheet } from '../timesheet/InstructorTimesheet';
 export { TimesheetAnalytics } from '../timesheet/TimesheetAnalytics';
 
 // Payment & Checkout
-export { CheckoutButton } from '../stripe/CheckoutButton';
-
 // Kids Management
 export { KidProfileForm } from '../kids/KidProfileForm';
 export { KidProfileList } from '../kids/KidProfileList';

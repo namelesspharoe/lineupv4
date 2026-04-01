@@ -19,37 +19,14 @@ import {
   Achievement,
   LessonFeedback,
   Lesson,
-  StudentSkillLevel
+  StudentSkillLevel,
+  AchievementDefinition,
+  KidProgressStats
 } from '../types';
 import { parseStudentSkillLevel, studentSkillLevelUserFields } from '../utils/studentSkillLevel';
 import { isGeneratedDisciplineAvatar } from '../utils/disciplineAvatar';
 
-// --- Achievement definitions (static catalog) ---
-
-export interface AchievementDefinition {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  category: 'skill' | 'milestone' | 'social' | 'streak';
-  criteria: {
-    type:
-      | 'lessons_completed'
-      | 'skill_level'
-      | 'rating_achieved'
-      | 'streak_days'
-      | 'feedback_count'
-      | 'level_up'
-      | 'account_created'
-      | 'profile_picture_added'
-      | 'dual_sport';
-    value: number;
-    condition?: 'gte' | 'eq' | 'lte';
-  };
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  points: number;
-  unlockedAt?: string;
-}
+export type { AchievementDefinition } from '../types';
 
 export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
@@ -234,23 +211,265 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   }
 ];
 
+/** Kid-scoped badges (stored in `achievements` with `kidProfileId` set). */
+export const KID_ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
+  {
+    id: 'kid_first_lesson',
+    name: 'First Bunny Hill',
+    description: 'Completed a first lesson on the snow',
+    icon: '⛷️',
+    category: 'milestone',
+    criteria: { type: 'kid_first_lesson', value: 1, condition: 'eq' },
+    rarity: 'common',
+    points: 20
+  },
+  {
+    id: 'kid_3_lessons',
+    name: 'Snow Explorer',
+    description: 'Completed 3 lessons',
+    icon: '🌨️',
+    category: 'milestone',
+    criteria: { type: 'kid_lessons_completed', value: 3, condition: 'gte' },
+    rarity: 'common',
+    points: 40
+  },
+  {
+    id: 'kid_5_lessons',
+    name: 'Powder Pup',
+    description: 'Completed 5 lessons',
+    icon: '🐾',
+    category: 'milestone',
+    criteria: { type: 'kid_lessons_completed', value: 5, condition: 'gte' },
+    rarity: 'common',
+    points: 60
+  },
+  {
+    id: 'kid_10_lessons',
+    name: 'Mountain Cub',
+    description: 'Completed 10 lessons',
+    icon: '🐻',
+    category: 'milestone',
+    criteria: { type: 'kid_lessons_completed', value: 10, condition: 'gte' },
+    rarity: 'rare',
+    points: 100
+  },
+  {
+    id: 'kid_level_up',
+    name: 'Growing Strong',
+    description: 'Moved beyond first-time on the mountain',
+    icon: '⬆️',
+    category: 'skill',
+    criteria: { type: 'kid_level_up', value: 1, condition: 'eq' },
+    rarity: 'rare',
+    points: 75
+  },
+  {
+    id: 'kid_linking_turns',
+    name: 'Turn Star',
+    description: 'Reached linking turns or higher',
+    icon: '⭐',
+    category: 'skill',
+    criteria: { type: 'kid_min_skill_level', value: 2, condition: 'gte' },
+    rarity: 'rare',
+    points: 90
+  },
+  {
+    id: 'kid_confident',
+    name: 'Confidence Boost',
+    description: 'Reached confident turns or higher',
+    icon: '💪',
+    category: 'skill',
+    criteria: { type: 'kid_min_skill_level', value: 3, condition: 'gte' },
+    rarity: 'epic',
+    points: 150
+  },
+  {
+    id: 'kid_dual_sport',
+    name: 'All-Mountain Kid',
+    description: 'Took both ski and snowboard lessons',
+    icon: '🏔️',
+    category: 'milestone',
+    criteria: { type: 'kid_dual_sport', value: 1, condition: 'eq' },
+    rarity: 'epic',
+    points: 120
+  }
+];
+
+const LEVEL_INDEX: Record<string, number> = {
+  first_time: 0,
+  developing_turns: 1,
+  linking_turns: 2,
+  confident_turns: 3,
+  consistent_blue: 4
+};
+
+function evaluateKidCriteria(
+  definition: AchievementDefinition,
+  kid: KidProgressStats
+): { criteriaValue: number; shouldAward: boolean } {
+  const { type, value, condition } = definition.criteria;
+  let criteriaValue = 0;
+
+  switch (type) {
+    case 'kid_first_lesson':
+      criteriaValue = kid.lessonsCompleted === 1 ? 1 : 0;
+      break;
+    case 'kid_lessons_completed':
+      criteriaValue = kid.lessonsCompleted;
+      break;
+    case 'kid_level_up': {
+      const idx = LEVEL_INDEX[kid.level] ?? 0;
+      criteriaValue = idx > 0 ? 1 : 0;
+      break;
+    }
+    case 'kid_min_skill_level': {
+      const idx = LEVEL_INDEX[kid.level] ?? 0;
+      criteriaValue = idx;
+      break;
+    }
+    case 'kid_dual_sport': {
+      const ski = kid.skiLessonsCompleted ?? 0;
+      const sb = kid.snowboardLessonsCompleted ?? 0;
+      criteriaValue = ski >= 1 && sb >= 1 ? 1 : 0;
+      break;
+    }
+    default:
+      return { criteriaValue: 0, shouldAward: false };
+  }
+
+  let shouldAward = false;
+  switch (condition) {
+    case 'eq':
+      shouldAward = criteriaValue === value;
+      break;
+    case 'gte':
+      shouldAward = criteriaValue >= value;
+      break;
+    case 'lte':
+      shouldAward = criteriaValue <= value;
+      break;
+    default:
+      shouldAward = criteriaValue >= value;
+  }
+  return { criteriaValue, shouldAward };
+}
+
 export const achievementService = {
   async getStudentAchievements(studentId: string): Promise<Achievement[]> {
     try {
       const achievementsRef = collection(db, 'achievements');
-      const q = query(
-        achievementsRef,
-        where('studentId', '==', studentId),
-        orderBy('unlockedDate', 'desc')
-      );
+      const q = query(achievementsRef, where('studentId', '==', studentId));
       const snapshot = await getDocs(q);
 
-      return snapshot.docs.map(doc => ({
+      const list = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Achievement[];
+
+      return list
+        .filter(a => !a.kidProfileId)
+        .sort((a, b) => new Date(b.unlockedDate).getTime() - new Date(a.unlockedDate).getTime());
     } catch (error) {
       console.error('Error getting student achievements:', error);
+      throw error;
+    }
+  },
+
+  async getKidAchievements(parentId: string, kidProfileId: string): Promise<Achievement[]> {
+    try {
+      const achievementsRef = collection(db, 'achievements');
+      const q = query(achievementsRef, where('studentId', '==', parentId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Achievement))
+        .filter(a => a.kidProfileId === kidProfileId)
+        .sort((a, b) => new Date(b.unlockedDate).getTime() - new Date(a.unlockedDate).getTime());
+    } catch (error) {
+      console.error('Error getting kid achievements:', error);
+      throw error;
+    }
+  },
+
+  async getKidAchievementsGrouped(parentId: string): Promise<Record<string, Achievement[]>> {
+    try {
+      const achievementsRef = collection(db, 'achievements');
+      const q = query(achievementsRef, where('studentId', '==', parentId));
+      const snapshot = await getDocs(q);
+      const grouped: Record<string, Achievement[]> = {};
+      for (const d of snapshot.docs) {
+        const a = { id: d.id, ...d.data() } as Achievement;
+        if (!a.kidProfileId) continue;
+        if (!grouped[a.kidProfileId]) grouped[a.kidProfileId] = [];
+        grouped[a.kidProfileId].push(a);
+      }
+      for (const k of Object.keys(grouped)) {
+        grouped[k].sort(
+          (a, b) => new Date(b.unlockedDate).getTime() - new Date(a.unlockedDate).getTime()
+        );
+      }
+      return grouped;
+    } catch (error) {
+      console.error('Error grouping kid achievements:', error);
+      throw error;
+    }
+  },
+
+  async checkAndAwardKidAchievements(
+    parentId: string,
+    kidProfileId: string
+  ): Promise<Achievement[]> {
+    try {
+      const progressRef = collection(db, 'studentProgress');
+      const progressQuery = query(progressRef, where('studentId', '==', parentId));
+      const progressSnapshot = await getDocs(progressQuery);
+
+      const kidStats =
+        progressSnapshot.empty
+          ? null
+          : ((progressSnapshot.docs[0].data() as StudentProgress).kids?.[kidProfileId] ?? null);
+
+      if (!kidStats) {
+        return [];
+      }
+
+      const existing = await this.getKidAchievements(parentId, kidProfileId);
+      const existingNames = new Set(existing.map(a => a.name));
+
+      const batch = writeBatch(db);
+      const newAchievements: Achievement[] = [];
+
+      for (const definition of KID_ACHIEVEMENT_DEFINITIONS) {
+        if (existingNames.has(definition.name)) continue;
+
+        const { shouldAward } = evaluateKidCriteria(definition, kidStats);
+        if (!shouldAward) continue;
+
+        const achievement: Omit<Achievement, 'id'> = {
+          studentId: parentId,
+          kidProfileId,
+          name: definition.name,
+          description: definition.description,
+          icon: definition.icon,
+          unlockedDate: new Date().toISOString(),
+          category: definition.category
+        };
+
+        const achievementRef = doc(collection(db, 'achievements'));
+        batch.set(achievementRef, achievement);
+
+        newAchievements.push({
+          id: achievementRef.id,
+          ...achievement
+        });
+      }
+
+      if (newAchievements.length > 0) {
+        await batch.commit();
+      }
+
+      return newAchievements;
+    } catch (error) {
+      console.error('Error checking kid achievements:', error);
       throw error;
     }
   },

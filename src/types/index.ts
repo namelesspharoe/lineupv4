@@ -1,9 +1,14 @@
+/** Ski vs snowboard — used on users (discipline), lessons (sport), feedback, and kid profiles. */
+export type LessonSport = 'skiing' | 'snowboarding';
+
 // Add KidProfile interface to existing types
 export interface KidProfile {
   id: string;
   parentId: string;
   name: string;
   age: number;
+  /** Ski vs snowboard for this child (lessons, matching). */
+  discipline?: LessonSport;
   allergies: string;
   helmet_color: string;
   jacket_color: string;
@@ -15,9 +20,6 @@ export interface KidProfile {
   created_at: string;
   updated_at: string;
 }
-
-/** Ski vs snowboard — used on users (discipline), lessons (sport), and feedback. */
-export type LessonSport = 'skiing' | 'snowboarding';
 
 /** Student skill step (signup, feedback, studentProgress). Not used for instructor teaching-level strings. */
 export type StudentSkillLevel =
@@ -140,6 +142,34 @@ export interface SkillProgress {
   updatedAt: string;
 }
 
+/** Per-child aggregates stored on the parent’s `studentProgress` document (`kids` map). */
+export interface KidProgressStats {
+  kidProfileId: string;
+  name: string;
+  level: StudentSkillLevel;
+  discipline?: LessonSport;
+  lessonsCompleted: number;
+  /** Lessons counted when feedback sport was skiing. */
+  skiLessonsCompleted?: number;
+  /** Lessons counted when feedback sport was snowboarding. */
+  snowboardLessonsCompleted?: number;
+  lastActivity: string;
+  skillProgress: {
+    skiing: {
+      level: number;
+      progress: number;
+      skills: string[];
+      lastUpdated: string;
+    };
+    snowboarding: {
+      level: number;
+      progress: number;
+      skills: string[];
+      lastUpdated: string;
+    };
+  };
+}
+
 export interface StudentProgress {
   id: string;
   studentId: string;
@@ -161,7 +191,8 @@ export interface StudentProgress {
       lastUpdated: string;
     };
   };
-  achievements: string[];
+  /** Per-child progress when lessons are booked for kids (keyed by `kidProfileId`). */
+  kids?: Record<string, KidProgressStats>;
   streakDays: number;
   totalPoints: number;
   lastActivity: string;
@@ -171,12 +202,30 @@ export interface StudentProgress {
 export interface Achievement {
   id: string;
   studentId: string;
+  /** When set, this badge is for a child profile; parent uid is still `studentId`. */
+  kidProfileId?: string;
   name: string;
   description: string;
   icon: string;
   unlockedDate: string;
   category: 'skill' | 'milestone' | 'social' | 'streak';
 }
+
+export type AchievementCriteriaType =
+  | 'lessons_completed'
+  | 'skill_level'
+  | 'rating_achieved'
+  | 'streak_days'
+  | 'feedback_count'
+  | 'level_up'
+  | 'account_created'
+  | 'profile_picture_added'
+  | 'dual_sport'
+  | 'kid_first_lesson'
+  | 'kid_level_up'
+  | 'kid_lessons_completed'
+  | 'kid_min_skill_level'
+  | 'kid_dual_sport';
 
 export interface AchievementDefinition {
   id: string;
@@ -185,7 +234,7 @@ export interface AchievementDefinition {
   icon: string;
   category: 'skill' | 'milestone' | 'social' | 'streak';
   criteria: {
-    type: 'lessons_completed' | 'skill_level' | 'rating_achieved' | 'streak_days' | 'feedback_count' | 'level_up' | 'account_created';
+    type: AchievementCriteriaType;
     value: number;
     condition?: 'gte' | 'eq' | 'lte';
   };
@@ -251,6 +300,14 @@ export interface Lesson {
   title: string;
   instructorId: string;
   studentIds: string[];
+  /** When a parent books for children, links to `kid_profiles` docs; payer remains in `studentIds`. */
+  kidProfileIds?: string[];
+  /** Parallel to `kidProfileIds`, for display without extra reads. */
+  participantChildNames?: string[];
+  /** @deprecated Legacy single-child bookings; prefer `kidProfileIds`. */
+  kidProfileId?: string;
+  /** @deprecated Legacy; prefer `participantChildNames`. */
+  participantChildName?: string;
   date: string;
   /** Ski or snowboard for this session (defaults to skiing for legacy docs). */
   sport?: LessonSport;

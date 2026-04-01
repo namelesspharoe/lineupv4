@@ -1,5 +1,5 @@
 import { type FormEvent, type Dispatch, type SetStateAction, useMemo, useState } from 'react';
-import { Search, MapPin, Sparkles, ChevronDown } from 'lucide-react';
+import { Search, MapPin, ChevronDown } from 'lucide-react';
 import { InstructorGrid } from '../instructor/InstructorGrid';
 import { FilterPanel } from '../instructor/FilterPanel';
 import { AIMatchingRecommendations } from '../instructor/AIMatchingRecommendations';
@@ -173,8 +173,8 @@ export function BookLessonBrowseView({
                 type="submit"
                 className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
               >
-                <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
-                Match with AI
+                <Search className="h-4 w-4 shrink-0" aria-hidden />
+                Search
               </button>
             )}
           </div>

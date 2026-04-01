@@ -40,8 +40,8 @@ export function PublicHeader() {
                   Student Signup
                 </a>
                 <a
-                  href="/instructor-signup"
-                  className="px-4 py-2 border border-blue-600 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors"
+                  href="/for-instructors"
+                  className="px-4 py-2 border border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-sky-500 dark:text-sky-400 dark:hover:bg-slate-800 rounded-lg font-medium transition-colors"
                 >
                   Join as Instructor
                 </a>
@@ -92,8 +92,8 @@ export function PublicHeader() {
                 Student Signup
               </a>
               <a
-                href="/instructor-signup"
-                className="block w-full px-4 py-2 text-center border border-blue-600 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors"
+                href="/for-instructors"
+                className="block w-full px-4 py-2 text-center border border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-sky-500 dark:text-sky-400 dark:hover:bg-slate-800 rounded-lg font-medium transition-colors"
               >
                 Join as Instructor
               </a>

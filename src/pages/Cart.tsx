@@ -4,7 +4,7 @@ import { ShoppingBag, Trash2, ArrowLeft, Loader2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { resolveLessonPriceFromMountain } from '../services/mountains';
-import { prepareLessonCheckout } from '../lib/stripe';
+import { prepareLessonCheckout } from '../lib/lessonCheckout';
 import type { LessonBookingDraft } from '../types/cart';
 
 function lessonHours(startTime: string, endTime: string): number {
@@ -120,6 +120,14 @@ export function Cart() {
                 {line.instructorName && (
                   <p className="text-sm text-gray-600 dark:text-gray-400">{line.instructorName}</p>
                 )}
+                {(() => {
+                  const names = line.draft.participantChildNames?.length
+                    ? line.draft.participantChildNames.join(', ')
+                    : (line.draft as { participantChildName?: string }).participantChildName;
+                  return names ? (
+                    <p className="mt-1 text-sm font-medium text-blue-700 dark:text-blue-300">For: {names}</p>
+                  ) : null;
+                })()}
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
                   {line.draft.date} · {line.draft.startTime}–{line.draft.endTime} ·{' '}
                   {line.draft.type}
@@ -153,7 +161,7 @@ export function Cart() {
                 {loadingEstimates ? '…' : `$${grandTotal.toFixed(2)}`}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-500">
-                Final amount is confirmed at checkout (resort pricing).
+                Totals use each instructor&apos;s resort pricing.
               </p>
             </div>
             <div className="flex gap-2">

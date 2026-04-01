@@ -17,6 +17,9 @@ export interface LessonBookingDraft {
   skillsFocus: string[];
   notes: string;
   description: string;
+  /** Parent booking: child profile ids in `kid_profiles` (one or more). */
+  kidProfileIds?: string[];
+  participantChildNames?: string[];
 }
 
 export interface CartLineItem {

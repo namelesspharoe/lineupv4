@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Snowflake, ChevronRight, ChevronLeft, Plus, X, CheckCircle2, Sparkles } from 'lucide-react';
 import { StudentLevelQuestionnaire } from '../components/StudentLevelQuestionnaire';
 import { createKidProfile } from '../services/kids';
@@ -43,6 +43,12 @@ type SignupStepHelp = {
   body: string;
   matchingBullets?: string[];
 };
+
+/** Firebase-style IDs only — avoids open redirects via query string. */
+function isSafeInstructorIdParam(id: string | null): id is string {
+  if (!id || id.length > 128) return false;
+  return /^[a-zA-Z0-9_-]+$/.test(id);
+}
 
 const SIGNUP_STEP_HELP: SignupStepHelp[] = [
   {
@@ -169,6 +175,8 @@ function MobileStepHelp({ help }: { help: SignupStepHelp }) {
 
 export function StudentSignup() {
   const { signup, user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const instructorIdFromQuery = searchParams.get('instructorId');
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -176,6 +184,13 @@ export function StudentSignup() {
   const [kidProfiles, setKidProfiles] = useState<Partial<KidProfile>[]>([]);
   const [signupCompleted, setSignupCompleted] = useState(false);
   const navigate = useNavigate();
+
+  const postSignupPath = useMemo(() => {
+    if (instructorIdFromQuery && isSafeInstructorIdParam(instructorIdFromQuery)) {
+      return '/book-lesson#ai-matching';
+    }
+    return '/dashboard?showProfilePopup=true';
+  }, [instructorIdFromQuery]);
   
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -201,13 +216,12 @@ export function StudentSignup() {
     skiPass: 'none'
   });
   
-  // Navigate to dashboard when user is available after signup
+  // After signup, redirect when auth user is ready (dashboard or Book Lesson → AI matching from query)
   useEffect(() => {
     if (signupCompleted && user) {
-      console.log('User state updated, navigating to dashboard...');
-      navigate('/dashboard');
+      navigate(postSignupPath, { replace: true });
     }
-  }, [signupCompleted, user, navigate]);
+  }, [signupCompleted, user, navigate, postSignupPath]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -324,6 +338,7 @@ export function StudentSignup() {
                 parentId: currentUser.uid,
                 name: profile.name || '',
                 age: profile.age || 5,
+                discipline: profile.discipline || 'skiing',
                 allergies: profile.allergies || '',
                 helmet_color: profile.helmet_color || '#000000',
                 jacket_color: profile.jacket_color || '#000000',
@@ -350,9 +365,8 @@ export function StudentSignup() {
         console.log('No kid profiles to create');
       }
 
-      console.log('Signup completed successfully, navigating to dashboard...');
+      console.log('Signup completed successfully, navigating...', postSignupPath);
       setSignupCompleted(true);
-      navigate('/dashboard?showProfilePopup=true');
 
     } catch (err: any) {
       console.error('Signup error:', err);
@@ -888,7 +902,13 @@ export function StudentSignup() {
               {kidProfiles.map((profile, index) => (
                 <div key={index} className="p-4 bg-gray-50 rounded-lg">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-gray-900">{profile.name || 'Unnamed Profile'}</h4>
+                    <div>
+                      <h4 className="font-medium text-gray-900">{profile.name || 'Unnamed Profile'}</h4>
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        {profile.discipline === 'snowboarding' ? 'Snowboard' : 'Ski'}
+                        {profile.age != null ? ` · age ${profile.age}` : ''}
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
@@ -1035,6 +1055,7 @@ export function StudentSignup() {
                 const profile = {
                   name: formData.get('name') as string,
                   age: parseInt(formData.get('age') as string),
+                  discipline: (formData.get('discipline') as LessonSport | null) || 'skiing',
                   allergies: formData.get('allergies') as string,
                   helmet_color: formData.get('helmet_color') as string,
                   jacket_color: formData.get('jacket_color') as string,
@@ -1112,6 +1133,20 @@ export function StudentSignup() {
                       <option value="confident_turns">Confident Turns</option>
                       <option value="consistent_blue">Consistent Blue</option>
                     </select>
+                  </div>
+
+                  <div className="col-span-2">
+                    <p className="block text-sm font-medium text-gray-700 mb-2">Discipline</p>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="discipline" value="skiing" defaultChecked className="text-blue-600" />
+                        <span className="text-sm text-gray-800">Skiing</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="discipline" value="snowboarding" className="text-blue-600" />
+                        <span className="text-sm text-gray-800">Snowboarding</span>
+                      </label>
+                    </div>
                   </div>
 
                   <div className="col-span-2">

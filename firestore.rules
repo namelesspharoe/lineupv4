@@ -33,6 +33,14 @@ service cloud.firestore {
         getUserData().role == 'student';
     }
 
+    function studentCreatesOwnScheduledLesson() {
+      return isStudent() &&
+        request.resource.data.studentIds is list &&
+        request.resource.data.studentIds.size() == 1 &&
+        request.resource.data.studentIds[0] == request.auth.uid &&
+        request.resource.data.status == 'scheduled';
+    }
+
     // Allow users to read and write their own messages
     match /messages/{messageId} {
       allow read, write: if true;
@@ -49,10 +57,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Lessons: only instructors/admins may create; students book via Stripe + Cloud Function
+    // Lessons: instructors/admins create pool rows; students create only their own scheduled bookings
     match /lessons/{lessonId} {
       allow read: if isSignedIn();
-      allow create: if isAdmin() || isInstructor();
+      allow create: if isAdmin() || isInstructor() || studentCreatesOwnScheduledLesson();
       allow update: if isAdmin() || isInstructor() ||
         (isStudent() && request.auth.uid in resource.data.studentIds);
       allow delete: if isAdmin();

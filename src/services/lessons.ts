@@ -17,9 +17,17 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Lesson, LessonFeedback, StudentReview } from '../types';
+import {
+  KidProfile,
+  KidProgressStats,
+  Lesson,
+  LessonFeedback,
+  StudentReview,
+  StudentSkillLevel
+} from '../types';
 import { format } from 'date-fns';
-import { progressService } from './progress';
+import { achievementService, progressService } from './progress';
+import { getKidProfiles } from './kids';
 import { studentSkillLevelUserFields } from '../utils/studentSkillLevel';
 
 export async function getLessonsByStudent(studentId: string): Promise<Lesson[]> {
@@ -343,8 +351,15 @@ export async function addLessonFeedback(
     
     // Check for achievements after progress update
     try {
-      const { achievementService } = await import('./achievements');
       await achievementService.checkAndAwardAchievements(feedback.studentId);
+      const kidIds = lessonRow?.kidProfileIds?.length
+        ? lessonRow.kidProfileIds
+        : lessonRow?.kidProfileId
+          ? [lessonRow.kidProfileId]
+          : [];
+      for (const kidId of kidIds) {
+        await achievementService.checkAndAwardKidAchievements(feedback.studentId, kidId);
+      }
       console.log('Achievements checked');
     } catch (achievementError) {
       console.error('Error checking achievements:', achievementError);
@@ -381,21 +396,53 @@ export async function updateLessonFeedback(
   }
 }
 
+function defaultKidSkillProgress() {
+  const t = new Date().toISOString();
+  return {
+    skiing: { level: 0, progress: 0, skills: [], lastUpdated: t },
+    snowboarding: { level: 0, progress: 0, skills: [], lastUpdated: t }
+  };
+}
+
 // New function to update student progress based on feedback
 async function updateStudentProgressFromFeedback(feedback: Omit<LessonFeedback, 'id' | 'createdAt' | 'updatedAt'>): Promise<void> {
   try {
     console.log('Updating student progress from feedback:', feedback.studentId);
-    
+
+    const lessonSnap = await getDoc(doc(db, 'lessons', feedback.lessonId));
+    const lessonData = lessonSnap.exists() ? (lessonSnap.data() as Lesson) : null;
+    const kidIdsRaw = [
+      ...(lessonData?.kidProfileIds ?? []),
+      ...(lessonData?.kidProfileId ? [lessonData.kidProfileId] : [])
+    ];
+    const kidProfileIds = [...new Set(kidIdsRaw)];
+
+    let kidProfilesById: Record<string, KidProfile> = {};
+    if (kidProfileIds.length > 0) {
+      try {
+        const profiles = await getKidProfiles(feedback.studentId);
+        kidProfilesById = Object.fromEntries(profiles.map((p) => [p.id, p]));
+      } catch (e) {
+        console.warn('Could not load kid profiles for progress update:', e);
+      }
+    }
+
+    const participantNames = lessonData?.participantChildNames ?? [];
+    const nameForKid = (kidId: string, index: number) =>
+      kidProfilesById[kidId]?.name ??
+      participantNames[kidProfileIds.indexOf(kidId)] ??
+      'Child';
+
     const batch = writeBatch(db);
-    
+
     // Get current student progress
     const progressRef = collection(db, 'studentProgress');
     const progressQuery = query(progressRef, where('studentId', '==', feedback.studentId));
     const progressSnapshot = await getDocs(progressQuery);
-    
-    let currentProgress: any;
-    let progressDocRef: any;
-    
+
+    let currentProgress: Record<string, unknown>;
+    let progressDocRef: ReturnType<typeof doc>;
+
     if (progressSnapshot.empty) {
       console.log('Creating new progress document for student:', feedback.studentId);
       // Create new progress document
@@ -420,7 +467,6 @@ async function updateStudentProgressFromFeedback(feedback: Omit<LessonFeedback, 
             lastUpdated: new Date().toISOString()
           }
         },
-        achievements: [],
         streakDays: 1,
         totalPoints: 0,
         lastActivity: new Date().toISOString(),
@@ -431,34 +477,35 @@ async function updateStudentProgressFromFeedback(feedback: Omit<LessonFeedback, 
       // Update existing progress
       const progressDoc = progressSnapshot.docs[0];
       progressDocRef = doc(db, 'studentProgress', progressDoc.id);
-      currentProgress = progressDoc.data();
-      
+      currentProgress = { ...progressDoc.data() };
+
       // Update lesson counts
-      currentProgress.totalLessons = (currentProgress.totalLessons || 0) + 1;
-      currentProgress.completedLessons = (currentProgress.completedLessons || 0) + 1;
+      currentProgress.totalLessons = (Number(currentProgress.totalLessons) || 0) + 1;
+      currentProgress.completedLessons = (Number(currentProgress.completedLessons) || 0) + 1;
     }
-    
+
     // Update skill progress based on feedback
     const levelMap = {
-      'first_time': 0,
-      'developing_turns': 1,
-      'linking_turns': 2,
-      'confident_turns': 3,
-      'consistent_blue': 4
+      first_time: 0,
+      developing_turns: 1,
+      linking_turns: 2,
+      confident_turns: 3,
+      consistent_blue: 4
     };
-    
+
     const newLevel = levelMap[feedback.skillAssessment.currentLevel as keyof typeof levelMap] || 0;
-    const currentLevel = levelMap[currentProgress.level as keyof typeof levelMap] || 0;
-    
+    const currentLevel =
+      levelMap[currentProgress.level as keyof typeof levelMap] ?? 0;
+
     // Update overall level if improved
     if (newLevel > currentLevel) {
       currentProgress.level = feedback.skillAssessment.currentLevel;
     }
-    
+
     // Update skill progress for the specific sport
-    const sport = feedback.sport || 'skiing'; // Default to skiing if not specified
-    const skillProgress = Math.min(100, Math.max(0, (feedback.performance.overall / 5) * 100));
-    
+    const sport = (feedback.sport || 'skiing') as 'skiing' | 'snowboarding';
+    const skillProgressPct = Math.min(100, Math.max(0, (feedback.performance.overall / 5) * 100));
+
     // Ensure skillProgress object exists
     if (!currentProgress.skillProgress) {
       currentProgress.skillProgress = {
@@ -466,49 +513,85 @@ async function updateStudentProgressFromFeedback(feedback: Omit<LessonFeedback, 
         snowboarding: { level: 0, progress: 0, skills: [], lastUpdated: new Date().toISOString() }
       };
     }
-    
+
+    const sp = currentProgress.skillProgress as KidProgressStats['skillProgress'];
     // Update the specific sport's progress (guard against missing progressUpdate on old/malformed feedback)
     const skillsImproved = feedback.progressUpdate?.skillsImproved ?? [];
     const newSkillsLearned = feedback.progressUpdate?.newSkillsLearned ?? [];
-    currentProgress.skillProgress[sport] = {
+    sp[sport] = {
       level: newLevel,
-      progress: skillProgress,
-      skills: [
-        ...(currentProgress.skillProgress[sport]?.skills || []),
-        ...skillsImproved,
-        ...newSkillsLearned
-      ].filter((skill, index, arr) => arr.indexOf(skill) === index), // Remove duplicates
+      progress: skillProgressPct,
+      skills: [...(sp[sport]?.skills || []), ...skillsImproved, ...newSkillsLearned].filter(
+        (skill, index, arr) => arr.indexOf(skill) === index
+      ),
       lastUpdated: new Date().toISOString()
     };
-    
+
     // Update last activity
-    currentProgress.lastActivity = new Date().toISOString();
-    currentProgress.lastUpdated = new Date().toISOString();
-    
+    const now = new Date().toISOString();
+    currentProgress.lastActivity = now;
+    currentProgress.lastUpdated = now;
+
+    // Per-kid progress when this lesson is for children
+    const kidsMap = { ...((currentProgress.kids as Record<string, KidProgressStats> | undefined) ?? {}) };
+    if (kidProfileIds.length > 0) {
+      for (let i = 0; i < kidProfileIds.length; i++) {
+        const kidId = kidProfileIds[i];
+        const profile = kidProfilesById[kidId];
+        const existing = kidsMap[kidId];
+        const merged: KidProgressStats = existing
+          ? {
+              ...existing,
+              name: nameForKid(kidId, i),
+              lessonsCompleted: (existing.lessonsCompleted || 0) + 1,
+              skiLessonsCompleted:
+                (existing.skiLessonsCompleted || 0) + (sport === 'skiing' ? 1 : 0),
+              snowboardLessonsCompleted:
+                (existing.snowboardLessonsCompleted || 0) + (sport === 'snowboarding' ? 1 : 0),
+              skillProgress: existing.skillProgress ?? defaultKidSkillProgress(),
+              lastActivity: now
+            }
+          : {
+              kidProfileId: kidId,
+              name: nameForKid(kidId, i),
+              level: (profile?.level ?? 'first_time') as StudentSkillLevel,
+              discipline: profile?.discipline ?? 'skiing',
+              lessonsCompleted: 1,
+              skiLessonsCompleted: sport === 'skiing' ? 1 : 0,
+              snowboardLessonsCompleted: sport === 'snowboarding' ? 1 : 0,
+              skillProgress: defaultKidSkillProgress(),
+              lastActivity: now
+            };
+
+        const kidPrevLevelIdx =
+          levelMap[(existing?.level ?? profile?.level ?? 'first_time') as keyof typeof levelMap] ?? 0;
+        if (newLevel > kidPrevLevelIdx) {
+          merged.level = feedback.skillAssessment.currentLevel as StudentSkillLevel;
+        }
+
+        merged.skillProgress[sport] = {
+          level: newLevel,
+          progress: skillProgressPct,
+          skills: [
+            ...(merged.skillProgress[sport]?.skills || []),
+            ...skillsImproved,
+            ...newSkillsLearned
+          ].filter((skill, index, arr) => arr.indexOf(skill) === index),
+          lastUpdated: now
+        };
+
+        kidsMap[kidId] = merged;
+      }
+      currentProgress.kids = kidsMap;
+    }
+
     // Update or create progress document
     if (progressSnapshot.empty) {
       batch.set(progressDocRef, currentProgress);
     } else {
-      batch.update(progressDocRef, currentProgress);
+      batch.update(progressDocRef, currentProgress as Record<string, unknown>);
     }
-    
-    // Add skill progress entry for tracking
-    const skillProgressRef = collection(db, 'skillProgress');
-    
-    // Add progress entry for the specific sport
-    const sportProgressRef = doc(skillProgressRef);
-    batch.set(sportProgressRef, {
-      studentId: feedback.studentId,
-      skillName: sport,
-      currentLevel: newLevel,
-      previousLevel: currentProgress.skillProgress[sport]?.level || 0,
-      progress: skillProgress,
-      skills: currentProgress.skillProgress[sport]?.skills || [],
-      progressDate: new Date().toISOString(),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-    
+
     await batch.commit();
     console.log('Student progress updated successfully');
 

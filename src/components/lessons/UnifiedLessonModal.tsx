@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { X, Calendar, Clock, Users, DollarSign, Target, FileText, MapPin } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { X, Calendar, Clock, Users, DollarSign, Target, FileText, MapPin, Baby, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { createLesson } from '../../services/lessons';
-import { prepareLessonCheckout } from '../../lib/stripe';
-import { User, Lesson, Mountain, LessonSport } from '../../types';
+import { prepareLessonCheckout } from '../../lib/lessonCheckout';
+import { User, Lesson, Mountain, LessonSport, KidProfile } from '../../types';
 import type { LessonBookingDraft } from '../../types/cart';
 import { format } from 'date-fns';
 import { StudentSearch } from '../common/StudentSearch';
@@ -17,6 +18,7 @@ import {
   resolveLessonPriceFromMountain
 } from '../../services/mountains';
 import { getUserById } from '../../services/users';
+import { getKidProfiles } from '../../services/kids';
 import { ResponsiveModalPanel } from '../common/ResponsiveModalPanel';
 
 interface UnifiedLessonModalProps {
@@ -68,6 +70,29 @@ const lessonTypeLabels: Record<'private' | 'group' | 'workshop', string> = {
   workshop: 'Workshop'
 };
 
+const SKILL_LEVEL_ORDER: KidProfile['level'][] = [
+  'first_time',
+  'developing_turns',
+  'linking_turns',
+  'confident_turns',
+  'consistent_blue'
+];
+
+/** When multiple children are selected, use the lowest ability so the instructor plans appropriately. */
+function lowestSkillAmongKids(kids: KidProfile[]): KidProfile['level'] {
+  if (kids.length === 0) return 'first_time';
+  let bestIdx = SKILL_LEVEL_ORDER.length;
+  let level: KidProfile['level'] = kids[0].level;
+  for (const k of kids) {
+    const i = SKILL_LEVEL_ORDER.indexOf(k.level);
+    if (i >= 0 && i < bestIdx) {
+      bestIdx = i;
+      level = k.level;
+    }
+  }
+  return level;
+}
+
 function getSessionTypeFromTimes(
   startTime: string,
   endTime: string
@@ -98,6 +123,10 @@ export function UnifiedLessonModal({
   const [isLoadingInstructors, setIsLoadingInstructors] = useState(false);
   const [instructorMountainLabel, setInstructorMountainLabel] = useState<string | null>(null);
   const [isLoadingMountain, setIsLoadingMountain] = useState(false);
+  const [kidProfiles, setKidProfiles] = useState<KidProfile[]>([]);
+  const [isLoadingKids, setIsLoadingKids] = useState(false);
+  const [bookingParticipant, setBookingParticipant] = useState<'self' | 'child'>('self');
+  const [selectedKidProfileIds, setSelectedKidProfileIds] = useState<string[]>([]);
 
   const [formData, setFormData] = useState<LessonFormData>({
     title: '',
@@ -235,6 +264,70 @@ export function UnifiedLessonModal({
       cancelled = true;
     };
   }, [isOpen, mode, isAdmin, instructor]);
+
+  useEffect(() => {
+    if (!isOpen || mode !== 'book' || user?.role !== 'student' || !user?.id) {
+      return;
+    }
+    setBookingParticipant('self');
+    setSelectedKidProfileIds([]);
+    let cancelled = false;
+    setIsLoadingKids(true);
+    void getKidProfiles(user.id)
+      .then((data) => {
+        if (!cancelled) setKidProfiles(data);
+      })
+      .catch(() => {
+        if (!cancelled) setKidProfiles([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingKids(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, mode, user?.id, user?.role]);
+
+  useEffect(() => {
+    if (bookingParticipant !== 'child' || selectedKidProfileIds.length === 0) return;
+    const kids = selectedKidProfileIds
+      .map((id) => kidProfiles.find((k) => k.id === id))
+      .filter((k): k is KidProfile => k != null);
+    if (kids.length === 0) return;
+    const level = lowestSkillAmongKids(kids);
+    setFormData((prev) => ({ ...prev, skillLevel: level }));
+  }, [bookingParticipant, selectedKidProfileIds, kidProfiles]);
+
+  useEffect(() => {
+    if (bookingParticipant !== 'child' || selectedKidProfileIds.length !== 1) return;
+    const kid = kidProfiles.find((k) => k.id === selectedKidProfileIds[0]);
+    const d = kid?.discipline;
+    if (d === 'skiing' || d === 'snowboarding') {
+      setFormData((prev) => ({ ...prev, sport: d }));
+    }
+  }, [bookingParticipant, selectedKidProfileIds, kidProfiles]);
+
+  const selectedKidsForBooking = useMemo(() => {
+    if (mode !== 'book' || user?.role !== 'student' || bookingParticipant !== 'child') {
+      return [] as KidProfile[];
+    }
+    return selectedKidProfileIds
+      .map((id) => kidProfiles.find((k) => k.id === id))
+      .filter((k): k is KidProfile => k != null);
+  }, [mode, user?.role, bookingParticipant, selectedKidProfileIds, kidProfiles]);
+
+  const kidBookingInvalid =
+    mode === 'book' &&
+    user?.role === 'student' &&
+    bookingParticipant === 'child' &&
+    kidProfiles.length > 0 &&
+    selectedKidProfileIds.length === 0;
+
+  const toggleKidProfile = (id: string) => {
+    setSelectedKidProfileIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
 
   // Load instructors for admin functionality
   useEffect(() => {
@@ -375,7 +468,7 @@ export function UnifiedLessonModal({
 
   const buildBookingDraft = (): LessonBookingDraft | null => {
     if (!instructor) return null;
-    return {
+    const base: LessonBookingDraft = {
       title: formData.title,
       instructorId: instructor.id,
       date: formData.date,
@@ -390,9 +483,18 @@ export function UnifiedLessonModal({
       notes: formData.notes,
       description: formData.description
     };
+    if (selectedKidsForBooking.length > 0) {
+      base.kidProfileIds = selectedKidsForBooking.map((k) => k.id);
+      base.participantChildNames = selectedKidsForBooking.map((k) => k.name);
+    }
+    return base;
   };
 
   const handleAddToCart = () => {
+    if (kidBookingInvalid) {
+      setError('Select at least one child, or choose Me.');
+      return;
+    }
     const draft = buildBookingDraft();
     if (!draft || !instructor) {
       setError('Missing lesson details');
@@ -404,6 +506,10 @@ export function UnifiedLessonModal({
 
   const handleBuyNow = async () => {
     if (!user || !instructor) return;
+    if (kidBookingInvalid) {
+      setError('Select at least one child, or choose Me.');
+      return;
+    }
     const draft = buildBookingDraft();
     if (!draft) {
       setError('Missing lesson details');
@@ -431,6 +537,10 @@ export function UnifiedLessonModal({
     }
     if (!user) {
       setError('You must be logged in to create lessons');
+      return;
+    }
+    if (kidBookingInvalid) {
+      setError('Select at least one child, or choose Me.');
       return;
     }
 
@@ -475,7 +585,13 @@ export function UnifiedLessonModal({
         price: priceForLesson,
         description: formData.description,
         skillsFocus: formData.skillsFocus,
-        notes: formData.notes
+        notes: formData.notes,
+        ...(selectedKidsForBooking.length > 0
+          ? {
+              kidProfileIds: selectedKidsForBooking.map((k) => k.id),
+              participantChildNames: selectedKidsForBooking.map((k) => k.name)
+            }
+          : {})
       };
 
       console.log('Creating lesson with data:', lessonData);
@@ -691,6 +807,114 @@ export function UnifiedLessonModal({
               </div>
             </div>
 
+            {mode === 'book' && user?.role === 'student' && !isAdmin && (
+              <div className="space-y-4 rounded-xl border border-gray-200 bg-slate-50/80 p-4 dark:border-gray-700 dark:bg-gray-800/40">
+                <div className="flex items-center gap-2">
+                  <Baby className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                    Who is this lesson for?
+                  </h3>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  The account holder stays the payer; we attach your kids&apos; profiles so the instructor sees the
+                  right level and safety details. You can select one or more children.
+                </p>
+                {isLoadingKids ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading family profiles…
+                  </div>
+                ) : kidProfiles.length === 0 ? (
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    This booking is for you. To book for a child, add a kid profile from your{' '}
+                    <Link to="/dashboard" className="font-medium text-blue-600 underline-offset-2 hover:underline dark:text-blue-400">
+                      dashboard
+                    </Link>
+                    .
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBookingParticipant('self');
+                          setSelectedKidProfileIds([]);
+                        }}
+                        className={`rounded-xl border-2 p-3 text-left transition-all ${
+                          bookingParticipant === 'self'
+                            ? 'border-blue-500 bg-blue-50 dark:border-blue-400/70 dark:bg-blue-950/40'
+                            : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500'
+                        }`}
+                      >
+                        <span className="text-lg" aria-hidden>
+                          👤
+                        </span>
+                        <div className="mt-1 font-medium text-gray-900 dark:text-white">Me</div>
+                        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Lesson for you</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBookingParticipant('child')}
+                        className={`rounded-xl border-2 p-3 text-left transition-all ${
+                          bookingParticipant === 'child'
+                            ? 'border-blue-500 bg-blue-50 dark:border-blue-400/70 dark:bg-blue-950/40'
+                            : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500'
+                        }`}
+                      >
+                        <span className="text-lg" aria-hidden>
+                          🧒
+                        </span>
+                        <div className="mt-1 font-medium text-gray-900 dark:text-white">My child</div>
+                        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                          One or more saved kid profiles
+                        </p>
+                      </button>
+                    </div>
+                    {bookingParticipant === 'child' && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Which children are in this lesson?
+                        </p>
+                        <ul className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-600 dark:bg-gray-900/80">
+                          {kidProfiles.map((k) => {
+                            const checked = selectedKidProfileIds.includes(k.id);
+                            return (
+                              <li key={k.id}>
+                                <label className="flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-800">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleKidProfile(k.id)}
+                                    className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600"
+                                  />
+                                  <span className="min-w-0 flex-1 text-sm text-gray-900 dark:text-gray-100">
+                                    <span className="font-medium">{k.name}</span>
+                                    <span className="text-gray-500 dark:text-gray-400"> · age {k.age}</span>
+                                  </span>
+                                </label>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        {selectedKidProfileIds.length > 0 && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Skill level below uses the least advanced among selected children so the instructor can
+                            plan for everyone.
+                          </p>
+                        )}
+                        {kidBookingInvalid && (
+                          <p className="text-sm text-red-600 dark:text-red-400">
+                            Select at least one child to continue.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Student Selection - Only show for create mode */}
             {mode === 'create' && (
               <div className="space-y-4">
@@ -785,7 +1009,7 @@ export function UnifiedLessonModal({
                   <button
                     type="button"
                     onClick={handleAddToCart}
-                    disabled={isLoading}
+                    disabled={isLoading || kidBookingInvalid}
                     className="w-full rounded-lg border border-blue-600 bg-white px-4 py-2.5 text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-500 dark:bg-gray-900 dark:text-blue-300 dark:hover:bg-blue-950/40 sm:flex-1 sm:py-2"
                   >
                     Add to cart
@@ -793,7 +1017,7 @@ export function UnifiedLessonModal({
                   <button
                     type="button"
                     onClick={() => void handleBuyNow()}
-                    disabled={isLoading}
+                    disabled={isLoading || kidBookingInvalid}
                     className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:py-2"
                   >
                     {isLoading ? 'Redirecting…' : 'Buy now'}
@@ -802,7 +1026,7 @@ export function UnifiedLessonModal({
               ) : (
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || kidBookingInvalid}
                   className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1 sm:py-2"
                 >
                   {isLoading ? 'Creating...' : mode === 'create' ? 'Create Lesson' : 'Book Lesson'}

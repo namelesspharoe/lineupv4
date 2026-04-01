@@ -14,10 +14,12 @@ import {
   Minus,
   RefreshCw
 } from 'lucide-react';
-import { Lesson, User } from '../../types';
+import { KidProfile, Lesson, User } from '../../types';
 import { getInstructorActiveLessons, startLesson, completeLesson, updateLesson } from '../../services/lessons';
 import { getLessonDate } from '../../utils/lessonDate';
 import { getUserById } from '../../services/users';
+import { getKidProfiles } from '../../services/kids';
+import { formatSkillLabel } from '../../utils/skillDescriptions';
 import { EnhancedFeedbackForm } from './EnhancedFeedbackForm';
 import { ClockInOutButton } from '../timesheet/ClockInOutButton';
 import { LessonDetailsModal } from '../dashboard/student/components/LessonDetailsModal';
@@ -55,6 +57,7 @@ export function ActiveLessons({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [studentsById, setStudentsById] = useState<Record<string, User | null>>({});
+  const [kidProfilesById, setKidProfilesById] = useState<Record<string, KidProfile>>({});
   const [savingNotesLessonId, setSavingNotesLessonId] = useState<string | null>(null);
   const [detailsLesson, setDetailsLesson] = useState<Lesson | null>(null);
   const sessionNotesSaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -121,6 +124,44 @@ export function ActiveLessons({
       }
     })();
 
+    return () => {
+      cancelled = true;
+    };
+  }, [lessons]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const parentsToKids = new Map<string, Set<string>>();
+    for (const l of lessons) {
+      const kidIds = [
+        ...(l.kidProfileIds ?? []),
+        ...(l.kidProfileId ? [l.kidProfileId] : [])
+      ];
+      const unique = [...new Set(kidIds)];
+      if (unique.length === 0) continue;
+      const parentId = l.studentIds?.[0];
+      if (!parentId) continue;
+      if (!parentsToKids.has(parentId)) parentsToKids.set(parentId, new Set());
+      unique.forEach((id) => parentsToKids.get(parentId)!.add(id));
+    }
+    if (parentsToKids.size === 0) {
+      setKidProfilesById({});
+      return;
+    }
+    (async () => {
+      const map: Record<string, KidProfile> = {};
+      for (const [parentId, wanted] of parentsToKids) {
+        try {
+          const profiles = await getKidProfiles(parentId);
+          for (const p of profiles) {
+            if (wanted.has(p.id)) map[p.id] = p;
+          }
+        } catch (e) {
+          console.error('Error loading kid profiles for active lesson:', e);
+        }
+      }
+      if (!cancelled) setKidProfilesById(map);
+    })();
     return () => {
       cancelled = true;
     };
@@ -398,9 +439,83 @@ export function ActiveLessons({
                         No students on this session yet.
                       </p>
                     )}
+                    {(() => {
+                      const kidIds = [
+                        ...(lesson.kidProfileIds ?? []),
+                        ...(lesson.kidProfileId ? [lesson.kidProfileId] : [])
+                      ];
+                      const uniqueKids = [...new Set(kidIds)];
+                      if (uniqueKids.length === 0) return null;
+                      return (
+                        <div className="mb-3 space-y-2 w-full">
+                          {uniqueKids.map((kidId) => {
+                            const kid = kidProfilesById[kidId];
+                            if (!kid) {
+                              return (
+                                <div
+                                  key={kidId}
+                                  className="rounded-xl border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400"
+                                >
+                                  Loading child profile…
+                                </div>
+                              );
+                            }
+                            const warn = kid.allergies?.trim() || '';
+                            return (
+                              <div
+                                key={kidId}
+                                className="w-full max-w-xl rounded-xl border border-sky-200 bg-sky-50/90 p-3 dark:border-sky-900/60 dark:bg-sky-950/25"
+                              >
+                                <p className="text-xs font-semibold uppercase tracking-wide text-sky-900 dark:text-sky-200">
+                                  Child on lesson
+                                </p>
+                                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                  {kid.name}{' '}
+                                  <span className="font-normal text-gray-600 dark:text-gray-400">
+                                    · age {kid.age} · {kid.discipline === 'snowboarding' ? 'Snowboard' : 'Ski'} ·{' '}
+                                    {formatSkillLabel(String(kid.level).replace(/_/g, ' '))}
+                                  </span>
+                                </p>
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">Gear</span>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span
+                                      title="Helmet"
+                                      className="h-5 w-5 rounded-full border border-gray-200 dark:border-gray-600"
+                                      style={{ backgroundColor: kid.helmet_color }}
+                                    />
+                                    <span
+                                      title="Jacket"
+                                      className="h-5 w-5 rounded-full border border-gray-200 dark:border-gray-600"
+                                      style={{ backgroundColor: kid.jacket_color }}
+                                    />
+                                    <span
+                                      title="Pants"
+                                      className="h-5 w-5 rounded-full border border-gray-200 dark:border-gray-600"
+                                      style={{ backgroundColor: kid.pants_color }}
+                                    />
+                                  </span>
+                                </div>
+                                {warn ? (
+                                  <p className="mt-2 rounded-md border border-amber-300/80 bg-amber-50 px-2 py-1.5 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                                    {warn}
+                                  </p>
+                                ) : null}
+                                <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                                  Emergency: {kid.emergency_contact_name} ({kid.emergency_contact_relationship}) ·{' '}
+                                  {kid.emergency_contact_phone}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                     <div className="flex flex-wrap items-center gap-3">
                       {(lesson.studentIds ?? []).map((studentId) => {
                         const student = studentsById[studentId];
+                        const hasKidsOnLesson =
+                          (lesson.kidProfileIds?.length ?? 0) > 0 || Boolean(lesson.kidProfileId);
                         return (
                           <div
                             key={studentId}
@@ -412,6 +527,11 @@ export function ActiveLessons({
                               className="w-9 h-9 shrink-0 rounded-full object-cover border border-gray-200 dark:border-gray-600"
                             />
                             <div className="min-w-0 flex-1">
+                              {hasKidsOnLesson && (
+                                <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                  Parent
+                                </p>
+                              )}
                               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                                 {student?.name ?? 'Loading…'}
                               </p>

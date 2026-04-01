@@ -5,6 +5,17 @@ import { User } from '../types';
 import { signIn, signUp, logout } from '../services/auth';
 import { getUserById } from '../services/users';
 
+/** Firestore user doc may lag right after `createUser` — avoid clearing session with a stale null read. */
+async function getUserByIdWithRetry(uid: string): Promise<User | null> {
+  const maxAttempts = 8;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const userData = await getUserById(uid);
+    if (userData) return userData;
+    await new Promise((r) => setTimeout(r, 80 + attempt * 120));
+  }
+  return null;
+}
+
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
@@ -23,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const userData = await getUserById(firebaseUser.uid);
+        const userData = await getUserByIdWithRetry(firebaseUser.uid);
         setUser(userData);
       } else {
         setUser(null);

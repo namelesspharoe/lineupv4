@@ -11,6 +11,9 @@ import { FullPageSpinner } from '../components/LoadingSpinner';
 const Home = React.lazy(() => import('../pages/Home').then(module => ({ default: module.Home })));
 const StudentSignup = React.lazy(() => import('../pages/StudentSignup').then(module => ({ default: module.StudentSignup })));
 const InstructorSignup = React.lazy(() => import('../pages/InstructorSignup').then(module => ({ default: module.InstructorSignup })));
+const InstructorLanding = React.lazy(() =>
+  import('../pages/InstructorLanding').then(module => ({ default: module.InstructorLanding }))
+);
 const BookLesson = React.lazy(() => import('../pages/BookLesson').then(module => ({ default: module.BookLesson })));
 const Messages = React.lazy(() => import('../pages/Messages').then(module => ({ default: module.Messages })));
 const Progress = React.lazy(() => import('../pages/Progress').then(module => ({ default: module.Progress })));
@@ -115,6 +118,14 @@ const router = createBrowserRouter([
     element: (
       <Layout showNavigation={false}>
         <StudentSignup />
+      </Layout>
+    ),
+  },
+  {
+    path: '/for-instructors',
+    element: (
+      <Layout publicMarketing>
+        <InstructorLanding />
       </Layout>
     ),
   },

@@ -8,7 +8,16 @@ import { LessonBookingChatbot } from './chatbot/LessonBookingChatbot';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutGrid, LogOut, Menu, X, ChevronDown, User, Home, Calendar, MessageSquare, User as UserIcon, BarChart2, Trophy, BookOpen, Clock } from 'lucide-react';
 
-export function Layout({ children, showNavigation = true }: { children: React.ReactNode; showNavigation?: boolean }) {
+export function Layout({
+  children,
+  showNavigation = true,
+  publicMarketing = false,
+}: {
+  children: React.ReactNode;
+  showNavigation?: boolean;
+  /** When true, always use the public header/footer shell (e.g. instructor marketing page while logged in). */
+  publicMarketing?: boolean;
+}) {
   const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -52,7 +61,7 @@ export function Layout({ children, showNavigation = true }: { children: React.Re
     };
   }, [isMobileMenuOpen]);
 
-  if (!user) {
+  if (!user || publicMarketing) {
     return (
       <div className="bg-winter-light dark:bg-winter-dark min-h-screen flex flex-col">
         <PublicHeader />

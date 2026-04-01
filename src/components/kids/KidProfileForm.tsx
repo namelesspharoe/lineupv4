@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { KidProfile } from '../../types';
+import { KidProfile, type LessonSport } from '../../types';
 import { createKidProfile, updateKidProfile } from '../../services/kids';
 import { X } from 'lucide-react';
 import { ResponsiveModalPanel } from '../common/ResponsiveModalPanel';
@@ -15,21 +15,23 @@ export function KidProfileForm({ parentId, existingProfile, onClose, onSave }: K
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const [formData, setFormData] = useState<Partial<KidProfile>>(
-    existingProfile || {
-      parentId,
-      name: '',
-      age: 5,
-      allergies: '',
-      helmet_color: '',
-      jacket_color: '',
-      pants_color: '',
-      level: 'first_time',
-      emergency_contact_name: '',
-      emergency_contact_phone: '',
-      emergency_contact_relationship: ''
-    }
-  );
+  const [formData, setFormData] = useState<Partial<KidProfile>>(() => ({
+    parentId,
+    name: '',
+    age: 5,
+    allergies: '',
+    helmet_color: '',
+    jacket_color: '',
+    pants_color: '',
+    level: 'first_time',
+    discipline: 'skiing',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    emergency_contact_relationship: '',
+    ...(existingProfile || {}),
+    parentId,
+    discipline: (existingProfile?.discipline ?? 'skiing') as LessonSport
+  }));
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -39,10 +41,16 @@ export function KidProfileForm({ parentId, existingProfile, onClose, onSave }: K
       setIsSubmitting(true);
       setError(null);
 
+      const payload: Partial<KidProfile> = {
+        ...formData,
+        discipline: formData.discipline ?? 'skiing'
+      };
       if (existingProfile) {
-        await updateKidProfile(existingProfile.id, formData);
+        await updateKidProfile(existingProfile.id, payload);
       } else {
-        await createKidProfile(formData as Required<Omit<KidProfile, 'id' | 'created_at' | 'updated_at'>>);
+        await createKidProfile(
+          payload as Required<Omit<KidProfile, 'id' | 'created_at' | 'updated_at'>>
+        );
       }
 
       onSave();
@@ -169,6 +177,37 @@ export function KidProfileForm({ parentId, existingProfile, onClose, onSave }: K
                   <option value="confident_turns">Confident Turns</option>
                   <option value="consistent_blue">Consistent Blue</option>
                 </select>
+              </div>
+
+              <div className="col-span-2">
+                <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Discipline</p>
+                <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                  Ski or snowboard so lessons and gear stay aligned.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {(
+                    [
+                      { id: 'skiing' as const, label: 'Skiing', icon: '⛷️' },
+                      { id: 'snowboarding' as const, label: 'Snowboarding', icon: '🏂' }
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, discipline: opt.id }))}
+                      className={`rounded-xl border-2 p-3 text-left transition-all ${
+                        formData.discipline === opt.id
+                          ? 'border-blue-500 bg-blue-50 dark:border-blue-400/70 dark:bg-blue-950/40'
+                          : 'border-gray-200 hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500'
+                      }`}
+                    >
+                      <span className="text-2xl" aria-hidden>
+                        {opt.icon}
+                      </span>
+                      <div className="mt-1 font-medium text-gray-900 dark:text-white">{opt.label}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="col-span-2">

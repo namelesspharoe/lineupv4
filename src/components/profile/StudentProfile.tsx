@@ -19,11 +19,13 @@ import {
   Trophy,
   BarChart3,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Baby
 } from 'lucide-react';
 import { doc, updateDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { AvatarUpload } from '../common/AvatarUpload';
+import { KidProfileList } from '../kids/KidProfileList';
 import { getStudentSkillLevel, studentSkillLevelUserFields } from '../../utils/studentSkillLevel';
 
 interface StudentProfileProps {
@@ -407,6 +409,25 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
           </p>
         </div>
       </div>
+
+      {/* Kid profiles — only when editing own profile (privacy) */}
+      {isEditable && (
+        <div className="mb-8 rounded-xl border border-gray-200 bg-slate-50/80 p-4 shadow-sm dark:border-gray-600 dark:bg-gray-900/40 sm:p-6">
+          <div className="mb-4 flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-blue-600">
+              <Baby className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Kids&apos; profiles</h3>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Add or edit profiles for children who take lessons—age, skill level, gear colors, allergies, and
+                emergency contacts. This information is included when you book for them.
+              </p>
+            </div>
+          </div>
+          <KidProfileList parentId={student.id} embedded />
+        </div>
+      )}
 
       {/* Recent Achievements */}
       {recentAchievements.length > 0 && (

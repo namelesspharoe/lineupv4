@@ -4,5 +4,6 @@
 export {
   achievementService,
   ACHIEVEMENT_DEFINITIONS,
+  KID_ACHIEVEMENT_DEFINITIONS,
   type AchievementDefinition
 } from './progress';

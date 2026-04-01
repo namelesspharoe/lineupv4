@@ -145,6 +145,18 @@ export function BookLesson() {
     });
   }, [location.hash, location.search, activeTab]);
 
+  useLayoutEffect(() => {
+    if (location.hash !== '#ai-matching') return;
+    if (activeTab !== 'browse' || isLoadingBrowse) return;
+    const el = document.getElementById('ai-matching');
+    if (!el) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  }, [location.hash, location.search, activeTab, isLoadingBrowse]);
+
   useEffect(() => {
     if (activeTab !== 'browse') return;
 

@@ -23,7 +23,8 @@ import {
   Check,
   X as XIcon,
   Shield,
-  User as UserIcon
+  User as UserIcon,
+  Lock
 } from 'lucide-react';
 import { UnifiedLessonModal } from '../lessons/UnifiedLessonModal';
 import { InstructorCalendar } from '../dashboard/instructor/InstructorCalendar';
@@ -126,9 +127,18 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const navigate = useNavigate();
   const { user: authUser } = useAuth();
+  const isGuest = !authUser;
+
+  const redirectGuestToSignup = () => {
+    onClose();
+    navigate(`/signup?instructorId=${encodeURIComponent(instructor.id)}`);
+  };
 
   // Check if current user is the instructor
   const isInstructor = authUser?.id === instructor.id;
+
+  const guestActionDimClass =
+    'opacity-[0.55] saturate-[0.85] shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] hover:opacity-[0.72] dark:shadow-[inset_0_1px_2px_rgba(0,0,0,0.25)]';
 
   // Fetch enhanced instructor stats
   useEffect(() => {
@@ -312,11 +322,7 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
 
   const handleMessage = () => {
     if (!authUser) {
-      const confirmed = window.confirm('Please sign in to message instructors. Would you like to sign in now?');
-      if (confirmed) {
-        onClose();
-        navigate('/');
-      }
+      redirectGuestToSignup();
       return;
     }
 
@@ -750,39 +756,69 @@ export function InstructorProfileModal({ instructor, onClose }: InstructorProfil
               </div>
 
               <aside className="w-full shrink-0 space-y-4 lg:sticky lg:top-4 lg:w-72 lg:self-start">
+                {isGuest && (
+                  <div className="rounded-xl border border-amber-200/90 bg-gradient-to-br from-amber-50 via-white to-orange-50/90 p-4 shadow-sm dark:border-amber-500/25 dark:from-amber-950/35 dark:via-gray-900 dark:to-orange-950/25">
+                    <div className="flex gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/45">
+                        <Lock className="h-5 w-5 text-amber-800 dark:text-amber-300" aria-hidden />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          Sign up to use these actions
+                        </p>
+                        <p className="mt-1.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                          Create a free account to book lessons, check availability, message instructors, and open
+                          full profiles.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={redirectGuestToSignup}
+                          className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-800 underline decoration-amber-700/50 underline-offset-2 transition hover:text-amber-900 dark:text-amber-300 dark:decoration-amber-400/50 dark:hover:text-amber-200"
+                        >
+                          Go to sign up
+                          <span aria-hidden>→</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <button
                   type="button"
-                  onClick={() => setShowBooking(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3.5 text-sm font-semibold text-white shadow-md transition hover:from-blue-700 hover:to-blue-800"
+                  onClick={() => (isGuest ? redirectGuestToSignup() : setShowBooking(true))}
+                  className={`flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3.5 text-sm font-semibold text-white shadow-md transition hover:from-blue-700 hover:to-blue-800 ${isGuest ? guestActionDimClass : ''}`}
                 >
-                  <Calendar className="h-5 w-5" />
+                  <Calendar className="h-5 w-5 shrink-0" />
                   Book a lesson
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowCalendar(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-600/80 bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                  onClick={() => (isGuest ? redirectGuestToSignup() : setShowCalendar(true))}
+                  className={`flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-600/80 bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 ${isGuest ? guestActionDimClass : ''}`}
                 >
-                  <Calendar className="h-5 w-5" />
+                  <Calendar className="h-5 w-5 shrink-0" />
                   View availability
                 </button>
                 <button
                   type="button"
-                  onClick={handleMessage}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => (isGuest ? redirectGuestToSignup() : handleMessage())}
+                  className={`flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 ${isGuest ? guestActionDimClass : ''}`}
                 >
-                  <MessageSquare className="h-5 w-5" />
+                  <MessageSquare className="h-5 w-5 shrink-0" />
                   Message
                 </button>
                 <button
                   type="button"
                   onClick={() => {
+                    if (isGuest) {
+                      redirectGuestToSignup();
+                      return;
+                    }
                     onClose();
                     navigate(`/profile/${instructor.id}`);
                   }}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  className={`flex w-full items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 ${isGuest ? guestActionDimClass : ''}`}
                 >
-                  <UserIcon className="h-5 w-5" />
+                  <UserIcon className="h-5 w-5 shrink-0" />
                   Full profile page
                 </button>
 

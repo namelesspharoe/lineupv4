@@ -8,11 +8,10 @@ export function CheckoutSuccess() {
   const { clear } = useCart();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
     if (!sessionId) {
-      setError('Invalid checkout session');
+      setError('Missing booking confirmation');
       setIsLoading(false);
       return;
     }
@@ -51,7 +50,9 @@ export function CheckoutSuccess() {
           <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
         </div>
 
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Payment successful</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+          Booking confirmed
+        </h1>
 
         <p className="text-gray-600 dark:text-gray-400 mb-6">
           Your lessons are booked. You can view them under Lessons or on Book Lesson (Active).

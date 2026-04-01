@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mountain, Sparkles, Star } from 'lucide-react';
+import { Mountain, Search, Star } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
@@ -81,14 +81,14 @@ export function Hero({
           </p>
           
           <div className="mb-5 sm:mb-8 inline-flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-600/20 backdrop-blur-sm border border-blue-500/30 rounded-xl sm:rounded-full max-w-full">
-            <span className="text-xs sm:text-sm font-semibold text-blue-300">✨ AI matching</span>
+            <span className="text-xs sm:text-sm font-semibold text-blue-300">Lesson search</span>
             <span className="text-[11px] sm:text-xs text-gray-400">Suggestions based on your goals</span>
           </div>
           
           <form
             onSubmit={handleLessonMatchSubmit}
             className="mb-8 sm:mb-12 max-w-2xl"
-            aria-label="Describe your lesson for AI matching"
+            aria-label="Describe your lesson to search instructors"
           >
             <label
               htmlFor="hero-lesson-match"
@@ -116,8 +116,8 @@ export function Hero({
                   disabled={!lessonDescription.trim() || matchLoading}
                   className="order-1 sm:order-2 inline-flex items-center justify-center gap-2 min-h-[44px] px-5 py-2.5 rounded-xl font-semibold text-sm sm:text-base bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 disabled:opacity-40 disabled:pointer-events-none transition-colors touch-manipulation shadow-lg"
                 >
-                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-                  {matchLoading ? 'Matching…' : 'Match with AI'}
+                  <Search className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                  {matchLoading ? 'Searching…' : 'Search'}
                 </button>
               </div>
             </div>

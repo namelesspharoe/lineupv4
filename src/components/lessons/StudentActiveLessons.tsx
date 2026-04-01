@@ -245,6 +245,23 @@ export function StudentActiveLessons({
                       {lesson.skillLevel?.replace('_', ' ') ?? '—'}
                     </span>
                   </div>
+                  {(() => {
+                    const names =
+                      lesson.participantChildNames?.length
+                        ? lesson.participantChildNames
+                        : lesson.participantChildName
+                          ? [lesson.participantChildName]
+                          : [];
+                    if (names.length === 0) return null;
+                    return (
+                      <div className="mt-2">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-900 dark:bg-violet-950/50 dark:text-violet-100">
+                          <span aria-hidden>👧</span>
+                          For: {names.join(', ')}
+                        </span>
+                      </div>
+                    );
+                  })()}
                   <span className="mt-2 inline-block text-xs font-medium text-blue-600 dark:text-blue-400">
                     Tap for details, cancel, or review
                   </span>
